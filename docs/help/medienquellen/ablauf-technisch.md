@@ -32,7 +32,24 @@ Beteiligte Komponenten:
 
 - `LocalMediaSourceReader.ResolveFilePath` — löst Dateiangaben (auch relative Unterpfade wie `.actors/Name.jpg` aus NFO-`<thumb>`-Elementen) per `Path.GetFullPath(Path.Combine(collection.Path, fileName))` auf und prüft, dass das Ergebnis innerhalb des normalisierten Quell-Roots (`MediaSource.Path`) liegt. Die Pfadsegmente werden case-insensitiv (`OrdinalIgnoreCase`) über Verzeichnis-Enumeration aufgelöst; `ReparsePoint`-Einträge und Verzeichnisse als Endziel werden abgelehnt. Bei jeder Verletzung wird `null` zurückgegeben — die Datei gilt als nicht vorhanden.
 
-### 4. Streaming und Download
+#### Altersfreigaben
+
+- `Movie.LoadFromXml`/`TVShow.LoadFromXml` werten über `AgeRatingNormalizer.ExtractFromXml` das NFO-Element `<mpaa>` (primär) bzw. `<certification>` (Fallback) aus: Der Elementwert landet unverändert in `AgeRatingRaw`, `AgeRating`/`AgeRatingMinAge` werden aus `AgeRatingNormalizer.Normalize` gesetzt. Fehlt das Element, bleiben alle drei Felder `null`.
+- Nach `LoadFromXml` (Neuanlage und Update — beide nur bei `!IsManuallyEdited`) setzt der Classifier `AgeRatingClassifiedAt = DateTime.UtcNow` (Muster `ActorsClassifiedAt`).
+- Ist danach `AgeRatingRaw == null` (keine NFO-Angabe), ruft `MediaSourceClassifier.TryApplyOnlineAgeRatingAsync` den optionalen `ITmdbAgeRatingService` auf: `ExtractTmdbId` liefert die TMDB-ID aus `uniqueid[@type='tmdb']`/`<tmdbid>` (direkter Lookup), sonst Titelsuche mit `Year`/`PremieredAt`-Jahr. Das Ergebnis wird als „{Land}:{Certification}" (z. B. „DE:16") in `AgeRatingRaw` geschrieben und normalisiert. NFO-Angaben haben damit immer Vorrang vor der Online-Quelle.
+- `TmdbAgeRatingService` (Singleton, named `HttpClient` „Tmdb") fragt für Filme `release_dates` und für Serien `content_ratings` ab und wählt die Länderfreigabe `TmdbOptions.PreferredCountry` (Default „DE") → „US" → erste Angabe. Deaktiviert/kein `ApiKey`/HTTP-Fehler/Timeout/Parsefehler ⇒ `null` + `LogDebug`/`LogWarning` — der Scan wird nicht behindert.
+- `ProcessEpisodesForTVShowAsync` bleibt unverändert: Episoden und Staffeln tragen keine eigenen Freigabefelder; die Detailansicht zeigt die Serienfreigabe (Anzeige-Vererbung).
+
+### 4. Nacherfassung der Altersfreigaben (Backfill)
+
+`ActorBackfillWorker.ExecuteAsync` ruft nach `BackfillMissingActorsAsync` zusätzlich `MediaSourceClassifier.BackfillMissingAgeRatingsAsync` auf (gleiche `IBackgroundProcessingGate`-Lease, eigener try/catch-Block; der Worker-Name bleibt aus Kompatibilitätsgründen unverändert).
+
+- Kandidaten: `Movies`/`TVShows` mit `AgeRatingClassifiedAt == null`; `IsManuallyEdited`-Einträge werden übersprungen.
+- Filme: erstes Nicht-Trailer-`MediaItem` über `MovieMediaItems` (`!IsTrailer`); NFO-Kandidaten `<name>.nfo` und `movie.nfo` werden über `TryReadNfoAsync` gelesen (aus `TryReadActorNfoAsync` extrahierter Collection-Walk mit Parent-Aufstieg).
+- Serien: `tvshow.nfo` über `TryReadNfoAsync` ab der `CollectionId`-Collection.
+- Pro Eintrag: XML parsen → `LoadFromXml` (Normalisierung) → bei fehlendem Wert Online-Fallback → `AgeRatingClassifiedAt` setzen → `SaveChangesAsync`. Fehler pro Eintrag werden gefangen und mit `DiscardPendingChanges` verworfen; ungültige NFO-XML führt zum Online-Fallback statt zum Abbruch.
+
+### 5. Streaming und Download
 
 `ItemsController.StreamMediaItem` ermittelt `fileName = Path.GetFileName(mediaItem.Path)` und ruft `_reader.OpenFileStream(mediaCollection, fileName)`.
 
@@ -62,3 +79,5 @@ flowchart TD
 - `LocalMediaSourceReader` fängt `IOException`, `UnauthorizedAccessException`, `ArgumentException` und `NotSupportedException` beim Attribut-/Pfadzugriff und beim Enumerieren ab → Eintrag wird übersprungen bzw. `null`/`false` geliefert, kein Exception-Durchstich.
 - `MediaSourceAdminDetails.TryValidateLocalDirectory` bildet ungültige Pfade, fehlende Verzeichnisse und Zugriffsfehler auf jeweils eigene Meldungen ab.
 - `ItemsController.StreamMediaItem` liefert `NotFound`, wenn `OpenFileStream` `null` zurückgibt (fehlende Datei, Traversal-Versuch, Reparse Point).
+- `TmdbAgeRatingService` und `TryApplyOnlineAgeRatingAsync` fangen alle Fehler der Online-Abfrage (HTTP-Status, Timeout, `HttpRequestException`, Parsefehler) ab und liefern `null` — das Freigabefeld bleibt leer, der Scan läuft ohne Exception-Pfad weiter.
+- `BackfillMissingAgeRatingsAsync` fängt Fehler pro Eintrag ab (`LogWarning` + `DiscardPendingChanges`); ein fehlerhafter Eintrag stoppt die Nacherfassung der übrigen nicht.

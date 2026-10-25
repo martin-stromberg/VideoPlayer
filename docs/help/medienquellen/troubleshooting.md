@@ -57,6 +57,26 @@
 
 **Lösung:** Quelle löschen und mit dem gewünschten Typ neu anlegen.
 
+## Altersfreigabe bleibt bei einem Titel leer
+
+**Symptom:** Ein Film oder eine Serie zeigt kein Freigabe-Badge, obwohl der Titel eingelesen wurde.
+
+**Ursache:** Es liegt keine Quellangabe vor oder die Online-Ergänzung greift nicht:
+
+- Die NFO enthält weder `<mpaa>` noch `<certification>` (Filme: `<name>.nfo`/`movie.nfo`, Serien: `tvshow.nfo`).
+- `Tmdb:Enabled` ist `false` oder `Tmdb:ApiKey` fehlt → `TmdbAgeRatingService` liefert `null` ohne Fehler.
+- TMDB-Fehler (HTTP-Status, Timeout, Parsefehler, kein Treffer) werden bewusst zu `null` + `LogDebug`/`LogWarning` — der Scan wird nicht behindert.
+- Der Eintrag ist `IsManuallyEdited` → Scan und Backfill überspringen ihn vollständig.
+- Bestandsdaten: `AgeRatingClassifiedAt` markiert bereits verarbeitete Einträge; ohne Marker holt `BackfillMissingAgeRatingsAsync` (über `ActorBackfillWorker` beim Start) die Freigabe nach.
+
+**Lösung:**
+1. NFO prüfen und `<mpaa>` bzw. `<certification>` setzen, dann die Quelle erneut scannen lassen.
+2. Für die Online-Ergänzung `Tmdb:Enabled = true` setzen und `Tmdb:ApiKey` außerhalb des Repositorys hinterlegen (`appsettings.Local.json`, Umgebungsvariable oder User Secrets — siehe `docs/SECRETS_MANAGEMENT.md`).
+3. Prüfen, ob `AgeRatingClassifiedAt` für den Eintrag `null` ist — dann erfolgt die Nacherfassung beim nächsten Startlauf automatisch.
+4. Alternativ kann ein Administrator die Freigabe im Editiermodus der Detailansicht manuell setzen; der Eintrag ist danach zugleich vor Scan-Überschreibung geschützt.
+
+> **Hinweis:** Eine NFO-Angabe hat immer Vorrang — ist `AgeRatingRaw` gesetzt, wird die Online-Quelle nicht befragt.
+
 ## Alt-Backup schlägt an der Schema-Validierung fehl
 
 **Symptom:** Restore eines Backups aus einer Version vor dem Feature schlägt fehl.

@@ -63,3 +63,30 @@
 **Beschreibung:** Einträge mit führendem Punkt (Navigations-Einträge, versteckte Dateien, `.actors`-Ordner) werden beim Einlesen beider Quelltypen übersprungen.
 
 **Umsetzung:** `MediaEntryFilter.IsIgnoredEntry` — gemeinsame Regel, aus `SftpMediaSourceReader` extrahiert und von beiden Readern genutzt.
+
+## Altersfreigabe: Normalisierung auf kanonische Stufen
+
+**Beschreibung:** Rohwerte aus NFO (`<mpaa>`/`<certification>`) oder TMDB werden auf bekannte Freigabestufen normalisiert, damit Anzeige und spätere Bereichsvergleiche („≤ FSK 12") einheitliche Werte vorliegen haben. Der Rohwert bleibt zusätzlich erhalten.
+
+**Bedingungen:**
+- Jede Auswertung — NFO-Parsing, Scan, Backfill und Admin-Editiermodus — läuft über denselben Normalizer.
+
+**Verhalten:**
+- „FSK 12", „FSK12", „FSK-12" → `FSK 12` (gültige Stufen: 0/6/12/16/18); ungültige FSK-Zahlen bleiben Rohwert.
+- „Rated PG-13" → `PG-13`; Länderpräfixe („Germany:16", „DE:6", „US:PG-13") werden am Doppelpunkt abgetrennt. MPAA-Mapping: G→0, PG→8, PG-13→13, R→17, NC-17→18. Nackte Zahlen („16") → `FSK 16`, sofern gültig.
+- Unbekannter Wert → `AgeRating` = getrimmter Rohwert, `AgeRatingMinAge` = `null` (wird angezeigt, ist aber nicht bereichsvergleichbar).
+- Leere Eingabe → alle drei Felder `null`.
+
+**Umsetzung:** `AgeRatingNormalizer.Normalize`/`ExtractFromXml` (static, zustandslos). `AgeRatingNormalizer.CanonicalOptions` ist die einzige Quelle der Auswahlwerte in `AgeRatingSelect`, damit UI und Normalisierung nicht driften.
+
+## Altersfreigabe: Quellenpriorität und Überschreibschutz
+
+**Beschreibung:** Mehrere Quellen können eine Freigabe liefern — die NFO hat Vorrang, die Online-Quelle ergänzt nur fehlende Werte, manuell gepflegte Einträge werden nie überschrieben.
+
+**Verhalten:**
+- NFO-`<mpaa>`/`<certification>` vorhanden → `ITmdbAgeRatingService` wird nicht aufgerufen.
+- NFO ohne Freigabe + `Tmdb:Enabled` + `ApiKey` → `TryApplyOnlineAgeRatingAsync` setzt `AgeRatingRaw` = „{Land}:{Certification}" (Länderwahl `PreferredCountry` Default „DE" → „US" → erste Angabe) und normalisiert ihn.
+- `IsManuallyEdited` ⇒ Scan und `BackfillMissingAgeRatingsAsync` überspringen den Eintrag vollständig — auch ein nachträglich in der NFO geänderter Wert wird nicht mehr übernommen.
+- Admin-Editiermodus: `ValidateAgeRatingValue` akzeptiert nur kanonische Werte (`MinAge != null`) oder den bereits gespeicherten nicht-kanonischen Bestandswert (UI-Option „übernommen"); `ValidateNoAgeRating` lehnt gesetzte Werte für `moviecollection`/`tvshowseason`/`tvshowepisode` ab; Längenlimit 64 Zeichen (`MetadataEditModel.MaxAgeRatingLength`); leerer Wert löscht die Freigabe.
+
+**Umsetzung:** `MediaSourceClassifier.TryApplyOnlineAgeRatingAsync` (nur wenn `AgeRatingRaw == null`), `MediaMetadataEditorService.{ApplyAgeRating, ValidateAgeRatingValue, ValidateAgeRatingLength, ValidateNoAgeRating}`, eintragsweiter `IsManuallyEdited`-Schutz.

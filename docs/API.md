@@ -351,6 +351,8 @@ Liefert editierbare Genre-Optionen als `DtoGenreOption[]`.
 
 Speichert die vom Anwender änderbaren Metadaten eines Medieneintrags (`MediaMetadataUpdateRequest`).
 
+Für die Typen `movie` und `tvshow` akzeptiert der Request zusätzlich `ageRating` (kanonische Stufen `FSK 0`/`6`/`12`/`16`/`18` bzw. MPAA `G`/`PG`/`PG-13`/`R`/`NC-17`, maximal 64 Zeichen; leer löscht den Wert; der bereits gespeicherte nicht-kanonische Bestandswert bleibt zulässig). Für `moviecollection`, `tvshowseason` und `tvshowepisode` sowie für unbekannte Bezeichnungen wird ein gesetzter Wert mit `400` abgelehnt.
+
 Statuscodes:
 
 - `400`, wenn die Angaben ungültig sind (z. B. Datumsfeld passt nicht zum Typ, Name zu lang)
@@ -368,7 +370,7 @@ Liefert Details zu einem Medieneintrag. Unterstützte `type`-Werte sind:
 - `tvshowseason`
 - `tvshowepisode`
 
-Antworten sind je nach Typ `DtoMovieCollection`, `DtoMovie`, `DtoTVShow`, `DtoTVShowSeason` oder `DtoTVShowEpisode`.
+Antworten sind je nach Typ `DtoMovieCollection`, `DtoMovie`, `DtoTVShow`, `DtoTVShowSeason` oder `DtoTVShowEpisode`. `DtoMovie` und `DtoTVShow` enthalten zusätzlich `ageRating` (normalisierter Anzeigewert, z. B. `FSK 12` oder `PG-13`) und `ageRatingMinAge` (vergleichbares Mindestalter, `null` bei unbekannter Stufe).
 
 Statuscodes:
 

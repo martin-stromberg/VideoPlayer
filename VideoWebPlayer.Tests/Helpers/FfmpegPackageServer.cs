@@ -43,9 +43,14 @@ internal sealed class FfmpegPackageServer : IAsyncDisposable
 
     public static async Task<FfmpegPackageServer> StartAsync(byte[] zipPayload, byte[] tarXzPayload)
     {
-        var builder = WebApplication.CreateSlimBuilder();
-        // Explizites Listen auf IPv4-Loopback — UseUrls kann durch eine gesetzte
-        // ASPNETCORE_URLS-Umgebungsvariable ueberstimmt werden; der Loopback-Port kommt vom OS.
+        // CreateEmptyBuilder laedt keine Konfigurationsquellen: Create(Slim)Builder wuerde ohne
+        // gesetzte Umgebung als Production laufen und das in das Ausgabeverzeichnis kopierte
+        // appsettings.Production.json lesen — dessen Endpunkt http://*:5002 bindet Kestrel dann
+        // zusaetzlich zum Loopback-Listen und loest die Windows-Firewall-Abfrage aus.
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        builder.WebHost.UseKestrelCore();
+        builder.Services.AddRouting();
+        // Explizites Listen auf IPv4-Loopback — der Loopback-Port kommt vom OS.
         builder.WebHost.ConfigureKestrel(options => options.Listen(System.Net.IPAddress.Loopback, 0));
         var app = builder.Build();
 

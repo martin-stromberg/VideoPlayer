@@ -21,6 +21,7 @@ namespace VideoWebPlayer.Tests;
 /// server — so the download really installs into <c>tools/ffmpeg/</c> and the real
 /// <c>Resolve()</c> finds the binaries afterwards.
 /// </summary>
+[Trait("Category", "E2E")]
 public sealed class TVSenderAdminE2ETests_FfmpegDownload : TVSenderAdminE2ETestBase
 {
     private FfmpegPackageServer _packageServer = null!;

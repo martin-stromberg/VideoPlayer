@@ -14,14 +14,14 @@ Branch: `task/issue-269-619639f466104b2f9c65709f34f17768-altersfreigaben-fsk-mpa
 | [x] | 5b | Plan gegen Anforderung und Testbedarf prüfen — `Plan vollständig` | `plan-check.md` |
 | [x] | 5c | Planungscommit (`aaf3c1e`) | – |
 | [x] | 6 | Implementierung (Unteragent) | Codeänderungen |
-| [ ] | 7 | Plan-Review (Unteragent, bedingt) | `review.md` |
-| [ ] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |
-| [ ] | 9 | Code-Review (Unteragent) | `review-code.md` |
-| [ ] | 10 | Tests ausführen (Unteragent) | `test-results.md` |
-| [ ] | – | Iteration oder Abschluss entscheiden | – |
+| [x] | 7 | Plan-Review — `Vollständig umgesetzt` | `review.md` |
+| [x] | 8 | Usability-Review — `Keine Befunde` (Iter. 2) | `review-usability.md` |
+| [x] | 9 | Code-Review — `Keine Befunde` (Iter. 3) | `review-code.md` |
+| [x] | 10 | Tests ausführen — `Keine Fehler` (Iter. 3, 1 dok. Flake) | `test-results.md` |
+| [x] | – | Iteration beendet — alle Prüfungen grün (3 Iterationen) | – |
 | [ ] | 11 | Folgeaufgaben dokumentieren (bei Schleifenabbruch) | `continue.md` |
-| [ ] | 12 | Dokumentation erstellen (Unteragent) | `docs/help/` |
-| [ ] | 12b | README aktualisieren (Unteragent) | `README.md` |
-| [ ] | 12c | Release Notes aktualisieren (Unteragent) | `docs/RELEASE_NOTES.md` |
-| [ ] | – | Feature-Verzeichnis löschen | – |
-| [ ] | – | Commit durchführen | – |
+| [x] | 12 | Dokumentation — `docs/help/medienquellen`, `docs/API.md` ergänzt | `docs/help/` |
+| [x] | 12b | README — Eintrag bereits vorhanden/verifiziert | `README.md` |
+| [x] | 12c | Release Notes — Eintrag bereits vorhanden/verifiziert | `docs/RELEASE_NOTES.md` |
+| [x] | – | Feature-Verzeichnis löschen | – |
+| [x] | – | Commit durchführen | – |

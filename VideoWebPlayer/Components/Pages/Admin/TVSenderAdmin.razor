@@ -356,7 +356,11 @@ else
                     </div>
                     @if (editRule.DurationMinutes is not > 0)
                     {
-                        <span class="form-text" id="rule-clip-groups-hint">Clip-Gruppen und Karenzzeit wirken nur bei gesetzter Sendeplatz-Länge.</span>
+                        <span class="form-text" id="rule-clip-groups-hint">Clip-Gruppen und Karenzzeit wirken nur bei gesetzter Länge (Minuten).</span>
+                    }
+                    else if (editRule.SelectedClipGroupIds.Count == 0)
+                    {
+                        <span class="form-text" id="rule-clip-groups-hint">Die Karenzzeit wirkt erst mit mindestens einer gewählten Clip-Gruppe.</span>
                     }
                     else
                     {
@@ -364,6 +368,7 @@ else
                             <div>
                                 <label class="form-label" for="rule-grace-minutes">Karenzzeit (Minuten)</label>
                                 <input id="rule-grace-minutes" type="number" min="1" class="form-control" @bind="editRule.GraceMinutes" />
+                                <span class="form-text" id="rule-grace-minutes-hint">Restzeit vor dem Sendeplatz-Ende, ab der kein weiterer Titel mehr gestartet, sondern mit Clips der gewählten Gruppen aufgefüllt wird.</span>
                             </div>
                         </div>
                     }

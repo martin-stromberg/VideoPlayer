@@ -18,7 +18,7 @@ using Xunit;
 namespace VideoWebPlayer.Tests.Components;
 
 /// <summary>
-/// bUnit tests for the restructured <see cref="TVSenderAdmin"/> page (N13+N14): the four-tab
+/// bUnit tests for the restructured <see cref="TVSenderAdmin"/> page (N13+N14): the five-tab
 /// layout, tab switching via Razor state and the expandable pending/failed probe detail
 /// tables — rendered against a real SQLite database like <see cref="GenreAdminTests"/>.
 /// </summary>
@@ -70,7 +70,7 @@ public sealed class TVSenderAdminTests
     }
 
     [Fact]
-    public async Task RendersFourTabs_WithRulesActive()
+    public async Task RendersAllTabs_WithRulesActive()
     {
         var ct = Xunit.TestContext.Current.CancellationToken;
         using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-tabs", ct);

@@ -1,5 +1,6 @@
 @using VideoWebPlayer.Data
 @using VideoWebPlayer.Services
+@implements IDisposable
 @inject IProgramClipGroupService ClipGroupService
 
 <div class="admin-card admin-card-wide">
@@ -27,7 +28,9 @@
                 {
                     <tr class="clipgroup-row" data-group-id="@g.Id">
                         <td>@g.Name@(g.IsSystem ? " (System — automatisch befüllt)" : "")</td>
-                        <td>@(Counts.GetValueOrDefault(g.Id))</td>
+                        @* Die System-Gruppe „Trailer" hat keine gespeicherte Mitgliederliste —
+                           eine 0 würde sie fälschlich als leer ausweisen. *@
+                        <td>@(g.IsSystem ? "automatisch" : Counts.GetValueOrDefault(g.Id).ToString())</td>
                         <td class="actions-cell">
                             <button class="btn btn-sm btn-primary clipgroup-manage" @onclick="() => SelectGroupAsync(g)">@(g.IsSystem ? "Ansehen" : "Clips verwalten")</button>
                             @if (!g.IsSystem)
@@ -65,11 +68,21 @@
         else
         {
             <p class="form-text" id="clipgroup-noduration-hint">Clips ohne ermittelte Laufzeit (Markierung „keine Laufzeit") lassen sich zuordnen, werden bei der Restzeit-Auffüllung aber nicht berücksichtigt — die Laufzeitermittlung läuft im Hintergrund, Fortschritt und Wiederholung im Tab „Laufzeitermittlung".</p>
+            <div class="admin-settings-grid">
+                <div>
+                    <label class="form-label" for="clip-member-search">Suche</label>
+                    <input id="clip-member-search" class="form-control" @bind="clipMemberSearch" @bind:event="oninput" placeholder="Clip filtern..." />
+                </div>
+            </div>
+            @if (FilteredGroupMembers.Count == 0 && groupMembers.Count > 0)
+            {
+                <p class="form-text" id="clip-member-search-empty">Kein Clip der Gruppe entspricht der Suche.</p>
+            }
             <div class="admin-table-wrap">
                 <table class="table table-dark table-striped align-middle">
                     <thead><tr><th>Name</th><th>Quelle</th><th>Laufzeit</th><th></th></tr></thead>
                     <tbody>
-                    @foreach (var m in groupMembers)
+                    @foreach (var m in FilteredGroupMembers)
                     {
                         <tr class="clipgroup-member-row" data-media-item-id="@m.MediaItemId">
                             <td>@m.Name</td>
@@ -85,11 +98,11 @@
             <div class="admin-settings-grid">
                 <div>
                     <label class="form-label" for="clip-candidate-search">Suche</label>
-                    <input id="clip-candidate-search" class="form-control" @bind="clipCandidateSearch" @bind:event="oninput" />
+                    <input id="clip-candidate-search" class="form-control" @bind="clipCandidateSearch" @bind:event="oninput" @bind:after="OnCandidateSearchChanged" placeholder="Clip suchen..." />
                 </div>
                 <div>
                     <label class="form-label" for="clip-candidate-source">Quelle</label>
-                    <select id="clip-candidate-source" class="form-control" @bind="clipCandidateSourceId">
+                    <select id="clip-candidate-source" class="form-control" @bind="clipCandidateSourceId" @bind:after="ReloadCandidatesAsync">
                         <option value="">Alle Quellen</option>
                         @foreach (var s in MediaSources)
                         {
@@ -98,7 +111,6 @@
                     </select>
                 </div>
             </div>
-            <button id="clip-candidate-refresh" class="btn btn-sm btn-outline-light" @onclick="ReloadCandidatesAsync">Suchen</button>
             @if (clipCandidates.Count == 0)
             {
                 <div class="admin-empty-state" id="clip-candidate-empty">
@@ -195,13 +207,16 @@
     [Parameter] public EventCallback OnGroupsChanged { get; set; }
 
     private const int ClipCandidatePageSize = 100;
+    private const int CandidateSearchDebounceMilliseconds = 400;
 
     private ProgramClipGroup? selectedGroup;
     private List<ProgramClipGroupClip> groupMembers = new();
+    private string? clipMemberSearch;
     private List<ProgramClipGroupCandidate> clipCandidates = new();
     private bool clipCandidatesHasMore;
     private string? clipCandidateSearch;
     private long? clipCandidateSourceId;
+    private CancellationTokenSource? candidateSearchDebounceCts;
     private ClipGroupEditModel? groupEdit;
     private string? groupEditError;
     private ProgramClipGroup? deleteGroupCandidate;
@@ -263,6 +278,7 @@
     private async Task SelectGroupAsync(ProgramClipGroup group)
     {
         selectedGroup = group;
+        clipMemberSearch = null;
         clipCandidateSearch = null;
         clipCandidateSourceId = null;
         await ReloadGroupMembersAsync();
@@ -288,6 +304,16 @@
     private bool IsGroupMember(long mediaItemId)
         => groupMembers.Any(m => m.MediaItemId == mediaItemId);
 
+    // Clientseitiger Live-Filter über die bereits vollständig geladene Mitgliederliste —
+    // kein Server-Aufruf und damit auch kein Debounce nötig (Muster der Kandidaten-Suche).
+    private List<ProgramClipGroupClip> FilteredGroupMembers
+        => string.IsNullOrWhiteSpace(clipMemberSearch)
+            ? groupMembers
+            : groupMembers.Where(m =>
+                    m.Name.Contains(clipMemberSearch, StringComparison.OrdinalIgnoreCase)
+                    || m.SourceName.Contains(clipMemberSearch, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
     private async Task ReloadCandidatesAsync()
     {
         clipCandidates = [];
@@ -295,6 +321,56 @@
         if (selectedGroup is null || selectedGroup.IsSystem)
             return;
         await LoadMoreCandidatesAsync();
+    }
+
+    // Live-Suche wie in MediaSearchSelector: jede Eingabe startet die 400-ms-Frist neu,
+    // erst danach läuft die Kandidaten-Abfrage — nicht bei jedem Tastenschlag.
+    private Task OnCandidateSearchChanged()
+    {
+        candidateSearchDebounceCts?.Cancel();
+        candidateSearchDebounceCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        candidateSearchDebounceCts = cts;
+        _ = DebouncedReloadCandidatesAsync(cts.Token);
+        return Task.CompletedTask;
+    }
+
+    private async Task DebouncedReloadCandidatesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(CandidateSearchDebounceMilliseconds, cancellationToken);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+            return;
+
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                // Der Fire-and-forget-Task läuft unbeobachtet — Fehler der entkoppelten Suche
+                // gehen wie bei den anderen Handlern in die Statusanzeige, statt still zu faulten.
+                try
+                {
+                    await ReloadCandidatesAsync();
+                }
+                catch (Exception ex)
+                {
+                    clipGroupStatus = ex.Message;
+                }
+                StateHasChanged();
+            });
+        }
+        catch (Exception)
+        {
+            // Dispatch oder StateHasChanged schlug fehl (z. B. Komponente bereits disposed)
+            // — ohne diesen Catch faultete der unbeobachtete Task still.
+        }
     }
 
     // Pages the candidate list: one extra row beyond the page size proves further hits exist —
@@ -341,6 +417,12 @@
         {
             clipGroupStatus = ex.Message;
         }
+    }
+
+    public void Dispose()
+    {
+        candidateSearchDebounceCts?.Cancel();
+        candidateSearchDebounceCts?.Dispose();
     }
 
     private sealed class ClipGroupEditModel

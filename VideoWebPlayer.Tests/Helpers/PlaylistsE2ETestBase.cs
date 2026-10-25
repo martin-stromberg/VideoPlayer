@@ -948,7 +948,9 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
             return (episode.Id, show.Id);
         });
 
-    private static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
+    /// <summary>Returns the id of an existing media source, creating the shared "E2E Test Source"
+    /// when the fixture database has none yet.</summary>
+    protected static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
     {
         var existing = await db.MediaSources.FirstOrDefaultAsync();
         if (existing is not null)

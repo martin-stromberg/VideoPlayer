@@ -46,7 +46,8 @@ Beteiligte Komponenten:
 
 Der Regel-Dialog in `TVSenderAdmin.razor` zeigt bei `RuleType != Filler` die Checkbox-Liste
 `#rule-clip-groups` (alle Gruppen inkl. „Trailer" mit Zusatz „(automatisch befüllt)") und — nur
-bei gesetzter `DurationMinutes` — das Feld `#rule-grace-minutes`; sonst den Hinweis
+bei gesetzter `DurationMinutes` und mindestens einer gewählten Gruppe — das Feld
+`#rule-grace-minutes` mit Wirkungs-Hinweis `#rule-grace-minutes-hint`; sonst den Hinweis
 `#rule-clip-groups-hint`. `RuleEditModel.SelectedClipGroupIds`/`GraceMinutes` gehen als
 `ProgramRuleInput.ClipGroupIds`/`PlaceholderGrace` in `ProgramRuleService`.
 

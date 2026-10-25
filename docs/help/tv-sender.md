@@ -222,10 +222,14 @@ angelegt, verweist ein Hinweis auf den Tab „Clip-Gruppen".
 
 Die Auswahl wirkt nur bei gesetzter **Sendeplatz-Länge** („Länge (Minuten)"): Ohne Länge
 erscheint der Hinweis „Clip-Gruppen und Karenzzeit wirken nur bei gesetzter
-Sendeplatz-Länge." und das Zahlenfeld **„Karenzzeit (Minuten)"** bleibt ausgeblendet.
-Mit Länge steuert die Karenzzeit den Füllbeginn (Standard: 15 Minuten; sie muss größer
-als 0 und kleiner als die Sendeplatz-Länge sein — das wird beim Speichern geprüft). In der
-Regel-Tabelle zeigt der Material-Eintrag zugeordnete Gruppen als Suffix „— Clips: …".
+Länge (Minuten)." und das Zahlenfeld **„Karenzzeit (Minuten)"** bleibt ausgeblendet.
+Das Feld erscheint außerdem erst, sobald mindestens eine Clip-Gruppe gewählt ist — ohne
+Gruppe wäre die Eingabe wirkungslos, ein Hinweis weist darauf hin. Ein Hinweistext am Feld
+erklärt die Wirkung: die Restzeit vor dem Sendeplatz-Ende, ab der kein weiterer Titel mehr
+gestartet, sondern mit Clips der gewählten Gruppen aufgefüllt wird (Standard: 15 Minuten;
+sie muss größer als 0 und kleiner als die Sendeplatz-Länge sein — das wird beim Speichern
+geprüft). In der Regel-Tabelle zeigt der Material-Eintrag zugeordnete Gruppen als Suffix
+„— Clips: …".
 
 ##### Wirkung im Sendeplan
 

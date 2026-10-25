@@ -42,6 +42,10 @@ public sealed class TVSenderAdminTests_ClipGroups
         var trailerRow = cut.FindAll(".clipgroup-row").Single(r => r.TextContent.Contains("Trailer"));
         Assert.Empty(trailerRow.QuerySelectorAll(".clipgroup-delete"));
         Assert.Empty(trailerRow.QuerySelectorAll(".clipgroup-rename"));
+
+        // Die Clips-Spalte der System-Gruppe sagt „automatisch" — eine 0 würde die
+        // dynamisch befüllte Gruppe fälschlich als leer ausweisen.
+        Assert.Equal("automatisch", trailerRow.QuerySelectorAll("td")[1].TextContent.Trim());
     }
 
     [Fact]
@@ -82,6 +86,39 @@ public sealed class TVSenderAdminTests_ClipGroups
     }
 
     [Fact]
+    public async Task MemberList_FiltersLive_BySearchTerm()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("bunit-cg-membersearch", ct);
+        var group = await fixture.CreateClipGroupAsync("G", ct);
+        var clipA = await fixture.CreateMediaItemAsync(1, TimeSpan.FromMinutes(1));
+        clipA.Name = "funki-werbung.mkv";
+        var clipB = await fixture.CreateMediaItemAsync(1, TimeSpan.FromMinutes(1));
+        clipB.Name = "trenner.mkv";
+        await fixture.SaveDiagAsync();
+        await fixture.AddClipToGroupAsync(group.Id, clipA.Id, ct);
+        await fixture.AddClipToGroupAsync(group.Id, clipB.Id, ct);
+        var (ctx, cut) = await RenderAsync(fixture);
+        using var _ = ctx;
+
+        OpenClipGroupsTab(cut);
+        cut.FindAll(".clipgroup-manage").Single(b => b.TextContent.Contains("verwalten")).Click();
+        cut.WaitForAssertion(() =>
+            Assert.Equal(2, cut.FindAll(".clipgroup-member-row").Count), TimeSpan.FromSeconds(10));
+
+        // Clientseitige Live-Filterung der geladenen Mitglieder (Muster der Kandidaten-Suche).
+        cut.Find("#clip-member-search").Input("funki");
+        var rows = cut.FindAll(".clipgroup-member-row");
+        Assert.Single(rows);
+        Assert.Contains("funki-werbung.mkv", rows[0].TextContent);
+
+        // Ohne Treffer erklärt ein Hinweis den leeren Tabellenkörper.
+        cut.Find("#clip-member-search").Input("nix-gefunden");
+        Assert.Empty(cut.FindAll(".clipgroup-member-row"));
+        Assert.NotEmpty(cut.FindAll("#clip-member-search-empty"));
+    }
+
+    [Fact]
     public async Task CandidateList_Empty_ExplainsSelectionRule()
     {
         var ct = Xunit.TestContext.Current.CancellationToken;
@@ -100,6 +137,30 @@ public sealed class TVSenderAdminTests_ClipGroups
         Assert.Contains("Keine zuordenbaren Clips gefunden", empty.TextContent);
         Assert.Contains("Videodateien ohne Film-/Serien-Zuordnung", empty.TextContent);
         Assert.Empty(cut.FindAll(".clip-candidate-row"));
+    }
+
+    [Fact]
+    public async Task CandidateSearch_FiltersLive_WithoutSearchButton()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("bunit-cg-livesearch", ct);
+        await fixture.CreateClipGroupAsync("G", ct);
+        var item = await fixture.CreateMediaItemAsync(1, TimeSpan.FromMinutes(1));
+        var (ctx, cut) = await RenderAsync(fixture);
+        using var _ = ctx;
+
+        OpenClipGroupsTab(cut);
+        cut.FindAll(".clipgroup-manage").Single(b => b.TextContent.Contains("verwalten")).Click();
+        cut.WaitForAssertion(() =>
+            Assert.Contains(cut.FindAll(".clip-candidate-row"), r => r.TextContent.Contains(item.Name)),
+            TimeSpan.FromSeconds(10));
+
+        // Live-Suche (Debounce wie MediaSearchSelector): der Filter greift nach dem Tippen
+        // von allein — es gibt keine „Suchen"-Schaltfläche mehr.
+        Assert.Empty(cut.FindAll("#clip-candidate-refresh"));
+        cut.Find("#clip-candidate-search").Input("begriff-ohne-treffer");
+        cut.WaitForAssertion(() =>
+            Assert.NotEmpty(cut.FindAll("#clip-candidate-empty")), TimeSpan.FromSeconds(10));
     }
 
     [Fact]
@@ -125,10 +186,20 @@ public sealed class TVSenderAdminTests_ClipGroups
         Assert.Equal(2, cut.FindAll(".rule-clip-group-option").Count); // Trailer + Maskottchen
 
         // Ohne Sendeplatz-Länge bleibt das Karenzzeit-Feld ausgeblendet; der Hinweis
-        // erklärt die Kopplung an die Länge. Erst mit Länge erscheint das Feld.
+        // erklärt die Kopplung an die Länge.
         Assert.Empty(cut.FindAll("#rule-grace-minutes"));
-        Assert.NotEmpty(cut.FindAll("#rule-clip-groups-hint"));
+        Assert.Contains("Länge", cut.Find("#rule-clip-groups-hint").TextContent);
+
+        // Mit Länge, aber ohne gewählte Gruppe bleibt das Feld wirkungslos — der Hinweis
+        // erklärt, dass die Karenzzeit eine Clip-Gruppe braucht.
         cut.Find("#rule-duration").Change("240");
+        cut.WaitForAssertion(() =>
+            Assert.Contains("Clip-Gruppe", cut.Find("#rule-clip-groups-hint").TextContent), TimeSpan.FromSeconds(10));
+        Assert.Empty(cut.FindAll("#rule-grace-minutes"));
+
+        // Erst mit gewählter Gruppe erscheint das Feld samt Hinweis auf seine Wirkung.
+        cut.Find($"#rule-clip-group-{group.Id}").Change(true);
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rule-grace-minutes")), TimeSpan.FromSeconds(10));
+        Assert.Contains("Restzeit", cut.Find("#rule-grace-minutes-hint").TextContent);
     }
 }

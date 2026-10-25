@@ -595,9 +595,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var rule = state.Rule;
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
-        var clipGrace = state.ClipGroups.Count > 0 && rule.SlotDuration is not null
-            ? rule.PlaceholderGrace
-            : (TimeSpan?)null;
+        var clipGrace = state.ClipGrace;
 
         var count = items.Count;
         var earliestStart = occurrenceStarts.Min();
@@ -672,9 +670,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var strands = state.Strands;
         var m = strands.Count;
         var rule = state.Rule;
-        var clipGrace = state.ClipGroups.Count > 0 && rule.SlotDuration is not null
-            ? rule.PlaceholderGrace
-            : (TimeSpan?)null;
+        var clipGrace = state.ClipGrace;
         if (occurrenceStarts.Count == 0)
             return false;
 
@@ -1126,6 +1122,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public List<ClipGroupState> ClipGroups { get; } = [];
         public bool IsInterleaved => Strands.Count > 1;
 
+        // The per-rule placeholder grace stops the title selection once the remaining period
+        // drops below it — only when clip groups are assigned to a slot-duration rule;
+        // otherwise the selection behaves exactly like before (no grace).
+        public TimeSpan? ClipGrace => ClipGroups.Count > 0 && Rule.SlotDuration is not null
+            ? Rule.PlaceholderGrace
+            : null;
+
         // Flat-mode surface (single strand): used by filler handling and the flat airing
         // reproducibility check — identical semantics to the former single ring.
         public int NextIndex => Strands[0].NextIndex;
@@ -1448,11 +1451,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     private (List<SchedulableItem> Taken, int[]? TakenCounts) SelectItems(
         RuleState state, ProgramRule rule, DateTime airingStartUtc, (DateTime StartUtc, bool Hard)? bound)
     {
-        // The per-rule placeholder grace stops the title selection once the remaining period
-        // drops below it — only when clip groups are assigned to a slot-duration rule.
-        var clipGrace = state.ClipGroups.Count > 0 && rule.SlotDuration is not null
-            ? rule.PlaceholderGrace
-            : (TimeSpan?)null;
+        var clipGrace = state.ClipGrace;
 
         if (!state.IsInterleaved)
         {

@@ -29,19 +29,13 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
         var ct = TestContext.Current.CancellationToken;
-        var source = await db.MediaSources.FirstOrDefaultAsync(ct);
-        if (source is null)
-        {
-            source = new VideoWebPlayer.Data.MediaSource { Name = "E2E Quelle", Host = "127.0.0.1", Port = 22, Path = "/test" };
-            db.MediaSources.Add(source);
-            await db.SaveChangesAsync(ct);
-        }
+        var sourceId = await EnsureMediaSourceIdAsync(db);
 
         var collection = new VideoWebPlayer.Data.MediaCollection
         {
             Name = "probe",
             Path = "/test/probe",
-            MediaSourceId = source.Id,
+            MediaSourceId = sourceId,
             CreatedAt = DateTime.UtcNow
         };
         db.MediaCollections.Add(collection);
@@ -368,15 +362,9 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
         {
             using var scope = Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
-            var source = await db.MediaSources.FirstOrDefaultAsync(TestContext.Current.CancellationToken);
-            if (source is null)
-            {
-                source = new VideoWebPlayer.Data.MediaSource { Name = "E2E Test Source", Host = "127.0.0.1", Port = 22, Path = "/test" };
-                db.MediaSources.Add(source);
-                await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            }
-            sourceId = source.Id;
-            sourceName = source.Name;
+            sourceId = await EnsureMediaSourceIdAsync(db);
+            sourceName = await db.MediaSources.Where(s => s.Id == sourceId)
+                .Select(s => s.Name).SingleAsync(TestContext.Current.CancellationToken);
             var a = new VideoWebPlayer.Data.Genre { Name = "E2E Action", MediaSourceId = sourceId };
             var b = new VideoWebPlayer.Data.Genre { Name = "E2E Komödie", MediaSourceId = sourceId };
             var hidden = new VideoWebPlayer.Data.Genre { Name = "E2E Versteckt", MediaSourceId = sourceId, IsHidden = true };

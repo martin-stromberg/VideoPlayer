@@ -73,18 +73,16 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var ct = TestContext.Current.CancellationToken;
-        var source = await db.MediaSources.FirstOrDefaultAsync(ct)
-            ?? (await db.MediaSources.AddAsync(new MediaSource { Name = "E2E", Host = "127.0.0.1", Port = 22, Path = "/test" }, ct)).Entity;
-        await db.SaveChangesAsync(ct);
+        var sourceId = await EnsureMediaSourceIdAsync(db);
         var collection = new MediaCollection
         {
-            Name = $"clips-{Guid.NewGuid():N}", MediaSourceId = source.Id, Path = $"/test/clips-{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow
+            Name = $"clips-{Guid.NewGuid():N}", MediaSourceId = sourceId, Path = $"/test/clips-{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow
         };
         db.MediaCollections.Add(collection);
         await db.SaveChangesAsync(ct);
         foreach (var u in await db.Users.Where(u => !u.IsAdmin).ToListAsync(ct))
-            if (!await db.MediaSourceUsers.AnyAsync(m => m.UserId == u.Id && m.MediaSourceId == source.Id, ct))
-                db.MediaSourceUsers.Add(new MediaSourceUser { UserId = u.Id, MediaSourceId = source.Id });
+            if (!await db.MediaSourceUsers.AnyAsync(m => m.UserId == u.Id && m.MediaSourceId == sourceId, ct))
+                db.MediaSourceUsers.Add(new MediaSourceUser { UserId = u.Id, MediaSourceId = sourceId });
         await db.SaveChangesAsync(ct);
         var items = clips.Select(c => new MediaItem
         {
@@ -103,15 +101,13 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var ct = TestContext.Current.CancellationToken;
-        var source = await db.MediaSources.FirstOrDefaultAsync(ct)
-            ?? (await db.MediaSources.AddAsync(new MediaSource { Name = "E2E", Host = "127.0.0.1", Port = 22, Path = "/test" }, ct)).Entity;
-        await db.SaveChangesAsync(ct);
+        var sourceId = await EnsureMediaSourceIdAsync(db);
         var collection = new MediaCollection
         {
-            Name = $"movies-{Guid.NewGuid():N}", MediaSourceId = source.Id, Path = $"/test/m-{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow
+            Name = $"movies-{Guid.NewGuid():N}", MediaSourceId = sourceId, Path = $"/test/m-{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow
         };
         db.MediaCollections.Add(collection);
-        var movie = new Movie { Name = name, MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
+        var movie = new Movie { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
         db.Movies.Add(movie);
         await db.SaveChangesAsync(ct);
         var item = new MediaItem
@@ -252,7 +248,13 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         await Page.SelectOptionAsync("#rule-type", "MoviePrimeTime");
         await Page.FillAsync("#rule-duration", "240");
         await Page.Locator("#rule-duration").BlurAsync();
+        // Ohne gewählte Clip-Gruppe bleibt das Karenzzeit-Feld wirkungslos und verborgen;
+        // der Hinweis erklärt die Kopplung an die Gruppen-Auswahl.
+        await Expect(Page.Locator("#rule-grace-minutes")).ToHaveCountAsync(0);
+        await Expect(Page.Locator("#rule-clip-groups-hint")).ToBeVisibleAsync();
+        await Page.Locator($"#rule-clip-group-{groupId}").CheckAsync();
         await Expect(Page.Locator("#rule-grace-minutes")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#rule-grace-minutes-hint")).ToBeVisibleAsync();
         var graceInput = await Page.Locator("#rule-grace-minutes").InputValueAsync();
         Assert.Equal("15", graceInput);
 
@@ -268,7 +270,6 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         await Page.Locator($".media-search-result[data-media-type='Movie'][data-media-id='{movieId}']").ClickAsync();
         await Page.Locator("#rule-material-selected").WaitForAsync();
 
-        await Page.Locator($"#rule-clip-group-{groupId}").CheckAsync();
         await Page.Locator($"#rule-clip-group-{ProgramClipGroup.TrailerGroupId}").CheckAsync();
         await Page.FillAsync("#rule-grace-minutes", "10");
         await Page.ClickAsync("#rule-save");
@@ -299,12 +300,10 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var ct = TestContext.Current.CancellationToken;
-            var source = await db.MediaSources.FirstOrDefaultAsync(ct)
-                ?? (await db.MediaSources.AddAsync(new MediaSource { Name = "E2E", Host = "127.0.0.1", Port = 22, Path = "/test" }, ct)).Entity;
-            await db.SaveChangesAsync(ct);
-            var collection = new MediaCollection { Name = "C", MediaSourceId = source.Id, Path = "/c", CreatedAt = DateTime.UtcNow };
+            var sourceId = await EnsureMediaSourceIdAsync(db);
+            var collection = new MediaCollection { Name = "C", MediaSourceId = sourceId, Path = "/c", CreatedAt = DateTime.UtcNow };
             db.MediaCollections.Add(collection);
-            var movie = new Movie { Name = "E2E-Film", MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
+            var movie = new Movie { Name = "E2E-Film", MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
             db.Movies.Add(movie);
             await db.SaveChangesAsync(ct);
             var movieItem = new MediaItem { Name = "m.mkv", Path = "/c/m.mkv", MediaCollectionId = collection.Id, Duration = TimeSpan.FromMinutes(76), DurationProbedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow };

@@ -53,6 +53,17 @@
 1. Ein Administrator kann die Freigabe im Editiermodus der Detailansicht aus der Auswahlliste setzen.
 2. Sollen fehlende Angaben automatisch ergänzt werden, muss der Betreiber die Online-Anbindung in der Serverkonfiguration freischalten.
 
+## Eine Quelle fehlt im Navigationsmenü
+
+**Symptom:** Eine angelegte Quelle erscheint nicht als Eintrag unter `Quellen` im Navigationsmenü, obwohl sie in der Quellenübersicht der Einrichtung aufgeführt wird.
+
+**Ursache:** Für die Quelle ist das Merkmal `Im Menü ausblenden` gesetzt — es entfernt nur den Menüeintrag, lässt aber Scan, Einplanung und die Quellseite selbst unverändert. Fehlt die Quelle auch in der Medienbibliothek, ist sie dem Benutzer zusätzlich nicht freigegeben.
+
+**Lösung:**
+1. Ein Administrator öffnet die Quelle unter `Einrichtung` > `Quellen` zum Bearbeiten und entfernt den Haken bei `Im Menü ausblenden`.
+2. Die Quellseite ist auch mit gesetztem Merkmal über ihre direkte Adresse erreichbar; ein fehlender Menüeintrag allein ist also kein Hinweis auf ein Zugriffsproblem.
+3. Bereits angemeldete Benutzer sehen die Änderung erst beim nächsten Laden der Anwendung.
+
 ## Wann Hilfe nötig ist
 
 Wenden Sie sich an den Betreiber oder Administrator des Servers, wenn

@@ -8,7 +8,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 
 ## Funktionen
 
-- Medienquellen vom Typ `SFTP-Server` oder `Lokales Verzeichnis` (Verzeichnis auf dem Server, auch UNC-Pfad) verwalten.
+- Medienquellen vom Typ `SFTP-Server` oder `Lokales Verzeichnis` (Verzeichnis auf dem Server, auch UNC-Pfad) verwalten; über das Merkmal „Im Menü ausblenden" lässt sich eine Quelle aus dem Navigationsmenü aller Benutzer entfernen — gedacht für reine Clip-/Füller-Quellen, die für Scanner, Füller-Regeln und Clip-Gruppen nutzbar und direkt über ihre Adresse erreichbar bleiben.
 - Filme, Serien, Staffeln und Episoden indizieren und kategorisieren.
 - Poster, Banner, Fanart und Hintergrundbilder anzeigen.
 - Favoriten, Weiterschauen-Positionen (mit optionalem Playlist-Bezug) und Gesehen-Kennzeichen pro Benutzer speichern.

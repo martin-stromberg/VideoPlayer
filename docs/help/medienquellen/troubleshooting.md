@@ -81,8 +81,8 @@
 
 **Symptom:** Restore eines Backups aus einer Version vor dem Feature schlägt fehl.
 
-**Ursache:** Normalerweise nicht mehr relevant — `MediaSources.SourceType` ist in `OptionalRestoreColumns`/`OptionalRestoreIntDefaults` eingetragen (Default `0` = `Sftp`). Ein Fehler deutet auf eine ältere Anwendungsversion ohne diesen Eintrag hin.
+**Ursache:** Normalerweise nicht mehr relevant — `MediaSources.SourceType` ist in `OptionalRestoreColumns`/`OptionalRestoreIntDefaults` eingetragen (Default `0` = `Sftp`), `MediaSources.HiddenInMenu` in `OptionalRestoreColumns`/`OptionalRestoreBoolDefaults` (Default `false` = sichtbar). Ein Fehler deutet auf eine ältere Anwendungsversion ohne diese Einträge hin.
 
 **Lösung:**
 1. Anwendung auf die aktuelle Version aktualisieren, dann Restore erneut ausführen.
-2. Quellen aus dem Alt-Backup werden mit `SourceType = Sftp` wiederhergestellt — dem bisherigen Verhalten entsprechend.
+2. Quellen aus dem Alt-Backup werden mit `SourceType = Sftp` und `HiddenInMenu = false` wiederhergestellt — dem bisherigen Verhalten entsprechend.

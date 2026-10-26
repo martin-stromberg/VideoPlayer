@@ -90,3 +90,18 @@
 - Admin-Editiermodus: `ValidateAgeRatingValue` akzeptiert nur kanonische Werte (`MinAge != null`) oder den bereits gespeicherten nicht-kanonischen Bestandswert (UI-Option „übernommen"); `ValidateNoAgeRating` lehnt gesetzte Werte für `moviecollection`/`tvshowseason`/`tvshowepisode` ab; Längenlimit 64 Zeichen (`MetadataEditModel.MaxAgeRatingLength`); leerer Wert löscht die Freigabe.
 
 **Umsetzung:** `MediaSourceClassifier.TryApplyOnlineAgeRatingAsync` (nur wenn `AgeRatingRaw == null`), `MediaMetadataEditorService.{ApplyAgeRating, ValidateAgeRatingValue, ValidateAgeRatingLength, ValidateNoAgeRating}`, eintragsweiter `IsManuallyEdited`-Schutz.
+
+## „Im Menü ausblenden" ist rein kosmetisch
+
+**Beschreibung:** Das Merkmal `HiddenInMenu` einer Quelle unterdrückt ausschließlich deren Eintrag im Navigationsmenü — für Administratoren und Anwender gleichermaßen. Es ist kein Zugriffsschutz und verändert keine fachliche Verarbeitung.
+
+**Bedingungen:**
+- `MediaSource.HiddenInMenu == true`, gesetzt über die Checkbox `Im Menü ausblenden` in `MediaSourceAdminDetails.razor` (nur Administratoren).
+
+**Verhalten:**
+- `NavMenu.razor` filtert die Quelle clientseitig aus `mediaSources` heraus (`Where(s => !s.HiddenInMenu)` in `OnInitializedAsync`); die Überschrift „Quellen" entfällt, wenn alle freigegebenen Quellen versteckt sind.
+- Unverändert bleiben: Freigabelogik (`MediaSourceUsers`, `IUnlockedMediaService`), Scanner und Klassifizierung, TV-Sender-Planungslogik (`ProgramScheduleService`, Füller-Regeln, `ProgramClipGroup`-Kandidaten inkl. der Materialauswahl „Clip-Quelle" in `TVSenderAdmin.razor`), die Admin-Quellenliste (`MediaSourceAdmin.razor`) und der Direktaufruf `/mediasource/{id}` (`SourcesController.GetSource` prüft nur die Freigabe).
+- `SourcesController.GetSources` liefert versteckte Quellen weiterhin in der Liste aus — die Filterung ist bewusst clientseitig, damit das `DtoMediaSource.HiddenInMenu`-Flag für Listenkonsumenten (z. B. externe Clients) nutzbar bleibt.
+- Eine Änderung des Merkmals wirkt im Menü bereits angemeldeter Clients erst beim nächsten Laden des `NavMenu` (gleiches Bestandsverhalten wie bei Quell-Umbenennungen).
+
+**Umsetzung:** `NavMenu.OnInitializedAsync` (Filterung), `MediaSourceAdminDetails` (Checkbox `InputCheckbox` an `editSource.HiddenInMenu`, manuelle `editSource`-Kopie), `MediaSourceExtensions.Update` (Kopierpfad beim Speichern), Migration `AddMediaSourceHiddenInMenu`.

@@ -4,7 +4,7 @@
 
 ## Übersicht
 
-Das Feature exponiert keine neuen HTTP-Endpunkte und erweitert das Client-DTO `DtoMediaSource` bewusst nicht (kein Consumer benötigt den Quelltyp). Die relevante Schnittstelle ist die interne Code-Abstraktion `IMediaSourceReader`, über die sämtlicher Dateizugriff auf Medienquellen läuft.
+Das Feature exponiert keine neuen HTTP-Endpunkte. Das Client-DTO `DtoMediaSource` enthält bewusst keinen Quelltyp (kein Consumer benötigt ihn), wurde aber um das Merkmal `HiddenInMenu` erweitert (siehe `SourcesController` unten). Die zentrale Schnittstelle ist die interne Code-Abstraktion `IMediaSourceReader`, über die sämtlicher Dateizugriff auf Medienquellen läuft.
 
 ## Authentifizierung
 
@@ -70,6 +70,12 @@ Nicht relevant.
 Statische Hilfsklasse: `Normalize(string? raw)` → `AgeRatingResult(DisplayValue, MinAge)`; `ExtractFromXml(XElement)` → `(Raw, Rating)` liest `<mpaa>` (primär)/`<certification>` (Fallback). `CanonicalOptions` liefert die Auswahlwerte für `AgeRatingSelect`. Regeln siehe `business-rules.md`.
 
 ## Betroffene bestehende Endpunkte
+
+### `SourcesController.GetSources` / `SourcesController.GetSource`
+
+`GET /api/Sources` und `GET /api/Sources/{id}` liefern im `DtoMediaSource` seit dem Merkmal „Im Menü ausblenden" das Feld `hiddenInMenu` (`bool`) aus — automatisch befüllt durch das reflektionsbasierte `ApiBaseController.Create<T>`, da die Property namensgleich zu `MediaSource.HiddenInMenu` ist. Die Änderung ist additiv und abwärtskompatibel; ältere Clients ignorieren das Feld.
+
+**Semantik:** `hiddenInMenu = true` bedeutet ausschließlich, dass der Menüeintrag der Quelle ausgeblendet werden soll. Die Listenabfrage `GetSources` liefert versteckte Quellen weiterhin vollständig aus — die Filterung liegt beim Client (`NavMenu.razor` filtert clientseitig); externe Konsumenten (z. B. die MAUI-App über `VideoWebPlayerClient`) können dieselbe Filterung anwenden. `GetSource` und der Direktaufruf `/mediasource/{id}` bleiben für freigegebene Benutzer unverändert erreichbar. Ein Schreibpfad über die API existiert nicht: `AdminSourcesController` enthält nur `DeleteSource`; das Flag wird ausschließlich über die Admin-Quellenbearbeitung gepflegt. Details siehe `docs/API.md`.
 
 ### `ItemsController.StreamMediaItem` / `ItemsController.Download`
 

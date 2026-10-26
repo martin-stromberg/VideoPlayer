@@ -8,6 +8,7 @@ using VideoWebPlayer.Controllers.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Controllers;
@@ -206,16 +207,5 @@ public class SourceVisibilityControllerTests
             serviceProvider.Dispose();
             keeperConnection.Dispose();
         }
-    }
-
-    private sealed class FakeAuthService : IAuthService
-    {
-        public ApplicationUser? CurrentUser { get; set; }
-
-        public Task<AuthorizationToken> ImpersonateAsync(ImpersonateRequest request)
-            => throw new NotImplementedException();
-
-        public Task<AuthorizationToken> LoginAsync(AuthenticationRequest request)
-            => throw new NotImplementedException();
     }
 }

@@ -48,6 +48,26 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
         public long? ResolveMediaItemId(string token) => null;
     }
 
+    private sealed class NoToolLocator : IFfmpegLocator, IFfprobeLocator
+    {
+        public string? Resolve() => null;
+    }
+
+    // Echter Provider über den internen Overload: resolveMediaInputAsync zählt die
+    // Refresh-Aufrufe (Setup-Konfiguration), ohne ffmpeg/lokale Medien zu brauchen.
+    private LiveStreamStandbyProvider CreateStandby(
+        IServiceScopeFactory scopeFactory, Action<long>? onResolve = null)
+        => new(new TestWebHostEnvironment { ContentRootPath = _contentRoot }, scopeFactory,
+            new LiveStreamStandbySegmenter(new NoToolLocator(), new NoToolLocator(),
+                NullLogger<LiveStreamStandbySegmenter>.Instance),
+            NullLogger<LiveStreamStandbyProvider>.Instance, null, null,
+            (id, _) =>
+            {
+                onResolve?.Invoke(id);
+                return Task.FromResult<LiveStreamInput?>(null);
+            },
+            null);
+
     private readonly string _contentRoot = Path.Combine(Path.GetTempPath(), $"vwp-worker-{Guid.NewGuid():N}");
     private ProgramScheduleTestDb _fixture = null!;
 
@@ -93,9 +113,11 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
         services.AddScoped<LiveStreamCoordinator>();
         await using var provider = services.BuildServiceProvider();
 
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
         var segmenter = (FakeSegmenter)provider.GetRequiredService<ILiveStreamSegmenter>();
-        var worker = new LiveStreamWorker(provider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<LiveStreamWorker>.Instance, signal: null, initialDelay: TimeSpan.Zero);
+        var worker = new LiveStreamWorker(scopeFactory,
+            NullLogger<LiveStreamWorker>.Instance, CreateStandby(scopeFactory),
+            signal: null, initialDelay: TimeSpan.Zero);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(30));
@@ -150,8 +172,10 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
         services.AddScoped<LiveStreamCoordinator>();
         await using var provider = services.BuildServiceProvider();
 
-        var worker = new LiveStreamWorker(provider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<LiveStreamWorker>.Instance, signal: null, initialDelay: TimeSpan.Zero);
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
+        var worker = new LiveStreamWorker(scopeFactory,
+            NullLogger<LiveStreamWorker>.Instance, CreateStandby(scopeFactory),
+            signal: null, initialDelay: TimeSpan.Zero);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(15));
@@ -163,6 +187,55 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
             Assert.True(segmenter.StopCalls >= 1, "Der Worker hat den laufenden Segmenter nicht gestoppt.");
             Assert.False(segmenter.Running, "Der Segmenter laeuft trotz gesperrtem Sender weiter.");
             Assert.Equal(0, segmenter.StartCalls);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ClearsSegmentDirectory_BeforeInitialDelay()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var segDir = Path.Combine(_contentRoot, "Data", "LiveStream");
+        Directory.CreateDirectory(segDir);
+        var stale = Path.Combine(segDir, "seg_stale.ts");
+        await File.WriteAllTextAsync(stale, "stale", ct);
+
+        // Konfigurierter Standby-Clip: die Refresh-Auflösung beweist, dass der
+        // RefreshAsync-Aufruf vor der Startverzögerung lief.
+        (await _fixture.Db.Setups.FirstAsync(ct)).LiveStreamStandbyMediaItemId = 777;
+        await _fixture.Db.SaveChangesAsync(ct);
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(_fixture.Db);
+        services.AddScoped<ProgramSettingsService>();
+        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
+            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
+        services.AddScoped<LiveStreamSegmentStore>();
+        await using var provider = services.BuildServiceProvider();
+
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
+        var resolveCalls = 0;
+        var standby = CreateStandby(scopeFactory, _ => Interlocked.Increment(ref resolveCalls));
+        var timeProvider = new ControllableTimeProvider();
+        var worker = new LiveStreamWorker(scopeFactory,
+            NullLogger<LiveStreamWorker>.Instance, standby,
+            signal: null, initialDelay: TimeSpan.FromMinutes(5), timeProvider: timeProvider);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(30));
+        await worker.StartAsync(cts.Token);
+        try
+        {
+            // Vor dem ersten Timer-Tick (Delay läuft nur über den steuerbaren Provider):
+            // Altsegment gelöscht UND Standby-Refresh bis zur Auflösung durchgelaufen.
+            for (var i = 0; i < 100 && (File.Exists(stale) || resolveCalls == 0); i++)
+                await Task.Delay(50, ct);
+            Assert.False(File.Exists(stale));
+            Assert.Equal(1, resolveCalls);
         }
         finally
         {

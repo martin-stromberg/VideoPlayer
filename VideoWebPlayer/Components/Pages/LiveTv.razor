@@ -71,7 +71,7 @@ else
                         }
                         else if (streamError)
                         {
-                            <div class="alert alert-warning livetv-hint" id="live-tv-stream-error">@LiveTvErrorMessages.StreamUnavailable</div>
+                            <div class="alert alert-warning livetv-hint" id="live-tv-stream-error" data-error-kind="@streamErrorKind">@LiveTvErrorMessages.StreamUnavailable</div>
                         }
                     }
                     else
@@ -170,6 +170,9 @@ else
     private bool isLoading = true;
     private string? loadError;
     private bool streamError;
+    // Fehlerart des letzten Stream-Fehlers (hls.js ErrorType bzw. native/script) —
+    // nur Diagnose-Attribut am Hinweis-Element, keine eigene Anzeige.
+    private string? streamErrorKind;
     private bool unsupportedBrowser;
 
     private DtoProgramGuideNow? guide;
@@ -236,6 +239,7 @@ else
         {
             _dotNetRef ??= DotNetObjectReference.Create(this);
             streamError = false;
+            streamErrorKind = null;
             unsupportedBrowser = false;
             _attachedSlotId = currentSlotId;
             await JS.InvokeVoidAsync("liveTv.attach", _videoRef, streamUrl, HlsScriptUrl, _dotNetRef);
@@ -324,6 +328,7 @@ else
     public Task NotifyStreamPlaying()
     {
         streamError = false;
+        streamErrorKind = null;
         unsupportedBrowser = false;
         StateHasChanged();
         return Task.CompletedTask;
@@ -333,6 +338,7 @@ else
     public Task NotifyStreamError(string kind)
     {
         streamError = true;
+        streamErrorKind = kind;
         StateHasChanged();
         return Task.CompletedTask;
     }

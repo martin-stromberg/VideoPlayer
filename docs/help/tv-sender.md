@@ -2,9 +2,9 @@
 
 Der automatische TV-Sender erzeugt aus dem Medienbestand ein fortlaufendes Fernsehprogramm. Dieser
 Bereich beschreibt die Administration unter `Einrichtung` → `TV-Sender` (`/admin/tv-sender`) —
-ausgeliefert wird zunächst genau ein Sender. Der Sendeplan wird fortlaufend im Hintergrund erzeugt
-und ist über die Programmauskunft für angemeldete Benutzer abfragbar; HLS-Live-Stream und die
-Live-TV-Ansicht folgen in späteren Schritten.
+ausgeliefert wird zunächst genau ein Sender. Der Sendeplan wird fortlaufend im Hintergrund erzeugt,
+ist über die Programmauskunft für angemeldete Benutzer abfragbar und wird als HLS-Live-Stream in
+der Live-TV-Ansicht ausgespielt.
 
 ## Freischaltung
 
@@ -418,24 +418,34 @@ Methode zurück, die den Inhalt in die Standardeingabe des Prozesses pumpt (`pip
 Verhalten lässt sich mit `LiveStream:UseHttpInput` (`appsettings.json`, Standard `true`)
 abschalten — `false` nutzt immer den Pipe-Weg.
 
-Drei Einstellungen in der Sender-Karte steuern die Ausgabe:
+Drei Einstellungen der Karte „Segmentierung" im Tab „Einstellungen" steuern die Ausgabe:
 
 - **Segmentlänge (Sekunden)** — Zieldauer je HLS-Segment (Standard: 6 Sekunden, zulässig 1–300).
 - **Segment-Verzeichnis** — Speicherort für Segmente und Wiedergabeliste; leer = Standard
   `Data/LiveStream` unterhalb des Anwendungsverzeichnisses, relative Pfade werden gegen das
   Anwendungsverzeichnis aufgelöst.
-- **Segment-Aufbewahrung (Minuten)** — abgelaufene Segmente werden automatisiert entfernt
+- **Segment-Aufbewahrung (Minuten)** — abgelaufene Segmente werden automatisch entfernt
   (Standard: 30 Minuten); beim Start des Hintergrundlaufs wird das Verzeichnis vollständig
-  geleert.
+  geleert — bereits **vor** der internen Startverzögerung, damit Reste einer alten
+  Auslieferung in der Warm-up-Phase nicht mehr auslieferbar sind.
 
 Die Auslieferung erfolgt ausschließlich authentifiziert: `GET /api/live-stream/{datei}`
 akzeptiert den Bearer-Token im `Authorization`-Header oder als `access_token`-Abfrageparameter
 — anonyme Aufrufe werden mit 401 abgelehnt. Bei Auslieferung der Wiedergabeliste
-(`live.m3u8`, Antworttyp `application/vnd.apple.mpegurl`, `Cache-Control: no-store`) wird jede
+(`live.m3u8`, Antworttyp `application/vnd.apple.mpegurl`) wird jede
 Segment-Adresse um den übergebenen `access_token` ergänzt, damit Player, die relative
-Segment-URIs ohne die Abfrageparameter der Playlist-URL auflösen, autorisiert bleiben. Ungültige
-oder fehlende Dateinamen — einschließlich des Zustands „es läuft gerade kein Stream" — werden
-mit 404 beantwortet.
+Segment-URIs ohne die Abfrageparameter der Playlist-URL auflösen, autorisiert bleiben.
+Alle Antworten — Wiedergabelisten, echte Segmente und Standby-Auslieferungen — tragen
+`Cache-Control: no-store`.
+
+Solange keine echte Wiedergabeliste mit mindestens einem referenzierten Segment existiert,
+beantwortet `live.m3u8` die Anfrage statt `404` mit der Standby-Wiedergabeliste (siehe
+„Standby-Clip (Warm-up-Phase)" unten) und `standby_*.ts`-Segmente werden aus dem Speicher
+ausgeliefert — auch dann noch, wenn die echte Wiedergabeliste schon steht, damit ein
+Zuschauer die zuletzt beworbene Standby-Folge zu Ende spielen kann. Der Übergang ist
+nahtlos: Die erste echte Wiedergabeliste nach einer Standby-Auslieferung trägt einmalig
+`#EXT-X-DISCONTINUITY` vor dem ersten Segmenteintrag. Nur wenn gar keine Standby-Assets
+verfügbar sind, gilt wie bisher `404` für ungültige oder fehlende Dateinamen.
 
 Bei der Segment-Auslieferung hält der Server die `.ts`-Dateien so geöffnet, dass sie parallel
 weiter beschrieben und gelöscht werden dürfen: Die automatische Aufbewahrung
@@ -445,6 +455,43 @@ läuft vollständig zu Ende. Unter Windows würde ein schlichter Lesezugriff das
 blockieren und im ungünstigen Fall den Segmentierer abbrechen. Segment-Antworten tragen
 bewusst keine `Last-Modified`-/`ETag`-Prüfmarken: Die Segmentnamen sind eindeutig und
 zeitgestempelt, ihr Inhalt ändert sich nie, sodass bedingte Abrufe ohnehin nicht greifen.
+
+### Standby-Clip (Warm-up-Phase)
+
+Der Standby-Stream überbrückt jeden Zustand ohne produzierte Segmente — die Warm-up-Phase
+nach einem Server-Start oder Update ebenso wie Sendelücken, ein fehlendes `ffmpeg` oder
+eine nicht auffindbare Mediendatei: Statt einer Fehleranzeige sehen Zuschauer einen kurzen
+Clip in Endlosschleife (die Standby-Wiedergabeliste rotiert ihre wenigen Segmente). Ohne
+Auswahl spielt der eingebettete Funki-Clip „Gleich geht's los!" — fertig vorsegmentierte
+Daten, die fest in der Anwendung liegen und deshalb auch im Zustand „`ffmpeg` fehlt"
+laufen.
+
+#### Eigenen Standby-Clip wählen
+
+In der gleichnamigen Karte im Tab „Einstellungen" zeigt ein Chip den aktiven Clip —
+„Standard-Clip (Gleich geht's los)" oder Name und Quelle des gewählten Clips. Über
+**„Ändern"** öffnet sich die Auswahl: **„Quelle"** („Alle Quellen" oder eine einzelne
+Medienquelle) und **„Suche"** (Live-Suche im Dateinamen) filtern die Kandidatenliste
+(Spalten Name, Quelle, Laufzeit; Clips ohne ermittelte Laufzeit tragen den Hinweis
+„keine Laufzeit"). **„Auswählen"** übernimmt einen Clip (Markierung „Ausgewählt"),
+**„Weitere laden"** ergänzt lange Trefferlisten, **„Standard-Clip verwenden"** setzt die
+Auswahl zurück. Angeboten werden nur **nicht klassifizierte Videodateien** — dieselbe
+Regel wie bei den Clip-Gruppen-Kandidaten (Videodatei ohne Film-/Serien-Zuordnung);
+findet die Suche nichts Passendes, erscheint der Hinweis „Keine zuordenbaren Clips
+gefunden". Die Wahl wird erst mit **„Speichern"** übernommen und dabei serverseitig auf
+die Clip-Regel geprüft.
+
+Der gewählte Clip wird einmalig per `ffmpeg` in kurze Segmente transkodiert (höchstens
+60 Sekunden Laufzeit — ein versehentlich langer Clip bläht den Speicher nicht auf)
+und im Verzeichnis `Data/LiveStreamStandby/` neben der Anwendung zwischengespeichert:
+Ein Neustart läuft ohne erneutes Transkodieren aus dem Cache, eine ersetzte Quelldatei
+wird am Änderungsstempel erkannt und neu eingelesen. Die Vorbereitung läuft im
+Hintergrund — bis der eigene Satz steht (und bei jedem Fehlschlag dauerhaft), beantwortet
+der bisherige bzw. der Standard-Satz die Anfragen. Fehlt `ffmpeg`, ist das Medium
+unauffindbar oder gelöscht oder scheitert die Vorbereitung, bleibt also zuverlässig ein
+Standby-Stream aktiv. Eine gelöschte Auswahl bleibt als weiche Referenz gespeichert und
+wird im Chip als „Zuvor gewählter Clip ist nicht mehr vorhanden — Standard-Clip wird
+verwendet" angezeigt.
 
 ## Live-TV-Ansicht
 
@@ -464,7 +511,11 @@ Verständliche Hinweise ersetzen technische Fehlerbilder:
 
 - **„Aktuell läuft keine Sendung."** — Sendelücke; die nächste Sendung wird genannt, sobald bekannt.
 - **„Der Live-Stream ist momentan nicht verfügbar. Es wird automatisch erneut versucht."** —
-  z. B. noch keine Segmente geschrieben; die Seite versucht selbstständig weiter.
+  echte Auslieferungsfehler (z. B. Netzwerkabbruch oder keine verfügbaren Standby-Assets);
+  die Seite versucht selbstständig weiter. In der Warm-up-Phase und in allen Zuständen
+  ohne produzierte Segmente — auch während einer Sendelücke, in der die Programm-Karte
+  „Aktuell läuft keine Sendung." meldet — zeigt der Player dagegen den Standby-Clip
+  (siehe oben), ohne dass ein Hinweis erscheint.
 - **„Live-TV wird von diesem Browser leider nicht unterstützt."** — der Browser kann weder
   eingebaut noch über hls.js wiedergeben.
 - **„Die Programminformationen konnten nicht geladen werden."** / **„Sie haben keinen Zugriff

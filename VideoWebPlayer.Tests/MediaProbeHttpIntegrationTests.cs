@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -128,7 +129,7 @@ public sealed class MediaProbeHttpIntegrationTests : IAsyncLifetime
     /// </summary>
     private async Task CreateTestVideoAsync()
     {
-        var ffmpeg = await FindBinaryAsync("ffmpeg");
+        var ffmpeg = E2EBinaryLocator.Find("ffmpeg");
         if (ffmpeg is not null)
         {
             var startInfo = new System.Diagnostics.ProcessStartInfo
@@ -150,20 +151,6 @@ public sealed class MediaProbeHttpIntegrationTests : IAsyncLifetime
 
         if (!File.Exists(_videoPath))
             await File.WriteAllBytesAsync(_videoPath, new byte[4096]);
-    }
-
-    private static Task<string?> FindBinaryAsync(string name)
-    {
-        var exeName = OperatingSystem.IsWindows() ? $"{name}.exe" : name;
-        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-        {
-            var candidate = Path.Combine(dir, exeName);
-            if (File.Exists(candidate))
-                return Task.FromResult<string?>(candidate);
-        }
-
-        return Task.FromResult<string?>(null);
     }
 
     private async Task<long> SeedMediaItemAsync()

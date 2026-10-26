@@ -457,6 +457,47 @@ public sealed class ProgramSettingsService
 
         await _db.SaveChangesAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Gets the media item configured as the live stream's standby clip, or
+    /// <see langword="null"/> when the embedded default clip applies.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured media item id, or <see langword="null"/>.</returns>
+    public async Task<long?> GetLiveStreamStandbyMediaItemIdAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return setup.LiveStreamStandbyMediaItemId;
+    }
+
+    /// <summary>
+    /// Persists the standby clip of the live stream's warm-up phase. <see langword="null"/>
+    /// clears the selection so the embedded default clip applies. A selected item must exist,
+    /// be a video file (<see cref="Utils.VideoFileExtensions"/>) and must not be classified
+    /// (no movie/episode link) — the same eligibility rule as the clip-group candidates.
+    /// </summary>
+    /// <param name="mediaItemId">The media item to use as standby clip, or <see langword="null"/>.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="KeyNotFoundException">The media item does not exist.</exception>
+    /// <exception cref="ArgumentException">The media item is no video file or is classified.</exception>
+    public async Task UpdateLiveStreamStandbyClipAsync(long? mediaItemId, CancellationToken cancellationToken = default)
+    {
+        if (mediaItemId is { } id)
+        {
+            var item = await _db.MediaItems
+                .AsNoTracking()
+                .Where(mi => mi.Id == id)
+                .Select(mi => new { mi.Id, mi.Path })
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new KeyNotFoundException("Das gewählte Standby-Video wurde nicht gefunden.");
+            await MediaItemClipEligibility.EnsureUnclassifiedVideoClipAsync(
+                _db, id, item.Path, "als Standby-Clip ausgewählt werden", cancellationToken);
+        }
+
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.LiveStreamStandbyMediaItemId = mediaItemId;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
 }
 
 /// <summary>

@@ -183,22 +183,13 @@ public sealed class ProgramClipGroupService : IProgramClipGroupService
         if (ids.Except(found).Any())
             throw new KeyNotFoundException("Ein gewählter Clip wurde nicht gefunden.");
 
-        var linkedMovieItems = (await _db.MovieMediaItems
-                .Where(l => ids.Contains(l.MediaItemId))
-                .Select(l => l.MediaItemId)
-                .ToListAsync(cancellationToken))
-            .ToHashSet();
-        var linkedEpisodeItems = (await _db.TVShowEpisodeMediaItems
-                .Where(l => ids.Contains(l.MediaItemId))
-                .Select(l => l.MediaItemId)
-                .ToListAsync(cancellationToken))
-            .ToHashSet();
+        var classifiedIds = await MediaItemClipEligibility.GetClassifiedIdsAsync(_db, ids, cancellationToken);
 
         foreach (var item in items)
         {
             if (!VideoFileExtensions.IsVideoFileName(item.Path))
                 throw new ArgumentException("Nur Videodateien können einer Clip-Gruppe zugeordnet werden.");
-            if (linkedMovieItems.Contains(item.Id) || linkedEpisodeItems.Contains(item.Id))
+            if (classifiedIds.Contains(item.Id))
                 throw new ArgumentException("Nur nicht klassifizierte Clips können einer Clip-Gruppe zugeordnet werden.");
         }
 

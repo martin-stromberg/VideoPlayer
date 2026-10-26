@@ -117,4 +117,13 @@ public class Setup
     /// automatic retention sweep removes them. Default: 30 minutes.
     /// </summary>
     public int LiveStreamSegmentRetentionMinutes { get; set; } = 30;
+
+    /// <summary>
+    /// Gets or sets the media item the live stream serves as standby clip while no real
+    /// playlist with a referenced segment exists (warm-up and all no-stream states).
+    /// <c>null</c> means the embedded default clip „Gleich geht's los!". Soft reference
+    /// without foreign key (same convention as <c>ProgramSlot.MediaItemId</c>): deleting
+    /// the media item does not reset the setting — the provider falls back to the default.
+    /// </summary>
+    public long? LiveStreamStandbyMediaItemId { get; set; }
 }

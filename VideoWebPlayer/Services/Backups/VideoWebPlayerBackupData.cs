@@ -105,7 +105,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRating)}",
         $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingRaw)}",
         $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingMinAge)}",
-        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingClassifiedAt)}"
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingClassifiedAt)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamStandbyMediaItemId)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)

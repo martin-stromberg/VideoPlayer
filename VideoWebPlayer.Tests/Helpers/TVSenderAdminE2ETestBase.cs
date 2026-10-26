@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Data;
@@ -43,6 +44,44 @@ public abstract class TVSenderAdminE2ETestBase : PlaylistsE2ETestBase
         var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(ct);
         setup.TvSenderEnabled = true;
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Seeds unclassified video media items (clip candidates) on the shared E2E media source in a
+    /// fresh collection and releases the source for every non-admin user so the clips are
+    /// schedulable — returns the media item ids in seed order.
+    /// </summary>
+    protected async Task<List<long>> SeedClipItemsAsync(params (string Name, TimeSpan? Duration)[] clips)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var ct = TestContext.Current.CancellationToken;
+        var sourceId = await EnsureMediaSourceIdAsync(db);
+        var collection = new MediaCollection
+        {
+            Name = $"clips-{Guid.NewGuid():N}",
+            MediaSourceId = sourceId,
+            Path = $"/test/clips-{Guid.NewGuid():N}",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaCollections.Add(collection);
+        await db.SaveChangesAsync(ct);
+        foreach (var u in await db.Users.Where(u => !u.IsAdmin).ToListAsync(ct))
+            if (!await db.MediaSourceUsers.AnyAsync(m => m.UserId == u.Id && m.MediaSourceId == sourceId, ct))
+                db.MediaSourceUsers.Add(new MediaSourceUser { UserId = u.Id, MediaSourceId = sourceId });
+        await db.SaveChangesAsync(ct);
+        var items = clips.Select(c => new MediaItem
+        {
+            Name = c.Name,
+            Path = $"{collection.Path}/{c.Name}",
+            MediaCollectionId = collection.Id,
+            Duration = c.Duration,
+            DurationProbedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
+        }).ToList();
+        db.MediaItems.AddRange(items);
+        await db.SaveChangesAsync(ct);
+        return items.Select(i => i.Id).ToList();
     }
 
     // The first interactive action on the page can be lost while the Blazor circuit is still

@@ -17,13 +17,16 @@ namespace VideoWebPlayer.Tests;
 /// </summary>
 public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
 {
-    private async Task<string> SeedSegmentDirectoryAsync(IServiceProvider services, ApplicationDbContext db)
+    private async Task<string> SeedSegmentDirectoryAsync(IServiceProvider services, ApplicationDbContext db, bool writePlaylist = true)
     {
         var segDir = Path.Combine(Path.GetTempPath(), $"vwp-livetv-e2e-{Guid.NewGuid():N}");
         Directory.CreateDirectory(segDir);
-        await File.WriteAllTextAsync(Path.Combine(segDir, "live.m3u8"),
-            "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXTINF:6.0,\nseg_001.ts\n");
-        await File.WriteAllTextAsync(Path.Combine(segDir, "seg_001.ts"), "segment-bytes");
+        if (writePlaylist)
+        {
+            await File.WriteAllTextAsync(Path.Combine(segDir, "live.m3u8"),
+                "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXTINF:6.0,\nseg_001.ts\n");
+            await File.WriteAllTextAsync(Path.Combine(segDir, "seg_001.ts"), "segment-bytes");
+        }
         var setup = await services.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(TestContext.Current.CancellationToken);
         setup.LiveStreamSegmentDirectory = segDir;
         setup.TvSenderEnabled = true;
@@ -39,12 +42,26 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
     /// Seeds channel + movie + media item + one running and one upcoming broadcast slot, plus the
     /// HLS segment directory so the player actually reaches <c>live.m3u8</c>.
     /// </summary>
+    /// <summary>Same seed as <see cref="SeedChannelWithRunningProgramAsync"/> but with an
+    /// empty segment directory — the server answers the playlist with the standby stream.</summary>
+    private async Task SeedChannelWithRunningProgram_NoPlaylistAsync(string movieTitle)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await SeedSegmentDirectoryAsync(scope.ServiceProvider, db, writePlaylist: false);
+        await SeedProgramCoreAsync(db, movieTitle);
+    }
+
     private async Task SeedChannelWithRunningProgramAsync(string movieTitle)
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await SeedSegmentDirectoryAsync(scope.ServiceProvider, db);
+        await SeedProgramCoreAsync(db, movieTitle);
+    }
 
+    private static async Task SeedProgramCoreAsync(ApplicationDbContext db, string movieTitle)
+    {
         var channel = new TVChannel { Name = "Live-E2E-Sender" };
         db.TVChannels.Add(channel);
         var source = new MediaSource { Name = $"Live-E2E-Quelle {Guid.NewGuid():N}", Path = "/e2e-live", Host = "localhost", Port = 22 };
@@ -164,5 +181,80 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         // nächsten ReconcileAsync-Lauf als Displaced verwirft — ein zur Laufzeit geschriebener
         // Slot überlebt daher nicht bis zur sichtbaren Wiederherstellung. Der Mechanismus ist
         // über die bUnit-Statusuebergaenge und den Player-Test abgesichert.
+    }
+
+    [Fact]
+    public async Task LiveTv_Warmup_PlaysStandbyWithoutErrorHint()
+    {
+        var playlistUrls = new List<string>();
+        var playlistStatuses = new List<int>();
+        var standbySegmentStatuses = new List<int>();
+        // Die Response-Events feuern, sobald die Antwort beim Browser eintrifft — die
+        // Fehlerhinweis-Prüfung muss direkt darauf aufsetzen, denn ein codec-bedingter
+        // MSE-Fehler (siehe unten) würde das Element wenige Millisekunden später einblenden.
+        var playlist200 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var standbySegment200 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Page.Response += (_, response) =>
+        {
+            if (response.Url.Contains("live.m3u8", StringComparison.Ordinal))
+            {
+                playlistUrls.Add(response.Url);
+                playlistStatuses.Add(response.Status);
+                if (response.Status == 200)
+                    playlist200.TrySetResult();
+            }
+            if (response.Url.Contains("standby_", StringComparison.Ordinal))
+            {
+                standbySegmentStatuses.Add(response.Status);
+                if (response.Status == 200)
+                    standbySegment200.TrySetResult();
+            }
+        };
+
+        var ct = TestContext.Current.CancellationToken;
+        await SeedChannelWithRunningProgram_NoPlaylistAsync("Warmup-Film");
+        await LoginAsync(UserAEmail);
+
+        await Page.GotoAsync($"{ServerUrl}/live-tv");
+        await Page.WaitForSelectorAsync("#live-tv-video", new PageWaitForSelectorOptions { Timeout = 30_000 });
+
+        // hls.js (oder nativer Player) ruft die Standby-Playlist mit access_token auf —
+        // das bisherige 404 hätte über einen fatalen Netzwerkfehler in liveTv.js den
+        // Hinweis #live-tv-stream-error eingeblendet; die 200-Antwort muss daher ohne
+        // Fehlerhinweis auskommen. Der DOM-Check läuft direkt auf der ersten 200-Antwort:
+        // jeder fatale Fehler braucht mindestens einen vollen Segmentzyklus danach.
+        await playlist200.Task.WaitAsync(TimeSpan.FromSeconds(30), ct);
+        Assert.Contains("access_token=", playlistUrls[playlistStatuses.IndexOf(200)]);
+        Assert.Equal(0, await Page.Locator("#live-tv-stream-error").CountAsync());
+
+        // Mindestens ein standby_-Segment wird mit 200 ausgeliefert — ein Segment-404
+        // wäre für hls.js ein fataler Netzwerkfehler.
+        await standbySegment200.Task.WaitAsync(TimeSpan.FromSeconds(30), ct);
+        Assert.DoesNotContain(404, standbySegmentStatuses);
+
+        // Nachgelagerte Prüfung: Zeit für einen eventuell anstehenden fatalen Fehler
+        // geben; erscheint der Hinweis, darf er nie aus der Auslieferung kommen —
+        // kein hls.js-Netzwerkfehler (Playlist-/Segment-Laden) und kein Netzwerkfehler
+        // des nativen Elements (MEDIA_ERR_NETWORK = 2). Codec-/Format-Fehler des
+        // Test-Browsers (kein natives HLS, ggf. fehlende H.264/AAC) sind auch bei
+        // einem echten Stream erwartbar.
+        await Task.Delay(3_000, ct);
+        var errorHint = Page.Locator("#live-tv-stream-error");
+        if (await errorHint.CountAsync() > 0)
+        {
+            var kind = await errorHint.GetAttributeAsync("data-error-kind");
+            if (kind == "native")
+            {
+                var code = await Page.EvaluateAsync<int?>(
+                    "() => document.querySelector('#live-tv-video')?.error?.code ?? null");
+                Assert.True(code is 3 or 4,
+                    $"#live-tv-stream-error mit nativem Netzwerkfehler (video.error={code}).");
+            }
+            else
+            {
+                Assert.True(kind is "mediaError" or "keySystemError" or "muxError",
+                    $"#live-tv-stream-error unerwartet ausgeloest durch '{kind}'.");
+            }
+        }
     }
 }

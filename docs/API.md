@@ -564,18 +564,29 @@ Token abrufbar.
 
 ### GET /api/live-stream/{fileName}
 
-Liefert eine Datei aus dem Segment-Verzeichnis des Live-Streams:
+Liefert eine Datei aus dem Segment-Verzeichnis des Live-Streams bzw. aus dem
+im Speicher gehaltenen Standby-Stream; jede erfolgreiche Antwort trägt
+`Cache-Control: no-store`:
 
 - `{fileName} = live.m3u8` (bzw. eine andere `*.m3u8` der Ausgabe): die aktuelle
-  HLS-Wiedergabeliste, Antworttyp `application/vnd.apple.mpegurl`, `Cache-Control: no-store`.
-  Jede Segment-URI darin trägt bei einem Abruf mit `access_token`-Parameter diesen Token als
+  HLS-Wiedergabeliste, Antworttyp `application/vnd.apple.mpegurl`. Jede Segment-URI darin
+  trägt bei einem Abruf mit `access_token`-Parameter diesen Token als
   `access_token`-Abfrageparameter; ohne Parameter bleiben die URIs unverändert.
+  Existiert keine Playlist oder eine Playlist ohne referenziertes Segment (Warm-up
+  nach einem Start, Sendelücke, fehlendes `ffmpeg`), wird stattdessen die
+  Standby-Wiedergabeliste ausgeliefert — eingebetteter Funki-Clip oder der
+  administrativ gewählte Clip. Die erste echte Wiedergabeliste nach einer
+  Standby-Auslieferung trägt einmalig `#EXT-X-DISCONTINUITY` vor dem ersten
+  Segmenteintrag.
 - `{fileName} = seg_*.ts`: ein HLS-Segment, Antworttyp `video/mp2t`.
+- `{fileName} = standby_*.ts`: ein Standby-Segment aus dem Speicher, Antworttyp
+  `video/mp2t` — unabhängig davon, ob die echte Playlist schon existiert, damit ein
+  Zuschauer die zuletzt beworbene Playlist zu Ende spielen kann.
 
 Dateinamen werden strikt geprüft (nur `A–Z`, `a–z`, `0–9`, `.`, `_`, `-`; keine Pfadtrenner) und
-müssen innerhalb des Segment-Verzeichnisses liegen. Ungültige oder fehlende Dateinamen —
-einschließlich des Zustands „es wird gerade kein Stream erzeugt" (Sendelücke, fehlendes
-`ffmpeg`, fehlende Mediendatei) — werden mit `404` beantwortet.
+müssen innerhalb des Segment-Verzeichnisses liegen bzw. einem aktiven Standby-Segmentnamen
+entsprechen. Ungültige oder fehlende Dateinamen — und bei fehlenden Standby-Assets auch
+`live.m3u8` — werden mit `404` beantwortet.
 
 ## Playlists
 

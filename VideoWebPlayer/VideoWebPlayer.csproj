@@ -47,6 +47,9 @@
     <DbSet Include="MediaItem" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Assets\LiveStreamStandby\*.ts" />
+  </ItemGroup>
+  <ItemGroup>
     <Folder Include="Components\Admin\" />
     <Folder Include="Components\Pages\System\" />
     <Folder Include="Pages\" />

@@ -1,6 +1,13 @@
-# TV-Sender — Technischer Ablauf: Clip-Gruppen und Restzeit-Auffüllung
+# TV-Sender — Technischer Ablauf
 
-## Übersicht
+Technische Abläufe des automatischen TV-Senders in zwei Teilen: „Clip-Gruppen und
+Restzeit-Auffüllung" beschreibt die Sendeplan-Generierung mit Platzhalter-Clips,
+„Standby-Stream des Live-Streams" die Auslieferung der Warm-up-Phase und aller Zustände
+ohne produzierte Segmente.
+
+## Clip-Gruppen und Restzeit-Auffüllung
+
+### Übersicht
 
 Clip-Gruppen hängen benannte Mengen unklassifizierter Video-`MediaItem`s an `ProgramRule`s.
 Steuert eine Regel mindestens eine Gruppe und besitzt eine `SlotDuration`, ersetzt die je-Regel-
@@ -13,9 +20,9 @@ wird verzögert aus den frisch materialisierten Film-Ausstrahlungen des Laufs ex
 Die bisherige Lückenfüllung `FillGaps` (Platzhalter/Füller-Regeln **zwischen** Ausstrahlungen)
 läuft unverändert danach; die Clip-Füllung liegt **innerhalb** der Periode einer Ausstrahlung.
 
-## Ablauf
+### Ablauf
 
-### 1. Gruppen- und Mitgliederverwaltung
+#### 1. Gruppen- und Mitgliederverwaltung
 
 `TVSenderAdminClipGroups.razor` (Tab „Clip-Gruppen" auf `TVSenderAdmin.razor`) ruft
 `IProgramClipGroupService` — jede Methode erzwingt serverseitig `RequireAdminAsync`; alle
@@ -42,7 +49,7 @@ Beteiligte Komponenten:
   übersprungen. `Duration == null` ist zulässig (wird bei der Expansion ausgefiltert).
 - `RemoveClipFromGroupAsync` — entfernt einzelne Mitglieder; `IsSystem` abgewiesen.
 
-### 2. Regel mit Clip-Gruppen und Karenzzeit speichern
+#### 2. Regel mit Clip-Gruppen und Karenzzeit speichern
 
 Der Regel-Dialog in `TVSenderAdmin.razor` zeigt bei `RuleType != Filler` die Checkbox-Liste
 `#rule-clip-groups` (alle Gruppen inkl. „Trailer" mit Zusatz „(automatisch befüllt)") und — nur
@@ -65,7 +72,7 @@ Beteiligte Komponenten:
 - `GetRulesAsync` — `Include(r => r.ClipGroups).ThenInclude(c => c.ClipGroup)`;
   `TVSenderAdmin.MaterialLabel` hängt den Suffix „— Clips: {Namen}" an.
 
-### 3. Plangenerierung (`EnsureCoverageAsync`)
+#### 3. Plangenerierung (`EnsureCoverageAsync`)
 
 1. Regeln werden inkl. `ClipGroups`-Navigation geladen. `BuildClipGroupStates` baut je
    zugeordneter Gruppe (aufsteigend nach `ProgramClipGroupId` = Round-Robin-Reihenfolge) einen
@@ -103,7 +110,7 @@ Beteiligte Komponenten:
 5. `FillGaps` läuft unverändert über die verbleibenden Lücken **zwischen** Ausstrahlungen;
    `PersistCursors` schreibt zusätzlich die Clip-Strang-Zeilen (`clipgroup:{groupId}`).
 
-### 4. Neu-Bewertung (`ReconcileAsync`)
+#### 4. Neu-Bewertung (`ReconcileAsync`)
 
 1. Regel-Zustände werden inkl. Clip-Gruppen expandiert; die Trailer-Gruppe expandiert hier
    sofort, da `airingsByMovie` aus den persistierten Slots bekannt ist.
@@ -135,7 +142,7 @@ flowchart TD
     K --> L
 ```
 
-## Fehlerbehandlung
+### Fehlerbehandlung
 
 - **Fehlende Trailer-Seed-Zeile** (Alt-Backup ohne `InsertData`-Seed): `BuildClipGroupStates`
   überspringt Links auf fehlende Gruppen-Zeilen; `GetGroupsAsync` listet „Trailer" schlicht
@@ -148,10 +155,105 @@ flowchart TD
 - **Berechtigungen:** `RequireAdminAsync` in jeder Service-Methode; die UI blendet lediglich
   Schaltflächen aus.
 
-## Alt-Backup-Restore
+### Alt-Backup-Restore
 
 `VideoWebPlayerBackupData` registriert `ProgramClipGroups`, `ProgramClipGroupItems` und
 `ProgramRuleClipGroups` in `OptionalRestoreTables` sowie `ProgramRules.PlaceholderGrace` in
 `OptionalRestoreColumns`; der neue Block `OptionalRestoreTimeSpanDefaults` injiziert den
 Default `"00:15:00"` (`TimeSpan.FromMinutes(15)`) in Zeilen eines Alt-Backups ohne die Spalte.
 Ein Regressionstest stellt ein Alt-Backup ohne die neuen Tabellen/Spalte wieder her.
+
+## Standby-Stream des Live-Streams (Warm-up-Phase)
+
+### Übersicht
+
+Solange keine echte `live.m3u8` mit mindestens einem referenzierten Segment existiert,
+beantwortet `LiveStreamController.GetFile` die Playlist-Anfrage mit dem im Speicher
+gehaltenen Standby-Stream des `LiveStreamStandbyProvider` (Singleton) statt mit `404` —
+das deckt die Warm-up-Phase nach einem Start ebenso ab wie alle Zustände ohne
+produzierte Segmente (Sendelücke, `FfmpegUnavailable`, `MediaUnavailable`, torn read
+einer segmentlosen Playlist). Der Standard-Satz sind die als `EmbeddedResource`
+eingebetteten Segmente des Funki-Clips „Gleich geht's los!"
+(`Assets/LiveStreamStandby/standby_*.ts` mit fixen `DefaultSegmentDurations` im Provider);
+ein administrativ gewähltes `MediaItem` (`Setup.LiveStreamStandbyMediaItemId`) wird
+einmalig per `ffmpeg` transkodiert und in `Data/LiveStreamStandby/` gecacht.
+
+### Start-Sequenz des Workers
+
+`LiveStreamWorker.ExecuteAsync` leert das Segment-Verzeichnis
+(`LiveStreamSegmentStore.ClearAsync`) **vor** der Startverzögerung (`_initialDelay`,
+10 s): Reste des Vorlaufs sind in der Warm-up-Phase nicht mehr auslieferbar — die
+Playlist-Anfrage beantwortet in dieser Zeit der Standby-Satz. Direkt danach läuft
+`LiveStreamStandbyProvider.RefreshAsync`: liest die konfigurierte Auswahl und stößt
+deren Vorbereitung an (ein Cache-Treffer lädt ohne `ffmpeg`-Lauf); ein Fehlschlag ist
+toleriert und wird nur protokolliert — der eingebettete Default bleibt aktiv.
+
+### Playlist-Entscheidung im Controller
+
+Reihenfolge in `GetFile` (Freigabeprüfungen `GetTvSenderEnabledAsync` → `404` und
+`IsTvSenderAccessGrantedAsync` → `403` laufen unverändert zuerst):
+
+1. Datei im Segment-Verzeichnis gefunden und `*.m3u8`: Inhalt lesen;
+   `PlaylistReferencesSegment` (mindestens eine Nicht-`#`-Zeile) entscheidet „echte
+   Playlist". Eine segmentlose Playlist — der HLS-Muxer legt `live.m3u8` erst mit dem
+   ersten fertigen Segment an, torn reads können einen Header-only-Zustand zeigen —
+   wird wie eine fehlende Datei behandelt und fällt in den Standby-Pfad.
+2. Sonstige gefundene Datei: Segment-Auslieferung (`video/mp2t` bzw.
+   `application/octet-stream`) mit `FileShare.ReadWrite | FileShare.Delete`.
+3. Nichts auf der Platte: `ServeStandbyAsync` — `live.m3u8` erhält die Standby-
+   Wiedergabeliste (`BuildPlaylist`), `standby_*` ein Segment des aktiven Satzes
+   (`TryGetSegment`), alles andere `404`. Gibt es keinen nutzbaren Satz (fehlende
+   eingebettete Assets), bleibt `live.m3u8` bei `404`.
+
+Alle erfolgreichen Antworten — echte und Standby-Wiedergabelisten ebenso wie `.ts`-
+Segmente — tragen `Cache-Control: no-store`; Playlists beider Arten laufen durch
+`RewritePlaylistContent` (`access_token` an jede Segment-URI). Nach einer ausgelieferten
+Standby-Playlist (`NoteStandbyPlaylistServed`) liefert
+`ConsumePendingStandbyTransition` genau einmal `true`: Die erste echte Playlist danach
+trägt per `InjectDiscontinuity` ein `#EXT-X-DISCONTINUITY` vor dem ersten URI — die echte
+Playlist beginnt ihre Media-Sequence bei 0, während die Standby-Playlist wanduhrbasiert
+weiterzählte.
+
+### Standby-Sätze und Vorbereitung
+
+- `StandbySegmentSet` ist immutabel und wird als Ganzes atomar getauscht (`_activeSet`,
+  volatile). Der Generations-Präfix im Ausliefernamen
+  (`standby_{generation}_{index:00}.ts`) verhindert, dass eine neue Playlist Namen
+  bewirbt, die ein älterer Satz nicht kennt; `TryGetSegment` bedient Namen des aktiven
+  Satzes unabhängig vom Zustand der echten Playlist — ein Client kann die zuletzt
+  beworbene Standby-Folge zu Ende spielen.
+- `BuildPlaylist(configuredId)` baut die rotierende Live-Playlist
+  (`PlaylistWindowSegmentCount = 3`, `#EXT-X-MEDIA-SEQUENCE` aus der seit Provider-Start
+  verstrichenen Wanduhrzeit, `EXT-X-PROGRAM-DATE-TIME` je Eintrag). Weicht die
+  konfigurierte Id vom aktiven Satz ab, stößt `TriggerPrepare` eine deduplizierte
+  Hintergrund-Vorbereitung an (`_prepareTask`, ein Lauf prozessweit) — der bisherige
+  Satz antwortet in der Zwischenzeit weiter.
+- `PrepareAsync` (Gate `_prepareGate`): `null` → Default-Satz. Sonst wird das MediaItem
+  immer zuerst über `LiveStreamMediaResolver.ResolveAsync` aufgelöst (HTTP-Eingang) —
+  ein gelöschtes Item mit noch vorhandenem Cache-Marker wird nicht aus dem Cache
+  bedient. Danach Cache-Prüfung über `standby-source.json` (MediaItemId,
+  Quell-Deskriptor — Dateipfad bzw. `http`/`stream` — und bei Dateiquellen der
+  Änderungsstempel, damit eine ersetzte Quelldatei neu eingelesen wird), andernfalls
+  `LiveStreamStandbySegmenter.TranscodeAsync`: Offline-Lauf ohne `-re` (`-f segment`,
+  `-segment_time 4`, `-t 60` als harte Kappe gegen falsch gewählte lange Inhalte,
+  Laufzeit-Timeout 2×60 s gegen stallende Eingaben), Segmentdauern per `ffprobe`
+  (Nominal-Fallback). Die gemerkte Fehlschlag-Id (`_failedMediaItemId`) verhindert
+  einen Retry-Sturm je Playlist-Poll; sie resettet nur bei Erfolg oder anderem Ziel.
+
+### Auswahl in der Administration
+
+Die Standby-Karte in `TVSenderAdmin.razor` (`#tvsender-standby-*`) nutzt für die
+Kandidatenliste `IProgramClipGroupService.GetClipCandidatesAsync` (LIKE-Suche,
+Quell-Filter, `VideoFileExtensions`-Filter, Seitengröße 100). Die Auswahl wird mit
+„Speichern" über `ProgramSettingsService.UpdateLiveStreamStandbyClipAsync`
+persistiert; die geteilte Regel `MediaItemClipEligibility.EnsureUnclassifiedVideoClipAsync`
+erzwingt serverseitig: Videodatei und nicht klassifiziert (kein `MovieMediaItems`-/
+`TVShowEpisodeMediaItems`-Link). `Setup.LiveStreamStandbyMediaItemId` ist eine weiche
+Referenz ohne Fremdschlüssel — ein gelöschtes Item lässt die Id stehen; die Vorbereitung
+schlägt dann fehl und der Default-Satz greift (in der UI als Hinweis-Chip sichtbar).
+
+### Alt-Backup-Restore
+
+`Setups.LiveStreamStandbyMediaItemId` steht in
+`VideoWebPlayerBackupData.OptionalRestoreColumns`; ein Regressionstest stellt ein
+Alt-Backup ohne die Spalte wieder her.

@@ -393,3 +393,6 @@ issue.md
 !lib/packages/
 !lib/packages/*.nupkg
 !lib/packages/**/*.nupkg
+
+# Runtime-Cache der Standby-Segmente (wird vom Server beim Betrieb angelegt)
+/VideoWebPlayer/Data/LiveStreamStandby/

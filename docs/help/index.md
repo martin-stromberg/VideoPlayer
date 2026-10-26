@@ -11,6 +11,7 @@
 - [Gesehen-Kennzeichen](gesehen-status.md) — Benutzerbezogene Markierung bereits gesehener Filme und Episoden
 - [Medienmetadaten bearbeiten](medien-editiermodus.md) — Administrativer Editiermodus für Serien, Staffeln, Episoden, Filme und Filmsammlungen
 - [Startseite – Hero-Hintergrund](startseite-hero-hintergrund.md) — Zusammengesetztes Hintergrundbild aus der „Weiterschauen"-Liste
+- [Saisonale Startseitenlisten](saisonale-startseitenlisten.md) — Zeitlich begrenzte Genre-Listen und deren Anzeige auf der Startseite
 - [Weiterschauen](weiterschauen/index.md) — Speichern und Fortsetzen von Serien und Filmen an der zuletzt angesehenen Position
 
 ## Systemverwaltung (Administratoren)
@@ -24,5 +25,7 @@
 - [Videolaufzeit](videolaufzeit.md) — Automatische Laufzeitermittlung per ffprobe: Fortschritt im TV-Sender-Tab „Laufzeitermittlung" beobachten, fehlgeschlagene Ermittlungen zurücksetzen, ffprobe-Einrichtung und Konfiguration
 
 ## Projekt und Entwicklung
+
+- [API: Saisonale Startseitenlisten](../api/seasonal-genres.md) — Authentifizierter Endpunkt, Medienantwort und Saisonablauf
 
 - [Aktuelle Projektstruktur](projektstruktur.md) — Verbleibende Solution-Projekte und Hinweise zur Webanwendung

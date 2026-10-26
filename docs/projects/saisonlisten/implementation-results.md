@@ -43,4 +43,3 @@ Die beiden unverändert vorhandenen Skips betreffen Unix-Dateirechte unter Windo
 einen bereits auf der Serverbasis explizit deaktivierten ContinueWatching-Test für Filme
 ohne Sammlung (bestehender serverseitiger HTTP-500-Befund, nicht dieser Auftrag).
 Keiner der zwölf neuen saisonalen Tests wurde übersprungen.
-

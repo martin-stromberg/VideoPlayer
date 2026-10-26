@@ -59,10 +59,20 @@ public class LiveStreamController : ApiBaseController
     [HttpGet("{fileName}")]
     public async Task<IActionResult> GetFile(string fileName)
     {
+        // Die 401-Behandlung gilt ausschließlich dem Anmeldefehler — eine
+        // UnauthorizedAccessException aus der Datei-Auslieferung ist ein Serverfehler (500).
         try
         {
             CheckLoggedIn();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Ausliefern des Live-Streams");
+            return Unauthorized(ex.Message);
+        }
 
+        try
+        {
             // Feature-Flag: ohne Admin-Freigabe ist der Stream-Endpunkt unsichtbar (404).
             if (!await _settings.GetTvSenderEnabledAsync(HttpContext.RequestAborted))
                 return NotFound();
@@ -112,19 +122,9 @@ public class LiveStreamController : ApiBaseController
             // entscheidet (in-memory Playlist bzw. Segment), sonst bleibt es bei 404.
             return await ServeStandbyAsync(fileName, accessToken);
         }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Ausliefern des Live-Streams");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Logger.LogError(ex, "Fehler beim Ausliefern von '{FileName}'", fileName);
-            return StatusCode(500, "Internal server error");
-        }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Fehler beim Ausliefern des Live-Streams");
+            Logger.LogError(ex, "Fehler beim Ausliefern von '{FileName}'", fileName);
             return StatusCode(500, "Internal server error");
         }
     }

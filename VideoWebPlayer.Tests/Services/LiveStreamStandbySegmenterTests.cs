@@ -1,6 +1,9 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -73,6 +76,44 @@ public sealed class LiveStreamStandbySegmenterTests : IAsyncLifetime
         public void Dispose() { }
     }
 
+    /// <summary>Prozess-Attrappe, die weder beendet werden kann noch je ein stderr-EOF
+    /// liefert — der Blockierpfad, der TranscodeAsync frueher endlos haengen liess.</summary>
+    private sealed class UnkillableStallingProcess : ISegmenterProcess
+    {
+        public bool HasExited => false;
+        public int ExitCode => -1;
+        public Stream StandardInput { get; } = new MemoryStream();
+        public Stream StandardError { get; } = new NeverEndingStream();
+
+        public Task WaitForExitAsync(CancellationToken cancellationToken)
+            => Task.Delay(Timeout.Infinite, cancellationToken);
+
+        public void Kill() => throw new InvalidOperationException("Kill simuliert fehlgeschlagen.");
+
+        public void Dispose() { }
+    }
+
+    /// <summary>Stream-Attrappe, deren Leseaufruf nie abschliesst (kein stderr-EOF).</summary>
+    private sealed class NeverEndingStream : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => 0;
+        public override long Position { get => 0; set { } }
+
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count)
+            => throw new NotSupportedException();
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => new TaskCompletionSource<int>().Task;
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            => new(new TaskCompletionSource<int>().Task);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     private readonly string _cacheDir = Path.Combine(Path.GetTempPath(), $"vwp-standby-seg-{Guid.NewGuid():N}");
     private readonly List<ProcessStartInfo> _started = [];
 
@@ -86,9 +127,11 @@ public sealed class LiveStreamStandbySegmenterTests : IAsyncLifetime
     }
 
     private LiveStreamStandbySegmenter CreateSegmenter(
-        Func<ProcessStartInfo, ISegmenterProcess?> startProcess, TimeSpan? transcodeTimeout = null)
-        => new(new FakeFfmpegLocator(), new FakeFfprobeLocator(), NullLogger<LiveStreamStandbySegmenter>.Instance,
-            startProcess, transcodeTimeout);
+        Func<ProcessStartInfo, ISegmenterProcess?> startProcess, TimeSpan? transcodeTimeout = null,
+        ILogger<LiveStreamStandbySegmenter>? logger = null, TimeSpan? stderrDrainTimeout = null)
+        => new(new FakeFfmpegLocator(), new FakeFfprobeLocator(),
+            logger ?? NullLogger<LiveStreamStandbySegmenter>.Instance,
+            startProcess, transcodeTimeout, stderrDrainTimeout);
 
     [Fact]
     public async Task TranscodeAsync_BuildsSegmentArgs_AndAppliesDurationCap()
@@ -180,6 +223,60 @@ public sealed class LiveStreamStandbySegmenterTests : IAsyncLifetime
 
         Assert.Null(result);
         Assert.True(killed);
+    }
+
+    [Fact]
+    public async Task TranscodeAsync_KillFailsAndStderrNeverEnds_ReturnsWithinBound()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var logger = new ListLogger<LiveStreamStandbySegmenter>(new ConcurrentQueue<string>());
+        var segmenter = CreateSegmenter(_ => new UnkillableStallingProcess(),
+            transcodeTimeout: TimeSpan.FromMilliseconds(100), logger: logger,
+            stderrDrainTimeout: TimeSpan.FromMilliseconds(250));
+
+        // Fehlschlagendes Kill() + endloser stderr-Stream: ohne die Drain-Begrenzung hing
+        // TranscodeAsync hier für immer — der äußere Rahmen hält auch den Fehlerfall
+        // testbar, statt den Testprozess zu blockieren.
+        var result = await segmenter.TranscodeAsync(
+            LiveStreamInput.ForFile("/media/clip.mkv"), _cacheDir, ct)
+            .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None);
+
+        Assert.Null(result);
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("nicht beendet"));
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("stderr-Drain"));
+    }
+
+    [Fact]
+    public async Task TranscodeAsync_LockedStaleSegment_StaysOutOfResult()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        Directory.CreateDirectory(_cacheDir);
+        var stalePath = Path.Combine(_cacheDir, "standby_099.ts");
+        await File.WriteAllBytesAsync(stalePath, [0x47, 0x99], ct);
+
+        var logger = new ListLogger<LiveStreamStandbySegmenter>(new ConcurrentQueue<string>());
+        var segmenter = CreateSegmenter(_ => new FakeProcess(0, onWait: () =>
+            File.WriteAllBytes(Path.Combine(_cacheDir, "standby_000.ts"), [0x47, 0x01])),
+            logger: logger);
+
+        // Gehaltenes Alt-Segment: unter Windows schlägt File.Delete fehl (Sharing-
+        // Verletzung) und die Datei bleibt liegen, unter Unix wird sie entlinkt — in
+        // keinem Fall darf der Rest unbemerkt in den neuen Satz wandern.
+        await using (var lockHandle = new FileStream(stalePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+        {
+            var result = await segmenter.TranscodeAsync(
+                LiveStreamInput.ForFile("/media/clip.mkv"), _cacheDir, ct);
+
+            var segment = Assert.Single(result!);
+            Assert.Equal("standby_000.ts", segment.FileName);
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.Contains(logger.Entries, e =>
+                    e.Level == LogLevel.Warning && e.Message.Contains("konnte nicht geloescht werden"));
+            }
+        }
     }
 
     [Fact]

@@ -1,8 +1,10 @@
+using System.Collections;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Primitives;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -229,6 +231,41 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
         var result = await controller.GetFile("live.m3u8");
 
         Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetFile_AccessDeniedAfterLogin_Returns500Not401()
+    {
+        // Eine UnauthorizedAccessException hinter der Anmeldeprüfung (z. B. ein
+        // verweigerter Dateizugriff während der Auslieferung) ist ein Serverfehler —
+        // 401 bleibt ausschließlich dem Anmeldefehler vorbehalten. Die beteiligten
+        // Dienste sind versiegelt; die Query-Attrappe löst denselben Ausnahmetyp
+        // im Auslieferungspfad aus (Request.Query wird nach dem Login gelesen).
+        _controller.HttpContext.Request.Query = new DenyingQueryCollection();
+
+        var result = await _controller.GetFile("live.m3u8");
+
+        var error = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(500, error.StatusCode);
+    }
+
+    private sealed class DenyingQueryCollection : IQueryCollection
+    {
+        public StringValues this[string key]
+            => throw new UnauthorizedAccessException("Simulierte Zugriffsverweigerung.");
+
+        public int Count => 0;
+        public ICollection<string> Keys => [];
+        public bool ContainsKey(string key) => false;
+        public bool TryGetValue(string key, out StringValues value)
+        {
+            value = default;
+            return false;
+        }
+
+        public IEnumerator<KeyValuePair<string, StringValues>> GetEnumerator()
+            => Enumerable.Empty<KeyValuePair<string, StringValues>>().GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     [Fact]

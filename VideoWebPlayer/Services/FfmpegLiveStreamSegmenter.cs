@@ -108,7 +108,9 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     /// <param name="logger">Logger instance.</param>
     /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
     public FfmpegLiveStreamSegmenter(ILogger<FfmpegLiveStreamSegmenter> logger, TimeProvider? timeProvider = null)
-        : this(logger, SegmenterProcessSupport.StartRealProcess, timeProvider)
+        : this(logger,
+            startInfo => SegmenterProcessSupport.StartRealProcess(startInfo, logger, nameof(FfmpegLiveStreamSegmenter)),
+            timeProvider)
     {
     }
 

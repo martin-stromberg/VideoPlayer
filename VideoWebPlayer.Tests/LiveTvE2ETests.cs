@@ -38,10 +38,6 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         return segDir;
     }
 
-    /// <summary>
-    /// Seeds channel + movie + media item + one running and one upcoming broadcast slot, plus the
-    /// HLS segment directory so the player actually reaches <c>live.m3u8</c>.
-    /// </summary>
     /// <summary>Same seed as <see cref="SeedChannelWithRunningProgramAsync"/> but with an
     /// empty segment directory — the server answers the playlist with the standby stream.</summary>
     private async Task SeedChannelWithRunningProgram_NoPlaylistAsync(string movieTitle)
@@ -52,6 +48,10 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         await SeedProgramCoreAsync(db, movieTitle);
     }
 
+    /// <summary>
+    /// Seeds channel + movie + media item + one running and one upcoming broadcast slot, plus the
+    /// HLS segment directory so the player actually reaches <c>live.m3u8</c>.
+    /// </summary>
     private async Task SeedChannelWithRunningProgramAsync(string movieTitle)
     {
         using var scope = Services.CreateScope();

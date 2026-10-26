@@ -37,16 +37,22 @@ internal static class SegmenterProcessSupport
 
     /// <summary>
     /// Starts a real <see cref="Process"/> wrapped as <see cref="ISegmenterProcess"/>, or
-    /// <see langword="null"/> when the start fails.
+    /// <see langword="null"/> when the start fails — the failure cause (e.g.
+    /// <see cref="System.ComponentModel.Win32Exception"/> „nicht gefunden" vs. „Zugriff
+    /// verweigert") is logged so the caller's contextless message stays diagnosable.
     /// </summary>
-    internal static ISegmenterProcess? StartRealProcess(ProcessStartInfo startInfo)
+    /// <param name="startInfo">The process start description.</param>
+    /// <param name="logger">Logger for the start failure.</param>
+    /// <param name="caller">Log prefix identifying the calling segmenter.</param>
+    internal static ISegmenterProcess? StartRealProcess(ProcessStartInfo startInfo, ILogger logger, string caller)
     {
         try
         {
             return new SegmenterProcess(Process.Start(startInfo)!);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogWarning(ex, "[{Caller}] Prozess '{FileName}' konnte nicht gestartet werden.", caller, startInfo.FileName);
             return null;
         }
     }

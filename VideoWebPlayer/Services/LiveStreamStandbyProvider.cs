@@ -406,7 +406,6 @@ public sealed class LiveStreamStandbyProvider
                 MediaItemId = target,
                 Source = SourceDescriptor(input),
                 SourceWriteTimeUtc = input.FilePath is { } p && File.Exists(p) ? File.GetLastWriteTimeUtc(p) : (DateTime?)null,
-                PreparedAtUtc = DateTime.UtcNow,
                 Files = segments.Select(s => new StandbyCacheFile
                 {
                     FileName = s.FileName,
@@ -487,7 +486,6 @@ public sealed class LiveStreamStandbyProvider
         public long MediaItemId { get; set; }
         public string? Source { get; set; }
         public DateTime? SourceWriteTimeUtc { get; set; }
-        public DateTime PreparedAtUtc { get; set; }
         public List<StandbyCacheFile> Files { get; set; } = [];
     }
 

@@ -543,11 +543,16 @@ else
                     </div>
                 </div>
                 <div class="admin-sub-card">
-                    <h3 class="mb-2">Standby-Clip (Warm-up-Phase)</h3>
-                    <p class="form-text">Überbrückt die Phase, in der noch keine echte Wiedergabeliste existiert (z. B. nach einem Server-Start) — sowie jeden Zustand ohne produzierte Segmente. Angeboten werden nur nicht klassifizierte Videodateien.</p>
+                    <h3 class="mb-2">Standby-Clip (Überbrückung)</h3>
+                    <p class="form-text">Wird gezeigt, bis der Live-Stream nach einem Server-Start wirklich läuft — ebenso bei Unterbrechungen. Auswählbar sind Videodateien ohne Film-/Serien-Zuordnung.</p>
                     <div class="mb-2">
                         <span class="admin-chip" id="tvsender-standby-current">@standbyCurrentLabel</span>
-                        <button id="tvsender-standby-change" class="btn btn-sm btn-outline-light" @onclick="ToggleStandbyPickerAsync">Ändern</button>
+                        <button id="tvsender-standby-change" class="btn btn-sm btn-outline-light" @onclick="ToggleStandbyPickerAsync"
+                                aria-expanded="@(showStandbyPicker ? "true" : "false")" aria-controls="tvsender-standby-picker">@(showStandbyPicker ? "Auswahl schließen" : "Ändern")</button>
+                        @if (standbySelectionPending)
+                        {
+                            <span class="form-text" id="tvsender-standby-pending">Auswahl wird mit „Speichern" übernommen.</span>
+                        }
                     </div>
                     @if (showStandbyPicker)
                     {
@@ -568,7 +573,13 @@ else
                                     <input id="tvsender-standby-search" class="form-control" @bind="standbySearch" @bind:event="oninput" @bind:after="OnStandbySearchChanged" placeholder="Clip suchen..." />
                                 </div>
                             </div>
-                            @if (standbyCandidates.Count == 0)
+                            @if (standbyCandidatesLoading && standbyCandidates.Count == 0)
+                            {
+                                <div class="admin-empty-state" id="tvsender-standby-loading">
+                                    <strong>Clips werden geladen…</strong>
+                                </div>
+                            }
+                            else if (standbyCandidates.Count == 0)
                             {
                                 <div class="admin-empty-state" id="tvsender-standby-empty">
                                     <strong>Keine zuordenbaren Clips gefunden</strong>
@@ -606,7 +617,7 @@ else
                             @if (standbyCandidatesHasMore)
                             {
                                 <p class="form-text" id="tvsender-standby-more-hint">Es gibt weitere Treffer — Suche oder Quelle eingrenzen oder weitere laden.</p>
-                                <button id="tvsender-standby-more" class="btn btn-sm btn-outline-light" @onclick="LoadMoreStandbyCandidatesAsync">Weitere laden</button>
+                                <button id="tvsender-standby-more" class="btn btn-sm btn-outline-light" disabled="@standbyCandidatesLoading" @onclick="LoadMoreStandbyCandidatesAsync">@(standbyCandidatesLoading ? "Clips werden geladen…" : "Weitere laden")</button>
                             }
                             <div class="admin-actions">
                                 <button id="tvsender-standby-clear" class="btn btn-sm btn-outline-light" @onclick="ClearStandbySelection">Standard-Clip verwenden</button>
@@ -921,12 +932,14 @@ else
     private const int StandbyCandidatePageSize = 100;
     private const int StandbySearchDebounceMilliseconds = 400;
     private long? standbyMediaItemId;
+    private long? standbySavedMediaItemId;
     private string standbyCurrentLabel = StandbyDefaultLabel;
     private bool showStandbyPicker;
     private string? standbySearch;
     private long? standbySourceId;
     private List<ProgramClipGroupCandidate> standbyCandidates = new();
     private bool standbyCandidatesHasMore;
+    private bool standbyCandidatesLoading;
     private CancellationTokenSource? standbySearchDebounceCts;
     private readonly string[] federalStates = ProgramSettingsService.HolidayFederalStates.ToArray();
     private string? channelStatus;
@@ -979,6 +992,11 @@ else
     private int? DownloadAriaMin => downloadSnapshot.TotalBytes > 0 ? 0 : null;
     private int? DownloadAriaMax => downloadSnapshot.TotalBytes > 0 ? 100 : null;
 
+    // Die Standby-Auswahl wird — wie alle Einstellungen dieser Karte — erst mit
+    // „Speichern" wirksam; weicht die angezeigte Wahl vom gespeicherten Stand ab,
+    // macht der Hinweis das sichtbar (sichtbarer Zustand = wirksamer Zustand).
+    private bool standbySelectionPending => standbyMediaItemId != standbySavedMediaItemId;
+
     private string DownloadStatusLabel
     {
         get
@@ -1021,6 +1039,7 @@ else
         segmentDirectory = await ProgramSettings.GetLiveStreamSegmentDirectoryAsync();
         segmentRetentionMinutes = (int)(await ProgramSettings.GetLiveStreamSegmentRetentionAsync()).TotalMinutes;
         standbyMediaItemId = await ProgramSettings.GetLiveStreamStandbyMediaItemIdAsync();
+        standbySavedMediaItemId = standbyMediaItemId;
         standbyCurrentLabel = standbyMediaItemId is { } standbyId
             ? await LoadStandbyLabelAsync(standbyId)
             : StandbyDefaultLabel;
@@ -1480,7 +1499,9 @@ else
 
     // Anzeigename des aktuell gewählten Standby-Clips; ein gelöschtes Medium bleibt als
     // weiche Referenz sichtbar, statt still auf den Standard zurückzufallen — selbsterklärend
-    // ohne interne Id, die in keinem Eingabefeld wieder verwendbar wäre.
+    // ohne interne Id, die in keinem Eingabefeld wieder verwendbar wäre. Die verwaiste
+    // Auswahl wird dabei auf „Standard" zurückgesetzt: der Chip sagt bereits „Standard-Clip
+    // wird verwendet", sonst scheiterte jedes „Speichern" an der toten Referenz.
     private async Task<string> LoadStandbyLabelAsync(long mediaItemId)
     {
         var info = await DbContext.MediaItems
@@ -1488,9 +1509,13 @@ else
             .Where(mi => mi.Id == mediaItemId)
             .Select(mi => new { mi.Name, SourceName = mi.MediaCollection.MediaSource.Name })
             .FirstOrDefaultAsync();
-        return info is null
-            ? "Zuvor gewählter Clip ist nicht mehr vorhanden — Standard-Clip wird verwendet"
-            : $"{info.Name} ({info.SourceName})";
+        if (info is null)
+        {
+            standbyMediaItemId = null;
+            return "Zuvor gewählter Clip ist nicht mehr vorhanden — Standard-Clip wird verwendet";
+        }
+
+        return $"{info.Name} ({info.SourceName})";
     }
 
     private async Task ToggleStandbyPickerAsync()
@@ -1569,10 +1594,18 @@ else
 
     private async Task LoadMoreStandbyCandidatesAsync()
     {
-        var page = await ClipGroupService.GetClipCandidatesAsync(
-            userId, standbySearch, standbySourceId, standbyCandidates.Count, StandbyCandidatePageSize + 1);
-        standbyCandidatesHasMore = page.Count > StandbyCandidatePageSize;
-        standbyCandidates.AddRange(page.Take(StandbyCandidatePageSize));
+        standbyCandidatesLoading = true;
+        try
+        {
+            var page = await ClipGroupService.GetClipCandidatesAsync(
+                userId, standbySearch, standbySourceId, standbyCandidates.Count, StandbyCandidatePageSize + 1);
+            standbyCandidatesHasMore = page.Count > StandbyCandidatePageSize;
+            standbyCandidates.AddRange(page.Take(StandbyCandidatePageSize));
+        }
+        finally
+        {
+            standbyCandidatesLoading = false;
+        }
     }
 
     private async Task SaveChannelSettingsAsync()
@@ -1585,6 +1618,7 @@ else
             await ProgramSettings.UpdateProgramScheduleSettingsAsync(horizonHours, intervalMinutes);
             await ProgramSettings.UpdateLiveStreamSettingsAsync(segmentLengthSeconds, segmentDirectory, segmentRetentionMinutes);
             await ProgramSettings.UpdateLiveStreamStandbyClipAsync(standbyMediaItemId);
+            standbySavedMediaItemId = standbyMediaItemId;
             channelStatus = "Einstellungen wurden gespeichert.";
         }
         catch (Exception ex)

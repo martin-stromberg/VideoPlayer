@@ -58,6 +58,34 @@ public sealed class TVSenderAdminTests_Standby
     }
 
     [Fact]
+    public async Task StandbyCard_OrphanedSelection_SaveStillWorks()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-standby-orphan", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        // Verwaiste Referenz: die gespeicherte Standby-Auswahl zeigt auf ein gelöschtes Medium.
+        var setup = await fixture.Db.Setups.FirstAsync(ct);
+        setup.LiveStreamStandbyMediaItemId = 424242L;
+        await fixture.Db.SaveChangesAsync(ct);
+        var (ctx, _) = await TVSenderAdminTests.CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(
+            () => Assert.Contains("nicht mehr vorhanden", cut.Find("#tvsender-standby-current").TextContent),
+            TimeSpan.FromSeconds(10));
+
+        // Der angezeigte Zustand („Standard-Clip wird verwendet") muss sich speichern
+        // lassen — vorher scheiterte jedes „Speichern" an der toten Referenz.
+        cut.Find("#tvsender-save-settings").Click();
+        cut.WaitForAssertion(
+            () => Assert.Contains("gespeichert", cut.Find("#tvsender-channel-status").TextContent),
+            TimeSpan.FromSeconds(10));
+        Assert.Null((await fixture.Db.Setups.FirstAsync(ct)).LiveStreamStandbyMediaItemId);
+        Assert.Empty(cut.FindAll("#tvsender-standby-pending"));
+    }
+
+    [Fact]
     public async Task StandbyCard_NonAdmin_Blocked()
     {
         var ct = Xunit.TestContext.Current.CancellationToken;

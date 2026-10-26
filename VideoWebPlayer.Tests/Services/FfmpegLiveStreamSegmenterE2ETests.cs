@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -18,7 +19,7 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
     public async Task RealFfmpeg_ProducesPlaylistAndSegments()
     {
         var ct = TestContext.Current.CancellationToken;
-        var ffmpeg = FindBinary("ffmpeg");
+        var ffmpeg = E2EBinaryLocator.Find("ffmpeg");
         if (ffmpeg is null)
             return; // kein ffmpeg auf diesem System — der Argumentpfad ist separat getestet
 
@@ -74,7 +75,7 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
     public async Task SecondJob_PlaylistContinuesAndMarksDiscontinuity()
     {
         var ct = TestContext.Current.CancellationToken;
-        var ffmpeg = FindBinary("ffmpeg");
+        var ffmpeg = E2EBinaryLocator.Find("ffmpeg");
         if (ffmpeg is null)
             return; // kein ffmpeg auf diesem System — der Argumentpfad ist separat getestet
 
@@ -195,19 +196,5 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
         };
         using var process = System.Diagnostics.Process.Start(startInfo)!;
         await process.WaitForExitAsync(ct);
-    }
-
-    private static string? FindBinary(string name)
-    {
-        var exeName = OperatingSystem.IsWindows() ? $"{name}.exe" : name;
-        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-        {
-            var candidate = Path.Combine(dir, exeName);
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        return null;
     }
 }

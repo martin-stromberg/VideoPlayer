@@ -18,9 +18,9 @@ Branch: `task/issue-266-5b50eb3176084182b85b8f729e910919-tv-sender-warm-up-phase
 | [x] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |
 | [x] | 9 | Code-Review (Unteragent) | `review-code.md` |
 | [x] | 10 | Tests ausführen (Unteragent) | `test-results.md` |
-| [ ] | – | Iteration oder Abschluss entscheiden | – |
+| [x] | – | Iteration oder Abschluss entscheiden | – |
 | [x] | 11 | Folgeaufgaben dokumentieren (bei Schleifenabbruch) | `continue.md` |
-| [ ] | 13 | Nacharbeiten abschließen (offene Punkte aus `continue.md`) | `continue-done.md` |
+| [x] | 13 | Nacharbeiten abschließen (offene Punkte aus `continue.md`) | `continue-done.md` |
 | [x] | 12 | Dokumentation erstellen (Unteragent) | `docs/help/` |
 | [x] | 12b | README aktualisieren (Unteragent) | `README.md` |
 | [x] | 12c | Release Notes aktualisieren (Unteragent) | `docs/RELEASE_NOTES.md` |

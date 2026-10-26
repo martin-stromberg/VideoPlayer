@@ -440,7 +440,7 @@ Alle Antworten — Wiedergabelisten, echte Segmente und Standby-Auslieferungen �
 
 Solange keine echte Wiedergabeliste mit mindestens einem referenzierten Segment existiert,
 beantwortet `live.m3u8` die Anfrage statt `404` mit der Standby-Wiedergabeliste (siehe
-„Standby-Clip (Warm-up-Phase)" unten) und `standby_*.ts`-Segmente werden aus dem Speicher
+„Standby-Clip (Überbrückung)" unten) und `standby_*.ts`-Segmente werden aus dem Speicher
 ausgeliefert — auch dann noch, wenn die echte Wiedergabeliste schon steht, damit ein
 Zuschauer die zuletzt beworbene Standby-Folge zu Ende spielen kann. Der Übergang ist
 nahtlos: Die erste echte Wiedergabeliste nach einer Standby-Auslieferung trägt einmalig
@@ -456,7 +456,7 @@ blockieren und im ungünstigen Fall den Segmentierer abbrechen. Segment-Antworte
 bewusst keine `Last-Modified`-/`ETag`-Prüfmarken: Die Segmentnamen sind eindeutig und
 zeitgestempelt, ihr Inhalt ändert sich nie, sodass bedingte Abrufe ohnehin nicht greifen.
 
-### Standby-Clip (Warm-up-Phase)
+### Standby-Clip (Überbrückung)
 
 Der Standby-Stream überbrückt jeden Zustand ohne produzierte Segmente — die Warm-up-Phase
 nach einem Server-Start oder Update ebenso wie Sendelücken, ein fehlendes `ffmpeg` oder
@@ -470,16 +470,19 @@ laufen.
 
 In der gleichnamigen Karte im Tab „Einstellungen" zeigt ein Chip den aktiven Clip —
 „Standard-Clip (Gleich geht's los)" oder Name und Quelle des gewählten Clips. Über
-**„Ändern"** öffnet sich die Auswahl: **„Quelle"** („Alle Quellen" oder eine einzelne
+**„Ändern"** öffnet sich die Auswahl (die Schaltfläche heißt dann **„Auswahl schließen"**):
+**„Quelle"** („Alle Quellen" oder eine einzelne
 Medienquelle) und **„Suche"** (Live-Suche im Dateinamen) filtern die Kandidatenliste
 (Spalten Name, Quelle, Laufzeit; Clips ohne ermittelte Laufzeit tragen den Hinweis
-„keine Laufzeit"). **„Auswählen"** übernimmt einen Clip (Markierung „Ausgewählt"),
+„keine Laufzeit"). Während die Liste geladen wird, steht dort „Clips werden geladen…".
+**„Auswählen"** übernimmt einen Clip (Markierung „Ausgewählt"),
 **„Weitere laden"** ergänzt lange Trefferlisten, **„Standard-Clip verwenden"** setzt die
 Auswahl zurück. Angeboten werden nur **nicht klassifizierte Videodateien** — dieselbe
 Regel wie bei den Clip-Gruppen-Kandidaten (Videodatei ohne Film-/Serien-Zuordnung);
 findet die Suche nichts Passendes, erscheint der Hinweis „Keine zuordenbaren Clips
 gefunden". Die Wahl wird erst mit **„Speichern"** übernommen und dabei serverseitig auf
-die Clip-Regel geprüft.
+die Clip-Regel geprüft — solange die angezeigte Auswahl vom gespeicherten Stand abweicht,
+weist der Hinweis „Auswahl wird mit ‚Speichern' übernommen" darauf hin.
 
 Der gewählte Clip wird einmalig per `ffmpeg` in kurze Segmente transkodiert (höchstens
 60 Sekunden Laufzeit — ein versehentlich langer Clip bläht den Speicher nicht auf)
@@ -491,7 +494,8 @@ der bisherige bzw. der Standard-Satz die Anfragen. Fehlt `ffmpeg`, ist das Mediu
 unauffindbar oder gelöscht oder scheitert die Vorbereitung, bleibt also zuverlässig ein
 Standby-Stream aktiv. Eine gelöschte Auswahl bleibt als weiche Referenz gespeichert und
 wird im Chip als „Zuvor gewählter Clip ist nicht mehr vorhanden — Standard-Clip wird
-verwendet" angezeigt.
+verwendet" angezeigt; beim Anzeigen dieses Hinweises gilt die Auswahl als auf den
+Standard zurückgesetzt — das nächste „Speichern" räumt die Referenz ohne Fehlermeldung ab.
 
 ## Live-TV-Ansicht
 

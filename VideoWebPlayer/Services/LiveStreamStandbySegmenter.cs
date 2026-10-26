@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -53,11 +52,16 @@ public sealed class LiveStreamStandbySegmenter
     /// a stalled source must not stall the transcode completion.</summary>
     private static readonly TimeSpan PumpDrainTimeout = TimeSpan.FromSeconds(10);
 
+    /// <summary>Grace period to collect the stderr drain once the process ended — a process
+    /// that could not be killed must not hang <see cref="TranscodeAsync"/> forever.</summary>
+    private static readonly TimeSpan StderrDrainTimeout = TimeSpan.FromSeconds(10);
+
     private readonly IFfmpegLocator _ffmpegLocator;
     private readonly IFfprobeLocator _ffprobeLocator;
     private readonly ILogger<LiveStreamStandbySegmenter> _logger;
     private readonly Func<ProcessStartInfo, ISegmenterProcess?> _startProcess;
     private readonly TimeSpan _transcodeTimeout;
+    private readonly TimeSpan _stderrDrainTimeout;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LiveStreamStandbySegmenter"/> class.
@@ -69,7 +73,8 @@ public sealed class LiveStreamStandbySegmenter
         IFfmpegLocator ffmpegLocator,
         IFfprobeLocator ffprobeLocator,
         ILogger<LiveStreamStandbySegmenter> logger)
-        : this(ffmpegLocator, ffprobeLocator, logger, SegmenterProcessSupport.StartRealProcess)
+        : this(ffmpegLocator, ffprobeLocator, logger,
+            startInfo => SegmenterProcessSupport.StartRealProcess(startInfo, logger, nameof(LiveStreamStandbySegmenter)))
     {
     }
 
@@ -78,13 +83,15 @@ public sealed class LiveStreamStandbySegmenter
         IFfprobeLocator ffprobeLocator,
         ILogger<LiveStreamStandbySegmenter> logger,
         Func<ProcessStartInfo, ISegmenterProcess?> startProcess,
-        TimeSpan? transcodeTimeout = null)
+        TimeSpan? transcodeTimeout = null,
+        TimeSpan? stderrDrainTimeout = null)
     {
         _ffmpegLocator = ffmpegLocator;
         _ffprobeLocator = ffprobeLocator;
         _logger = logger;
         _startProcess = startProcess;
         _transcodeTimeout = transcodeTimeout ?? TranscodeTimeout;
+        _stderrDrainTimeout = stderrDrainTimeout ?? StderrDrainTimeout;
     }
 
     /// <summary>
@@ -108,10 +115,23 @@ public sealed class LiveStreamStandbySegmenter
         }
 
         Directory.CreateDirectory(cacheDirectory);
+        // Nicht loeschbare Alt-Segmente (z. B. noch von einem Player gehalten) werden mit
+        // ihrem Aenderungsstempel gemerkt: unveraendert gebliebene Reste duerfen sich
+        // nicht in den neuen Satz mischen; ein vom neuen Lauf ueberschriebenes Segment
+        // desselben Namens (neuer Stempel) gehoert dagegen zum Ergebnis.
+        var staleLeftOver = new Dictionary<string, DateTime>(StringComparer.Ordinal);
         foreach (var stale in Directory.EnumerateFiles(cacheDirectory, "standby_*.ts"))
         {
-            try { File.Delete(stale); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            try
+            {
+                File.Delete(stale);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "[LiveStreamStandbySegmenter] Alt-Segment '{File}' konnte nicht geloescht werden.", stale);
+                try { staleLeftOver[Path.GetFileName(stale)] = File.GetLastWriteTimeUtc(stale); }
+                catch (Exception) { }
+            }
         }
 
         var startInfo = new ProcessStartInfo
@@ -153,11 +173,35 @@ public sealed class LiveStreamStandbySegmenter
                 {
                     // Transcode-Timeout (stallender Input): Prozess töten, Fehlschlag melden.
                     timedOut = true;
-                    try { if (!process.HasExited) process.Kill(); } catch (Exception) { }
+                    try
+                    {
+                        if (!process.HasExited)
+                            process.Kill();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "[LiveStreamStandbySegmenter] ffmpeg-Prozess konnte nach dem Transcode-Timeout nicht beendet werden.");
+                    }
                 }
             }
 
-            stderrTail = await stderrTask;
+            // Der stderr-Drain endet erst mit dem Prozess — konnte ffmpeg nicht beendet
+            // werden, wuerde ein unbegrenztes Warten TranscodeAsync wieder endlos haengen
+            // (genau der Blockierpfad, den TranscodeTimeout beseitigen soll).
+            try
+            {
+                stderrTail = await stderrTask.WaitAsync(_stderrDrainTimeout);
+            }
+            catch (TimeoutException)
+            {
+                // Eine spaetere Faultierung des verwaisten Drains wird beobachtet,
+                // damit sie nicht als unbehandelte Task-Ausnahme liegen bleibt.
+                _ = stderrTask.ContinueWith(
+                    t => _ = t.Exception, CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+                _logger.LogWarning("[LiveStreamStandbySegmenter] stderr-Drain des ffmpeg-Prozesses blieb nach {TimeoutSeconds}s offen — Ausgabe verworfen.", _stderrDrainTimeout.TotalSeconds);
+                stderrTail = string.Empty;
+            }
             // Der Pump wartet auf das Quell-Ende — bei stallendem Input nur begrenzt.
             try { await pumpTask.WaitAsync(PumpDrainTimeout); }
             catch (TimeoutException) { }
@@ -183,7 +227,12 @@ public sealed class LiveStreamStandbySegmenter
             }
         }
 
-        var files = Directory.GetFiles(cacheDirectory, "standby_*.ts");
+        // Nur die von diesem Lauf produzierten Dateien aufnehmen: ein nicht loeschbares
+        // Alt-Segment (unveraenderter Stempel) darf nicht unbemerkt in der Playlist landen.
+        var files = Directory.GetFiles(cacheDirectory, "standby_*.ts")
+            .Where(f => !staleLeftOver.TryGetValue(Path.GetFileName(f), out var stamp)
+                || File.GetLastWriteTimeUtc(f) != stamp)
+            .ToArray();
         Array.Sort(files, StringComparer.Ordinal);
         if (files.Length == 0)
         {

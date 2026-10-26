@@ -122,12 +122,15 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var newSlots = new List<ProgramSlot>();
         var occurrences = BuildOccurrences(rules.Where(r => r.RuleType != ProgramRuleType.Filler), coverageStart, horizonEnd, federalState, OccurrenceLookback);
         var boundStarts = BoundStarts(occurrences, states);
+        var occurrenceStarts = occurrences
+            .GroupBy(o => o.Rule.Id)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<DateTime>)g.Select(o => o.StartUtc).OrderBy(s => s).ToList());
         foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
             MaterializeOccurrence(occurrence, states, blocked, newSlots, coverageStart, BoundaryAfter(boundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary);
 
         var movieAirings = await LoadMovieAiringsAsync(channel.Id, coverageStart, newSlots, cancellationToken);
         await ExpandTrailerStatesAsync(states, cursors, access, movieAirings, coverageStart, summary, cancellationToken);
-        clipContext = clipContext with { AiringsByMovie = movieAirings, BoundStarts = boundStarts };
+        clipContext = clipContext with { AiringsByMovie = movieAirings, BoundStarts = boundStarts, OccurrenceStarts = occurrenceStarts };
         await ExpandClipGroupStatesAsync(states, cursors, clipContext, cancellationToken);
         InsertClipFill(newSlots, blocked, states, clipContext);
         FillGaps(states, rules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary, movieAirings);
@@ -360,7 +363,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var leadAirings = await BuildMovieAiringsFromSlotsAsync(keptSlots.Concat(newSlots), coverageStart, cancellationToken);
         InsertClipFill(newSlots, blocked, states,
-            clipContext with { AiringsByMovie = leadAirings, BoundStarts = window.BoundStarts });
+            clipContext with
+            {
+                AiringsByMovie = leadAirings,
+                BoundStarts = window.BoundStarts,
+                OccurrenceStarts = window.Occurrences
+                    .GroupBy(o => o.Rule.Id)
+                    .ToDictionary(g => g.Key, g => (IReadOnlyList<DateTime>)g.Select(o => o.StartUtc).OrderBy(s => s).ToList())
+            });
         FillGaps(states, activeRules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary, leadAirings);
 
         PersistCursors(states, cursors);
@@ -2303,7 +2313,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         DateTime CoverageStart,
         IReadOnlyList<(DateTime StartUtc, int Priority)> BoundStarts,
         DateTime HorizonEnd,
-        SummaryCounters Summary)
+        SummaryCounters Summary,
+        // Nominale Occurrence-Starts je Regel (aufsteigend) — die Grundlage des Periodenendes.
+        // Die Ausstrahlung kann real spaeter beginnen (invader shift) oder der geschriebene
+        // Kopf mitten in der Periode liegen; das Periodenende darf sich dadurch nie nach
+        // hinten verschieben.
+        IReadOnlyDictionary<long, IReadOnlyList<DateTime>>? OccurrenceStarts = null)
     {
         // Per-rule round-robin draw position of the fill pass — mutable run state shared by
         // the `with`-clones of this record, so the draw continues across airings of a rule.
@@ -2527,22 +2542,67 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return limit;
     }
 
+    // The space the whole re-laid chain (titles plus inserted clips) may span into: nearest
+    // occupied start OR reserved occurrence-start bound of any priority after the airing's
+    // current end — another occurrence owns its window regardless of priority, so a shifted
+    // title must never reach into it; only a started clip may overshoot (TailLimit).
+    private static DateTime ChainLimit(
+        DateTime lastEnd, List<Interval> blocked,
+        IReadOnlyList<(DateTime StartUtc, int Priority)> boundStarts, DateTime horizonEnd)
+    {
+        var limit = horizonEnd;
+        foreach (var o in blocked)
+            if (o.Start >= lastEnd && o.Start < limit)
+                limit = o.Start;
+        foreach (var b in boundStarts)
+            if (b.StartUtc >= lastEnd && b.StartUtc < limit)
+                limit = b.StartUtc;
+        return limit;
+    }
+
+    // The nominal start of the period an airing belongs to: the latest occurrence start of
+    // its rule at or before the airing's written head. The head can sit behind the nominal
+    // start (invader shift) or mid-period (partially aired occurrence — slots ending before
+    // the coverage start produce no rows). Null when no occurrence matches — the period end
+    // is then undecidable and the airing must be left untouched.
+    private static DateTime? PeriodStart(ClipFillContext ctx, long ruleId, DateTime headStartUtc)
+    {
+        if (ctx.OccurrenceStarts is null || !ctx.OccurrenceStarts.TryGetValue(ruleId, out var starts))
+            return null;
+        DateTime? result = null;
+        foreach (var start in starts)
+        {
+            if (start > headStartUtc)
+                break;
+            result = start;
+        }
+        return result;
+    }
+
     // Re-lays a single slot-duration airing with clip fill (the caller has already checked the
     // rule carries clip groups and a slot duration): nothing to do while no positive rest
-    // remains between the last title's end and the period end. Otherwise the rest is shared
-    // evenly across the n+1 segments (leftover budget carried forward), clips are drawn
-    // sequentially round-robin over the group rings and the title slots are re-positioned
-    // behind them. The tail segment may overshoot the period end while the space stays free —
-    // an overshooting clip reaching into occupied or bound space is dropped. The method keeps
-    // blocked in sync itself: the airing's own span leaves the occupied set before the re-lay
-    // and the rebuilt geometry is registered afterwards.
+    // remains between the last title's end and the period end. Otherwise the rest — capped at
+    // the free room before the next occupied or reserved boundary — is shared evenly across
+    // the n+1 segments (leftover budget carried forward), clips are drawn sequentially
+    // round-robin over the group rings and the title slots are re-positioned behind them.
+    // A tail clip must start before the period end and inside the owned window, and may
+    // overshoot it while the space stays free — a clip reaching into occupied or bound space
+    // is dropped. The method keeps blocked in sync itself: the airing's own span leaves the
+    // occupied set before the re-lay and the rebuilt geometry is registered afterwards.
     private void FillAiringSegments(
         List<ProgramSlot> airing, RuleState state, List<Interval> blocked,
         List<ProgramSlot> rebuilt, ClipFillContext ctx)
     {
         var rule = state.Rule;
-        var periodEnd = airing[0].Start + rule.SlotDuration!.Value;
-        var rest = periodEnd - airing[^1].End;
+        var lastEnd = airing[^1].End;
+        var periodStart = PeriodStart(ctx, rule.Id, airing[0].Start);
+        if (periodStart is null)
+        {
+            rebuilt.AddRange(airing);
+            return;
+        }
+        var periodEnd = periodStart.Value + rule.SlotDuration!.Value;
+        var rest = periodEnd - lastEnd;
         if (rest <= TimeSpan.Zero)
         {
             rebuilt.AddRange(airing);
@@ -2553,11 +2613,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         foreach (var slot in airing)
             blocked.RemoveAll(b => b.Start == slot.Start && b.End == slot.End);
 
-        var tailLimit = TailLimit(airing[^1].End, rule.Priority, blocked, ctx.BoundStarts, ctx.HorizonEnd);
+        var tailLimit = TailLimit(lastEnd, rule.Priority, blocked, ctx.BoundStarts, ctx.HorizonEnd);
+        var chainEnd = ChainLimit(lastEnd, blocked, ctx.BoundStarts, ctx.HorizonEnd);
+        var fill = rest < chainEnd - lastEnd ? rest : chainEnd - lastEnd;
         var roundRobin = ctx.RoundRobin.GetValueOrDefault(rule.Id);
         var airingStartIndex = rebuilt.Count;
         var airingsByMovie = ctx.AiringsByMovie ?? new Dictionary<long, List<DateTime>>();
-        var share = TimeSpan.FromTicks(rest.Ticks / (airing.Count + 1));
+        var share = TimeSpan.FromTicks(fill.Ticks / (airing.Count + 1));
         var carry = TimeSpan.Zero;
         var pos = airing[0].Start;
         var now = DateTime.UtcNow;
@@ -2572,8 +2634,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             {
                 var clip = NextClipItem(state.ClipGroups, ref roundRobin, pos, airingsByMovie,
                     item => tail
-                        ? pos < periodEnd && pos + item.Duration <= (placed > TimeSpan.Zero ? tailLimit : periodEnd)
-                        : placed + item.Duration <= budget && pos + item.Duration <= tailLimit);
+                        ? pos < periodEnd && pos < chainEnd
+                            && pos + item.Duration <= (placed > TimeSpan.Zero
+                                ? tailLimit
+                                : periodEnd < tailLimit ? periodEnd : tailLimit)
+                        : placed + item.Duration <= budget && pos < chainEnd && pos + item.Duration <= tailLimit);
                 if (clip is null)
                     break;
 

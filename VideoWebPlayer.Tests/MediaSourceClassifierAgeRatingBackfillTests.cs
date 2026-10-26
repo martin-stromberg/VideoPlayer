@@ -42,14 +42,20 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
         var source = await SeedSourceAsync(db, ct);
         var collection = new MediaCollection
         {
-            Name = "Show", Path = "/media/show", MediaSource = source, CreatedAt = DateTime.UtcNow
+            Name = "Show",
+            Path = "/media/show",
+            MediaSource = source,
+            CreatedAt = DateTime.UtcNow
         };
         db.MediaCollections.Add(collection);
         await db.SaveChangesAsync(ct);
 
         var show = new TVShow
         {
-            Name = "Show", MediaSourceId = source.Id, CollectionId = collection.Id, CreatedAt = DateTime.UtcNow
+            Name = "Show",
+            MediaSourceId = source.Id,
+            CollectionId = collection.Id,
+            CreatedAt = DateTime.UtcNow
         };
         db.TVShows.Add(show);
         await db.SaveChangesAsync(ct);
@@ -191,14 +197,20 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
         var source = await SeedSourceAsync(db, ct);
         var collection = new MediaCollection
         {
-            Name = "BrokenShow", Path = "/media/brokenshow", MediaSource = source, CreatedAt = DateTime.UtcNow
+            Name = "BrokenShow",
+            Path = "/media/brokenshow",
+            MediaSource = source,
+            CreatedAt = DateTime.UtcNow
         };
         db.MediaCollections.Add(collection);
         await db.SaveChangesAsync(ct);
 
         var show = new TVShow
         {
-            Name = "BrokenShow", MediaSourceId = source.Id, CollectionId = collection.Id, CreatedAt = DateTime.UtcNow
+            Name = "BrokenShow",
+            MediaSourceId = source.Id,
+            CollectionId = collection.Id,
+            CreatedAt = DateTime.UtcNow
         };
         db.TVShows.Add(show);
         await db.SaveChangesAsync(ct);
@@ -252,7 +264,11 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
     {
         var source = new MediaSource
         {
-            Name = "Test", Path = "/media", Host = "localhost", Port = 22, CreatedAt = DateTime.UtcNow
+            Name = "Test",
+            Path = "/media",
+            Host = "localhost",
+            Port = 22,
+            CreatedAt = DateTime.UtcNow
         };
         db.MediaSources.Add(source);
         await db.SaveChangesAsync(ct);
@@ -265,20 +281,29 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
         var source = await SeedSourceAsync(db, ct);
         var collection = new MediaCollection
         {
-            Name = "Movies", Path = "/media/movies", MediaSource = source, CreatedAt = DateTime.UtcNow
+            Name = "Movies",
+            Path = "/media/movies",
+            MediaSource = source,
+            CreatedAt = DateTime.UtcNow
         };
         db.MediaCollections.Add(collection);
 
         var mediaItem = new MediaItem
         {
-            Name = name, Path = path, MediaCollection = collection, CreatedAt = DateTime.UtcNow
+            Name = name,
+            Path = path,
+            MediaCollection = collection,
+            CreatedAt = DateTime.UtcNow
         };
         db.MediaItems.Add(mediaItem);
         await db.SaveChangesAsync(ct);
 
         var movie = new Movie
         {
-            Name = name, MediaSourceId = source.Id, CollectionId = collection.Id, CreatedAt = DateTime.UtcNow
+            Name = name,
+            MediaSourceId = source.Id,
+            CollectionId = collection.Id,
+            CreatedAt = DateTime.UtcNow
         };
         configure?.Invoke(movie);
         db.Movies.Add(movie);

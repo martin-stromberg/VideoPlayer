@@ -773,6 +773,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("HiddenInMenu")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Host")
                         .IsRequired()
                         .HasColumnType("TEXT");

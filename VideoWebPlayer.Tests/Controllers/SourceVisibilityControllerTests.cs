@@ -135,6 +135,61 @@ public class SourceVisibilityControllerTests
         Assert.DoesNotContain(otherShow.Id, itemIds);
     }
 
+    [Fact]
+    public async Task GetSources_And_GetSource_Return_HiddenInMenu_Flag_And_Keep_Hidden_Source_In_List()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connectionString = "Data Source=file:source-hiddeninmenu-tests?mode=memory&cache=shared";
+        using var keeperConnection = new SqliteConnection(connectionString);
+        keeperConnection.Open();
+
+        var userId = Guid.NewGuid().ToString();
+        var user = new ApplicationUser { Id = userId, UserName = "regular@test.com" };
+        var fakeAuth = new FakeAuthService { CurrentUser = user };
+
+        var services = new ServiceCollection();
+        services.AddSingleton<EventManager>();
+        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
+        services.AddSingleton<IAuthService>(fakeAuth);
+        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
+
+        var serviceProvider = services.BuildServiceProvider();
+
+        using var scope = serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.EnsureCreatedAsync(ct);
+
+        db.Users.Add(user);
+
+        var visibleSource = new MediaSource { Name = "Visible Source", Path = "/a", Host = "localhost", Port = 22 };
+        var hiddenSource = new MediaSource { Name = "Hidden Source", Path = "/b", Host = "localhost", Port = 22, HiddenInMenu = true };
+        db.MediaSources.AddRange(visibleSource, hiddenSource);
+        await db.SaveChangesAsync(ct);
+
+        db.MediaSourceUsers.AddRange(
+            new MediaSourceUser { UserId = userId, MediaSourceId = visibleSource.Id },
+            new MediaSourceUser { UserId = userId, MediaSourceId = hiddenSource.Id });
+        await db.SaveChangesAsync(ct);
+
+        var unlockedMediaService = scope.ServiceProvider.GetRequiredService<IUnlockedMediaService>();
+        var sourcesController = new SourcesController(fakeAuth, db, unlockedMediaService, NullLogger<SourcesController>.Instance);
+
+        var listResult = await sourcesController.GetSources();
+        var okResult = Assert.IsType<OkObjectResult>(listResult);
+        var sources = Assert.IsAssignableFrom<IEnumerable<DtoMediaSource>>(okResult.Value).ToList();
+
+        // Die Filterung des Menüs ist UI-Aufgabe — die API-Liste bleibt vollständig.
+        var visibleDto = Assert.Single(sources, s => s.Id == visibleSource.Id);
+        var hiddenDto = Assert.Single(sources, s => s.Id == hiddenSource.Id);
+        Assert.False(visibleDto.HiddenInMenu);
+        Assert.True(hiddenDto.HiddenInMenu);
+
+        var singleResult = await sourcesController.GetSource(hiddenSource.Id);
+        var singleOk = Assert.IsType<OkObjectResult>(singleResult);
+        var singleDto = Assert.IsType<DtoMediaSource>(singleOk.Value);
+        Assert.True(singleDto.HiddenInMenu);
+    }
+
     private sealed class FakeAuthService : IAuthService
     {
         public ApplicationUser? CurrentUser { get; set; }

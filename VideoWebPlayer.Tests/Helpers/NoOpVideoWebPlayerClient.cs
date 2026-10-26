@@ -13,9 +13,26 @@ namespace VideoWebPlayer.Tests.Helpers;
 /// </summary>
 public sealed class NoOpVideoWebPlayerClient : VideoWebPlayerClient
 {
-    public NoOpVideoWebPlayerClient() : base(new HttpClient(), NullLogger<VideoWebPlayerClient>.Instance)
+    private readonly DtoMediaSource[] _sources;
+
+    /// <param name="sources">
+    /// Quellen, die <c>HttpGetAsync&lt;DtoMediaSource[]&gt;</c> (z. B. <c>RequestSourcesAsync</c>)
+    /// liefern soll — für bUnit-Tests des <c>NavMenu</c>, das Quellen rendert. Default: leeres Array.
+    /// </param>
+    public NoOpVideoWebPlayerClient(DtoMediaSource[]? sources = null)
+        : base(new HttpClient(), NullLogger<VideoWebPlayerClient>.Instance)
     {
+        _sources = sources ?? Array.Empty<DtoMediaSource>();
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The one-argument overload is a separate virtual method in the base class — without overriding
+    /// it, calls like <c>RequestSourcesAsync</c> (which uses this overload) would attempt a real HTTP
+    /// request. Routing it to the two-argument overload keeps a single fake implementation.
+    /// </remarks>
+    protected override Task<T> HttpGetAsync<T>(string endPoint)
+        => HttpGetAsync<T>(endPoint, CancellationToken.None);
 
     /// <inheritdoc />
     /// <remarks>
@@ -29,11 +46,13 @@ public sealed class NoOpVideoWebPlayerClient : VideoWebPlayerClient
     {
         object result = typeof(T) == typeof(List<DtoGenreOption>)
             ? new List<DtoGenreOption>()
-            : typeof(T) == typeof(DtoProgramGuideNow)
-                ? new DtoProgramGuideNow()
-                : typeof(T) == typeof(DtoProgramGuideEntry[])
-                    ? Array.Empty<DtoProgramGuideEntry>()
-                    : (object)new List<MediaEntryDto>();
+            : typeof(T) == typeof(DtoMediaSource[])
+                ? _sources
+                : typeof(T) == typeof(DtoProgramGuideNow)
+                    ? new DtoProgramGuideNow()
+                    : typeof(T) == typeof(DtoProgramGuideEntry[])
+                        ? Array.Empty<DtoProgramGuideEntry>()
+                        : (object)new List<MediaEntryDto>();
         return Task.FromResult((T)result);
     }
 }

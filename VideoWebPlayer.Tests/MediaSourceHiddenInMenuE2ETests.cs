@@ -191,7 +191,7 @@ public sealed class MediaSourceHiddenInMenuE2ETests : IAsyncLifetime
     private void FailWhenBrowserMissing()
     {
         if (_skipBrowser)
-            Assert.Fail($"Playwright-/Browser-Infrastruktur ist nicht verfügbar: {_browserInfrastructureError}");
+            Assert.Fail($"Playwright-/Browser-Infrastruktur ist nicht verfügbar: {_browserInfrastructureError}\n{string.Join("\n", _consoleMessages)}");
     }
 
     private async Task AssertMenuLinkCountAsync(long sourceId, int expected)

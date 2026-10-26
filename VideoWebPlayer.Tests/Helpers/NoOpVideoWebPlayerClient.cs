@@ -8,8 +8,8 @@ namespace VideoWebPlayer.Tests.Helpers;
 /// <summary>
 /// Minimal <see cref="VideoWebPlayerClient"/> stand-in for bUnit component tests that inject it but do
 /// not exercise its HTTP-backed members (image URLs, live search, genre options): overrides the protected
-/// HTTP helper so no real HTTP call is ever attempted. Shared by <c>PlaylistEntriesListTests</c> and
-/// <c>PlaylistDetailTests</c>, which previously each declared an identical private copy of this class.
+/// HTTP helper so no real HTTP call is ever attempted. Shared by the bUnit component tests, which
+/// previously each declared an identical private copy of this class.
 /// </summary>
 public sealed class NoOpVideoWebPlayerClient : VideoWebPlayerClient
 {

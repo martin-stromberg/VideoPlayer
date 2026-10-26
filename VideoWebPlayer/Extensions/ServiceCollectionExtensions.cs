@@ -270,6 +270,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverImageGenerator>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<IGenreService, GenreService>();
+        services.AddScoped<SeasonalHomeService>();
         services.AddScoped<SftpMediaSourceReader>();
         services.AddScoped<LocalMediaSourceReader>();
         services.AddScoped<IMediaSourceReader, MediaSourceReaderDispatcher>();

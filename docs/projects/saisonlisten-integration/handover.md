@@ -4,7 +4,7 @@
 
 | Schritt | Bearbeiter | Status | Branch |
 |---|---|---|---|
-| 2 – Integration auf aktuellem staging | Codex | aktiv | task/saisonlisten-schritt-2-server-integration |
+| 2 – Integration auf aktuellem staging | Codex | pausiert | task/saisonlisten-schritt-2-server-integration |
 
 ## Auftrag und Grundlage
 
@@ -16,9 +16,11 @@ Der ursprüngliche Servercheckout bleibt unverändert. Main-Promotion und Laufze
 
 - Eigener Integrationsklon erstellt und Zielbranch geprüft.
 - Saisonfunktion auf aktuellem staging noch nicht vorhanden.
-- Direkter Patchcheck ergibt ausschließlich Kontextkonflikte in README und Release Notes; Produktdiff muss noch übernommen und geprüft werden.
+- Saisonaler Produktdiff unverändert übernommen. Ausschließlich README und zweisprachige Release Notes wurden manuell in den aktuellen Kontext eingefügt; alle vorhandenen Stagingeinträge bleiben erhalten.
 - Mobile Vollsuite bleibt wegen nativem WinRT-Shutdownfehler offen; keine mobile Freigabe behauptet.
 
 ## Prüfungen
 
-Ausstehend: Debug-/Release-Build, vollständige Serversuite, saisonale API-/Web-E2E, unabhängige Integrationsabnahme, CI.
+Debug-/Release-Build: erfolgreich, 0 Fehler (141 vorhandene Warnungen). Exakte PR-CI-Formatprüfung: erfolgreich. Saisonale API-/SQLite-/Web-E2E: 12/12 erfolgreich. Vollständige Serversuite: 2434 bestanden, 0 Fehler, 2 bestehende Skips, Exitcode 0. Details in `test-results.md`.
+
+Noch ausstehend: unabhängige Integrationsabnahme und PR-CI vor einem Merge. Main-Promotion und Laufzeitinstallation sind nicht freigegeben bzw. das Installationsziel ist noch nicht benannt. Der aktive Originalcheckout wird nicht gewechselt; ein Import des fertigen Featurebranches darf ausschließlich einen neuen Git-Ref hinzufügen.

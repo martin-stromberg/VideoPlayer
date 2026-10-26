@@ -43,6 +43,11 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public DateTime? LastScannedAt { get; set; }
         /// <summary>
+        /// Gets or sets a value indicating whether the source is hidden from the navigation menu.
+        /// The flag is purely cosmetic: access control, scanning and direct navigation stay unchanged.
+        /// </summary>
+        public bool HiddenInMenu { get; set; }
+        /// <summary>
         /// Gets the media collections for this source.
         /// </summary>
         /// <!-- <typeparam name="MediaCollection"> is the element type of the collection initializer, not a type parameter of this member. -->

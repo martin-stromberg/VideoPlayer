@@ -122,6 +122,14 @@
                 }
 
                 <div class="mb-3">
+                    <div class="form-check">
+                        <InputCheckbox id="source-hidden-in-menu" class="form-check-input" @bind-Value="editSource.HiddenInMenu" />
+                        <label class="form-check-label" for="source-hidden-in-menu">Im Menü ausblenden</label>
+                    </div>
+                    <small class="form-text text-muted">Für reine Clip-/Füller-Quellen — die Quelle bleibt für Scanner, Füller und Clip-Gruppen nutzbar; nur der Eintrag im Navigationsmenü wird für alle Benutzer unterdrückt.</small>
+                </div>
+
+                <div class="mb-3">
                     <label class="form-label fw-bold">Freigegebene Benutzer</label>
                     <div class="d-flex flex-column gap-1">
                         @foreach (var user in allUsers)
@@ -219,6 +227,7 @@
                     IconPictureId = source.IconPictureId,
                     CreatedAt = source.CreatedAt,
                     LastScannedAt = source.LastScannedAt,
+                    HiddenInMenu = source.HiddenInMenu,
                     MediaSourceUsers = new List<MediaSourceUser>(source.MediaSourceUsers ?? new List<MediaSourceUser>()),
                 };
 

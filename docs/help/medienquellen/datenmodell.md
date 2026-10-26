@@ -18,6 +18,7 @@ Erbt von `MediaEntry` (`Id`, `Name`, `Path`, `CreatedAt`, `ClassifiedAt`, `Chang
 | `IconPictureId` | `long?` | Optionales Icon-Bild (`MediaSourceIcons`) |
 | `IconPicture` | `MediaSourceIcon?` | Navigation zum Icon |
 | `LastScannedAt` | `DateTime?` | Zeitpunkt des letzten Scans |
+| `HiddenInMenu` | `bool` (non-nullable, Default `false`) | Menüeintrag der Quelle im `NavMenu` unterdrücken; neu durch Migration `AddMediaSourceHiddenInMenu` |
 | `MediaCollections` | `ICollection<MediaCollection>` | Gescannte Collections der Quelle |
 | `MediaSourceUsers` | `ICollection<MediaSourceUser>` | Benutzerfreigaben |
 
@@ -49,6 +50,7 @@ erDiagram
         int SourceType
         long IconPictureId
         datetime LastScannedAt
+        bool HiddenInMenu
     }
     MEDIA_COLLECTION {
         long Id
@@ -75,6 +77,8 @@ erDiagram
 - Die Migration `AddMediaSourceSourceType` (`VideoWebPlayer/Migrations/20260922180232_AddMediaSourceSourceType.cs`) fügt `MediaSources.SourceType` als non-nullable `INTEGER` mit Default `0` hinzu; Bestandsdaten erhalten `Sftp`.
 - `VideoWebPlayerBackupData` trägt `MediaSources.SourceType` in `OptionalRestoreColumns` und `OptionalRestoreIntDefaults` (Default `0`) ein: Backups älterer Versionen ohne die Spalte sind weiter restorierbar, neue Backups enthalten die Spalte automatisch (Entity-Iteration über `DbContext.Model`).
 - `DtoMediaSource` enthält bewusst kein `SourceType` — kein API-Consumer benötigt den Typ; das reflektionsbasierte `ApiBaseController.Create<T>` kopiert nur typgleiche Properties.
+- Die Migration `AddMediaSourceHiddenInMenu` fügt `MediaSources.HiddenInMenu` als non-nullable `INTEGER` mit Default `false` hinzu; Bestandsdaten bleiben dadurch sichtbar. `VideoWebPlayerBackupData` trägt die Spalte in `OptionalRestoreColumns` und `OptionalRestoreBoolDefaults` (Default `false`) ein: Backups älterer Versionen ohne die Spalte stellen die Quellen als sichtbar wieder her.
+- `HiddenInMenu` ist rein kosmetisch: `NavMenu.razor` filtert den Menüeintrag clientseitig, während `SourcesController.GetSources`/`GetSource` die Quelle weiterhin liefern (Zugriffssteuerung, Scanner, Planungslogik und Direktaufruf `/mediasource/{id}` sind unverändert). `DtoMediaSource` enthält `HiddenInMenu`, damit externe Clients das Flag auswerten können.
 
 ## Altersfreigabe-Felder an `Movies` und `TVShows`
 

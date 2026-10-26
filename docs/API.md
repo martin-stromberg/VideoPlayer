@@ -273,10 +273,13 @@ Antwort: `DtoMediaSource[]`
     "mediaSourceId": 0,
     "createdAt": "2026-08-25T10:00:00Z",
     "lastScannedAt": "2026-08-25T11:00:00Z",
-    "iconPictureId": 12
+    "iconPictureId": 12,
+    "hiddenInMenu": false
   }
 ]
 ```
+
+`hiddenInMenu` (`boolean`, seit Version mit Issue #284): `true`, wenn der Administrator die Quelle im Navigationsmenü ausgeblendet hat. Das Flag ist rein kosmetisch — die Quelle bleibt in dieser Liste enthalten, Clients blenden ihren Menüeintrag selbst aus.
 
 ### GET /api/Sources/{id}
 

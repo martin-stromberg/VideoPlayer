@@ -128,7 +128,7 @@
         if (state.User.Identity?.IsAuthenticated == true)
         {
             await Client.EnsureAuthorizationTokenSilentlyAsync(state.User);
-            mediaSources = (await Client.RequestSourcesAsync()).ToList();
+            mediaSources = (await Client.RequestSourcesAsync()).Where(s => !s.HiddenInMenu).ToList();
             try
             {
                 // N28: Flag UND Benutzer-Freigabe (Admins implizit) — ohne Freigabe bleibt der

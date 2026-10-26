@@ -17,6 +17,7 @@ Administratoren legen Medienquellen an und pflegen sie. Je nach Speicherort der 
 | `Pfad` | Startverzeichnis auf dem SFTP-Server (nur bei `SFTP-Server`). |
 | `Lokales Verzeichnis` | Absoluter Verzeichnispfad auf dem Server (nur bei `Lokales Verzeichnis`), z. B. `D:\Videos` oder `\\server\share`. |
 | `Benutzername` / `Passwort` | Zugangsdaten für den SFTP-Server (nur bei `SFTP-Server`). |
+| `Im Menü ausblenden` | Unterdrückt den Eintrag der Quelle im Navigationsmenü für alle Benutzer. Gedacht für reine Clip-/Füller-Quellen: Die Quelle bleibt für Scanner, Füller-Regeln und Clip-Gruppen nutzbar und ist weiterhin direkt über ihre Adresse erreichbar. |
 | `Freigegebene Benutzer` | Benutzer, denen die Inhalte dieser Quelle angezeigt werden. |
 
 ## Vorgehen

@@ -15,8 +15,10 @@ Der gesamte Dateizugriff auf Medienquellen läuft über die Abstraktion `IMediaS
 Beteiligte Komponenten:
 - `MediaSourceAdminDetails.Save` — ruft bei `LocalDirectory` zuerst `TryValidateLocalDirectory` auf, neutralisiert danach die SFTP-Felder (`Host = string.Empty`, `Port = 0`, `Username`/`Password = null`, da `Host` non-nullable ist) und persistiert über `ApplicationDbContext.AddMediaSourceAsync` bzw. `UpdateMediaSourceAsync`.
 - `MediaSourceAdminDetails.TryValidateLocalDirectory` — prüft `Path.IsPathRooted`, `Path.GetFullPath`, `Directory.Exists` und einen Testzugriff per `Directory.EnumerateFileSystemEntries`; liefert differenzierte Fehlertexte.
-- `MediaSourceExtensions.Update` — kopiert `SourceType` beim Update mit.
+- `MediaSourceExtensions.Update` — kopiert `SourceType` und `HiddenInMenu` beim Update mit.
 - `MediaSourceAdmin.razor` — Übersicht mit `Typ`-Spalte (`Lokal`/`SFTP`); SFTP-Spalten zeigen bei lokalen Quellen `—`.
+
+Zusätzlich bindet das Formular die Checkbox `Im Menü ausblenden` (`InputCheckbox` mit `form-check`-Markup und `form-text`-Hilfetext) an `editSource.HiddenInMenu`. Da `OnInitializedAsync` die Felder einzeln in die `editSource`-Kopie überträgt, wird `HiddenInMenu` dort explizit mitkopiert — sonst zeigte die Checkbox beim Bearbeiten stets `false`. Bei Neu-Anlage gilt der CLR-Default `false`.
 
 ### 2. Scan einer Quelle
 
@@ -56,6 +58,15 @@ Beteiligte Komponenten:
 - `LocalMediaSourceReader.OpenFileStream` — liefert nach erfolgreicher `ResolveFilePath`-Prüfung einen `FileStream` (`FileMode.Open`, `FileAccess.Read`, `FileShare.Read`); `null` bei fehlender Datei oder Root-Verletzung.
 - `SftpMediaSourceReader.OpenFileStream` — früher `GetSftpFileStream`; Rückgabetyp verallgemeinert auf `Stream?`, intern weiterhin `SftpStreamWrapper`.
 - `File(stream, contentType, enableRangeProcessing: true)` und `Download` sind unverändert; `FileStream` ist seekbar und damit range-fähig.
+
+### 6. Menüeintrag-Filterung (`HiddenInMenu`)
+
+`NavMenu.razor` befüllt `mediaSources` in `OnInitializedAsync` über `Client.RequestSourcesAsync()` (`GET /api/Sources` → `SourcesController.GetSources`, liefert die freigegebenen Quellen als `DtoMediaSource[]` inkl. `HiddenInMenu` per `ApiBaseController.Create<T>`-Reflection). Beim Zuweisen wird gefiltert: `mediaSources = (await Client.RequestSourcesAsync()).Where(s => !s.HiddenInMenu).ToList()`.
+
+- Die Sektionsbedingung `mediaSources.Any()` und die `foreach`-Liste der `NavLink`s auf `/mediasource/{id}` arbeiten auf der gefilterten Menge — die Überschrift „Quellen" verschwindet automatisch, wenn alle freigegebenen Quellen versteckt sind.
+- Die Filterung ist bewusst clientseitig und gilt für Administratoren wie Anwender gleichermaßen (`GetSources` unterscheidet nicht nach Rolle). Die API-Liste bleibt vollständig, damit externe Konsumenten das `DtoMediaSource.HiddenInMenu`-Flag selbst auswerten können.
+- `NavMenu` befüllt `mediaSources` nur in `OnInitializedAsync` — eine Flag-Änderung wirkt bei bereits angemeldeten Clients erst beim nächsten Laden (Bestandsverhalten wie bei Quell-Umbenennungen).
+- `TVSenderAdmin.razor`, `TVSenderAdminClipGroups.razor`, `ProgramClipGroupService`, `ProgramScheduleService` und der Scanner lesen `MediaSource` direkt über den `DbContext` und sehen versteckte Quellen weiterhin vollständig — das Merkmal ist rein kosmetisch.
 
 ## Diagramm
 

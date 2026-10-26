@@ -17,6 +17,8 @@ Das Formular zeigt je nach gewähltem Quelltyp nur die passenden Felder an. Beim
 
 In der Quellenübersicht kennzeichnet die Spalte `Typ` jede Quelle als `SFTP` oder `Lokal`. Für lokale Quellen bleiben die Spalten `Host`, `Port` und `Benutzername` leer (Anzeige `—`), die Spalte `Pfad` enthält den Verzeichnispfad.
 
+Über die Checkbox `Im Menü ausblenden` kann eine Quelle aus dem Navigationsmenü aller Benutzer entfernt werden, ohne sie zu löschen oder die Freigaben zu ändern. Das ist für reine Clip-/Füller-Quellen gedacht (z. B. Quellen, die nur Platzhalter-Clips für den TV-Sender liefern): Scan, Einplanung und Clip-Gruppen nutzen die Quelle unverändert weiter, und die Quellseite bleibt über ihre direkte Adresse erreichbar — lediglich der Menüeintrag entfällt.
+
 Nach dem Einlesen verhalten sich beide Quelltypen für den Anwender identisch: Scan, Klassifizierung (NFO-Dateien, Poster, Schauspielerbilder), Streaming und Download laufen über denselben Ablauf.
 
 Bei der Klassifizierung werden aus den NFO-Dateien auch die Altersfreigaben ausgewertet: `<mpaa>` (primär) bzw. `<certification>` (Fallback) bei Filmen (`<name>.nfo`/`movie.nfo`) und Serien (`tvshow.nfo`). Werte wie „FSK 12", „Rated PG-13" oder „Germany:16" werden auf bekannte Stufen (FSK 0/6/12/16/18, MPAA G/PG/PG-13/R/NC-17) normalisiert und in der Detailansicht als Badge angezeigt; bei Serien übernehmen Staffel- und Episodenansicht die Serienfreigabe. Fehlt die NFO-Angabe, kann optional eine vom Betreiber eingerichtete Anbindung an die Online-Datenbank TMDB die Freigabe ergänzen; ist sie nicht eingerichtet oder nicht erreichbar, bleibt das Feld einfach leer, ohne das Einlesen zu beeinträchtigen.

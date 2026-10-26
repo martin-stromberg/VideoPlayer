@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Configuration;
+using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -437,5 +438,34 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
 
         await Expect(Page.Locator("text=Nicht autorisiert")).ToBeVisibleAsync();
         Assert.Equal(0, await Page.Locator("#tvsender-new-rule").CountAsync());
+    }
+
+    /// <summary>
+    /// Drives the settings tab's standby card: picks a seeded unclassified clip from the
+    /// candidate table and verifies the persisted LiveStreamStandbyMediaItemId plus the
+    /// chip label. One browser run because Playwright tests are expensive.
+    /// </summary>
+    [Fact]
+    public async Task Admin_StandbyClip_PickAndPersist()
+    {
+        await EnableTvSenderAsync();
+        var clipIds = await SeedClipItemsAsync(("standby-wahl.mkv", TimeSpan.FromSeconds(30)));
+        await OpenAdminPageAsAdminAsync();
+        await SwitchTabAsync("#tvsender-tab-einstellungen", "#tab-einstellungen");
+
+        await Expect(Page.Locator("#tvsender-standby-current")).ToContainTextAsync("Standard-Clip");
+        await Page.ClickAsync("#tvsender-standby-change");
+        var row = Page.Locator($".standby-candidate-row[data-media-item-id='{clipIds[0]}']");
+        await Expect(row).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await row.Locator(".standby-candidate-pick").ClickAsync();
+        await Expect(Page.Locator("#tvsender-standby-current")).ToContainTextAsync("standby-wahl");
+
+        await Page.ClickAsync("#tvsender-save-settings");
+        await Expect(Page.Locator("#tvsender-channel-status")).ToContainTextAsync("gespeichert", new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
+
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var setup = await db.Setups.FirstAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(clipIds[0], setup.LiveStreamStandbyMediaItemId);
     }
 }

@@ -18,6 +18,7 @@ public sealed class LiveStreamWorker : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<LiveStreamWorker> _logger;
+    private readonly LiveStreamStandbyProvider _standbyProvider;
     private readonly IProgramScheduleSignal? _signal;
     private readonly TimeSpan _initialDelay;
     private readonly TimeProvider _timeProvider;
@@ -28,18 +29,21 @@ public sealed class LiveStreamWorker : BackgroundService
     /// </summary>
     /// <param name="scopeFactory">Scope factory used to resolve the scoped coordinator.</param>
     /// <param name="logger">Logger instance.</param>
+    /// <param name="standbyProvider">The in-memory standby stream provider (singleton).</param>
     /// <param name="signal">Optional wake-up line fired by schedule-relevant changes.</param>
     /// <param name="initialDelay">Optional delay before the first run (default 10 seconds).</param>
     /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
     public LiveStreamWorker(
         IServiceScopeFactory scopeFactory,
         ILogger<LiveStreamWorker> logger,
+        LiveStreamStandbyProvider standbyProvider,
         IProgramScheduleSignal? signal = null,
         TimeSpan? initialDelay = null,
         TimeProvider? timeProvider = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _standbyProvider = standbyProvider;
         _signal = signal;
         _initialDelay = initialDelay ?? TimeSpan.FromSeconds(10);
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -52,15 +56,32 @@ public sealed class LiveStreamWorker : BackgroundService
 
         try
         {
-            if (_initialDelay > TimeSpan.Zero)
-                await Task.Delay(_initialDelay, _timeProvider, stoppingToken);
-
-            // Leftovers of a previous run carry no usable program point — start clean.
+            // Leftovers of a previous run carry no usable program point — clear the segment
+            // directory BEFORE the start-up delay so stale playlists/segments can no longer
+            // be delivered during warm-up (the standby stream answers in the meantime).
             using (var scope = _scopeFactory.CreateScope())
             {
                 var store = scope.ServiceProvider.GetRequiredService<LiveStreamSegmentStore>();
                 await store.ClearAsync(stoppingToken);
             }
+
+            // Kick off the standby preparation: a configured clip is transcoded once into the
+            // disk cache; a failure is tolerated — the embedded default covers the warm-up.
+            try
+            {
+                await _standbyProvider.RefreshAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[LiveStreamWorker] Standby-Vorbereitung fehlgeschlagen — der Standard-Clip greift weiter.");
+            }
+
+            if (_initialDelay > TimeSpan.Zero)
+                await Task.Delay(_initialDelay, _timeProvider, stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
             {

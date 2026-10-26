@@ -36,9 +36,33 @@ public sealed class SetupsSingleRowMigrationTests
 
         await migrator.MigrateAsync(PredecessorMigration, ct);
 
-        db.Setups.Add(new Setup { ApplicationTitle = "alt", TvSenderEnabled = true });
-        db.Setups.Add(new Setup { ApplicationTitle = "neu" });
-        await db.SaveChangesAsync(ct);
+        // Raw SQL statt EF-Model: das Schema des Vorgänger-Standes enthält nicht mehr alle
+        // später hinzugekommenen Spalten (z. B. LiveStreamStandbyMediaItemId) — die Seeds
+        // decken daher nur die Spalten ab, die der Alt-Stand pflicht (NOT NULL ohne Default).
+        var required = new List<(string Name, string Type)>();
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = "PRAGMA table_info(\"Setups\")";
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct))
+                if (r.GetString(1) != "Id" && r.GetString(1) is { } n
+                    && (r.GetInt32(3) == 1 && r.IsDBNull(4) || n is "ApplicationTitle" or "TvSenderEnabled"))
+                    required.Add((n, r.GetString(2)));
+        }
+
+        static string Literal((string Name, string Type) col, string title, int tv) => col.Name switch
+        {
+            "ApplicationTitle" => $"'{title}'",
+            "TvSenderEnabled" => tv.ToString(),
+            _ => col.Type.Contains("TEXT", StringComparison.OrdinalIgnoreCase) ? "''" : "0"
+        };
+        var columnList = string.Join(", ", required.Select(c => $"\"{c.Name}\""));
+#pragma warning disable EF1003 // ausschließlich Compile-Zeit-Literale und Schema-Spaltennamen
+        await db.Database.ExecuteSqlRawAsync(
+            $"INSERT INTO \"Setups\" ({columnList}) VALUES " +
+            $"({string.Join(", ", required.Select(c => Literal(c, "alt", 1)))})," +
+            $"({string.Join(", ", required.Select(c => Literal(c, "neu", 0)))})", ct);
+#pragma warning restore EF1003
 
         await migrator.MigrateAsync(cancellationToken: ct);
 

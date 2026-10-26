@@ -247,6 +247,10 @@ def jingle_ad():
 def jingle_soft():
     return [(392, 0.0, 0.5, 0.18), (330, 0.5, 0.5, 0.18), (262, 1.0, 1.0, 0.16)]
 
+def jingle_go():
+    return [(587, 0.0, 0.2, 0.30), (740, 0.2, 0.2, 0.30), (880, 0.4, 0.55, 0.32),
+            (1175, 0.95, 0.6, 0.16)]
+
 
 # --------------------------------------------------------------- scenes ----
 
@@ -407,6 +411,24 @@ def scene_gute_nacht(t):
     return img
 
 
+def scene_gleich_gehts_los(t):
+    """10 s: Funki laeuft herein, huepft aufgeregt — 'Gleich geht's los!'."""
+    img = gradient_bg(top=(14, 22, 56), bottom=(36, 62, 124))
+    d = ImageDraw.Draw(img)
+    x = lerp(-160, W // 2, ease(clamp(t / 1.6)))
+    hop = -26 * abs(math.sin(t * 4.5)) if 1.2 < t < 8.5 else 0
+    glow = clamp(0.85 + 0.15 * math.sin(t * 3))
+    draw_funki(img, int(x), 400 + hop, glow=glow,
+               wave=0.5 + 0.5 * math.sin(t * 6) if 1.0 < t < 8.5 else 0.3)
+    draw_text(d, (W // 2, 180), "Gleich geht's los!", 84, alpha=fade(t, 2.0, 2.8),
+              fill=(255, 226, 120, 255))
+    draw_text(d, (W // 2, H - 90), "Funki macht den Sender schon mal warm…", 36,
+              alpha=fade(t, 4.5, 5.3), bold=False)
+    if t > 9.0:
+        img.alpha_composite(Image.new("RGBA", (W, H), (8, 12, 30, int(255 * fade(t, 9.0, 10.0)))))
+    return img
+
+
 CLIPS = {
     "begruessung": ("funki-begruessung.mp4", 12.0, scene_begruessung, jingle_up),
     "programmhinweis": ("funki-programmhinweis.mp4", 15.0, scene_programmhinweis, jingle_soft),
@@ -414,6 +436,7 @@ CLIPS = {
     "senderkennzeichen": ("funki-senderkennzeichen.mp4", 10.0, scene_senderkennzeichen, jingle_ident),
     "werbepause": ("funki-werbepause.mp4", 12.0, scene_werbepause, jingle_ad),
     "gute-nacht": ("funki-gute-nacht.mp4", 18.0, scene_gute_nacht, jingle_down),
+    "gleich-gehts-los": ("funki-gleich-gehts-los.mp4", 10.0, scene_gleich_gehts_los, jingle_go),
 }
 
 

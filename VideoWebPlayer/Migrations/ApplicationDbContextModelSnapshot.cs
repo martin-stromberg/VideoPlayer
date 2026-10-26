@@ -288,6 +288,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<int>("LiveStreamSegmentRetentionMinutes")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("LiveStreamStandbyMediaItemId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("MdnsAdvertisementEnabled")
                         .HasColumnType("INTEGER");
 

@@ -250,6 +250,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<LiveStreamMediaResolver>();
         services.AddScoped<LiveStreamSegmentStore>();
         services.AddScoped<LiveStreamCoordinator>();
+        services.AddSingleton<LiveStreamStandbySegmenter>();
+        services.AddSingleton<LiveStreamStandbyProvider>();
         services.AddSingleton<IMediaDurationProbe, FfprobeMediaDurationProbe>();
         services.AddSingleton<IInternalMediaStreamTokenService, InternalMediaStreamTokenService>();
         services.AddScoped<MediaDurationProbeService>();

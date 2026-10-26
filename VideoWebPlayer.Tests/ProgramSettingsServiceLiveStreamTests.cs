@@ -77,4 +77,47 @@ public sealed class ProgramSettingsServiceLiveStreamTests : IAsyncLifetime
             _service.UpdateLiveStreamSettingsAsync(segmentSeconds, null, retentionMinutes,
                 TestContext.Current.CancellationToken));
     }
+
+    [Fact]
+    public async Task GetLiveStreamStandbyMediaItemId_Default_IsNull()
+    {
+        Assert.Null(await _service.GetLiveStreamStandbyMediaItemIdAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UpdateLiveStreamStandbyClipAsync_Roundtrip()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var item = await _fixture.CreateMediaItemAsync();
+
+        await _service.UpdateLiveStreamStandbyClipAsync(item.Id, ct);
+        Assert.Equal(item.Id, await _service.GetLiveStreamStandbyMediaItemIdAsync(ct));
+        Assert.Equal(item.Id, (await _fixture.Db.Setups.FirstAsync(ct)).LiveStreamStandbyMediaItemId);
+
+        await _service.UpdateLiveStreamStandbyClipAsync(null, ct);
+        Assert.Null(await _service.GetLiveStreamStandbyMediaItemIdAsync(ct));
+    }
+
+    [Fact]
+    public async Task UpdateLiveStreamStandbyClipAsync_Invalid_Throws()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => _service.UpdateLiveStreamStandbyClipAsync(99999, ct));
+
+        var movie = await _fixture.CreateMovieAsync("klassifiziert");
+        var linkedItem = await _fixture.Db.MovieMediaItems
+            .Where(l => l.MovieId == movie.Id).Select(l => l.MediaItemId).SingleAsync(ct);
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.UpdateLiveStreamStandbyClipAsync(linkedItem, ct));
+
+        var nonVideo = await _fixture.CreateMediaItemAsync();
+        nonVideo.Path = $"{nonVideo.Path}.txt";
+        await _fixture.Db.SaveChangesAsync(ct);
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.UpdateLiveStreamStandbyClipAsync(nonVideo.Id, ct));
+
+        Assert.Null((await _fixture.Db.Setups.FirstAsync(ct)).LiveStreamStandbyMediaItemId);
+    }
 }

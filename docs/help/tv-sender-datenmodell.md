@@ -1,4 +1,7 @@
-# TV-Sender — Datenmodell: Clip-Gruppen
+# TV-Sender — Datenmodell
+
+Datenmodell des TV-Senders: die Clip-Gruppen des Sendeplans sowie die
+Standby-Einstellung des Live-Streams in `Setup`.
 
 ## Entitäten
 
@@ -104,3 +107,15 @@ erDiagram
 **Migration:** `AddProgramClipGroups` — erzeugt die drei Tabellen (Composite-PKs,
 FK-Kaskaden, NOCASE-Unique auf `ProgramClipGroups.Name`), fügt `ProgramRules.PlaceholderGrace`
 (`TEXT`, NOT NULL, `DEFAULT '00:15:00'`) hinzu und seedet die Trailer-Gruppe.
+
+## `Setup` (erweitert)
+
+| Eigenschaft | Typ | Beschreibung |
+|-------------|-----|--------------|
+| `LiveStreamStandbyMediaItemId` | `long?` (nullable) | Standby-Clip des Live-Streams: das `MediaItem`, das die Warm-up-Phase und alle Zustände ohne produzierte Segmente ausliefert; `null` = eingebetteter Standard-Clip. **Weiche Referenz ohne Fremdschlüssel** (Konvention wie `ProgramSlot.MediaItemId`): Ein gelöschtes Medium setzt die Einstellung nicht zurück — die Standby-Vorbereitung fällt dann auf den Standard-Clip zurück. |
+
+**Migration:** `AddSetupLiveStreamStandbyMediaItem` — fügt die nullable Spalte
+`LiveStreamStandbyMediaItemId` zu `Setups` hinzu.
+`Setups.LiveStreamStandbyMediaItemId` steht in
+`VideoWebPlayerBackupData.OptionalRestoreColumns`; Alt-Backups ohne die Spalte bleiben
+restaurierbar (Regressionstest vorhanden).

@@ -1,6 +1,10 @@
+using System.Collections;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Primitives;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -34,10 +38,24 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
         _fixture.Db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = "u1" });
         await _fixture.Db.SaveChangesAsync(ct);
 
-        _controller = new LiveStreamController(store, settings,
+        _controller = new LiveStreamController(store, CreateStandby(), settings,
             new FakeAuthService { CurrentUser = new ApplicationUser { Id = "u1", UserName = "u@x.de" } },
             NullLogger<LiveStreamController>.Instance);
         _controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+    }
+
+    // Echter Provider — die eingebetteten Default-Segmente liegen in der Assembly;
+    // loadDefaultSet: () => null simuliert den Degradationspfad fehlender Assets.
+    private LiveStreamStandbyProvider CreateStandby(Func<StandbySegmentSet?>? loadDefaultSet = null)
+        => new(new TestWebHostEnvironment { ContentRootPath = _contentRoot },
+            new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            new LiveStreamStandbySegmenter(new NoToolLocator(), new NoToolLocator(),
+                NullLogger<LiveStreamStandbySegmenter>.Instance),
+            NullLogger<LiveStreamStandbyProvider>.Instance, null, loadDefaultSet, null, null);
+
+    private sealed class NoToolLocator : IFfmpegLocator, IFfprobeLocator
+    {
+        public string? Resolve() => null;
     }
 
     public async ValueTask DisposeAsync()
@@ -151,7 +169,6 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
     [InlineData("sub/evil.ts")]
     [InlineData("a b.ts")]
     [InlineData("not-there.ts")]
-    [InlineData("live.m3u8")]
     public async Task GetFile_InvalidOrMissing_ReturnsNotFound(string fileName)
     {
         var result = await _controller.GetFile(fileName);
@@ -169,6 +186,7 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
                 new TestWebHostEnvironment { ContentRootPath = _contentRoot },
                 new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
                 NullLogger<LiveStreamSegmentStore>.Instance),
+            CreateStandby(),
             new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
             new FakeAuthService { CurrentUser = new ApplicationUser { Id = "u2", UserName = "u2@x.de" } },
             NullLogger<LiveStreamController>.Instance);
@@ -187,12 +205,13 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
                 new TestWebHostEnvironment { ContentRootPath = _contentRoot },
                 new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
                 NullLogger<LiveStreamSegmentStore>.Instance),
+            CreateStandby(),
             new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
             new FakeAuthService { CurrentUser = new ApplicationUser { Id = "a1", UserName = "a@x.de", IsAdmin = true } },
             NullLogger<LiveStreamController>.Instance);
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
 
-        // Datei existiert nicht → 404 ist erlaubt; entscheidend ist: kein 403.
+        // Datei existiert nicht → künftig die Standby-Auslieferung; entscheidend ist: kein 403.
         Assert.IsNotType<ForbidResult>(await controller.GetFile("live.m3u8"));
     }
 
@@ -204,6 +223,7 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
                 new TestWebHostEnvironment { ContentRootPath = _contentRoot },
                 new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
                 NullLogger<LiveStreamSegmentStore>.Instance),
+            CreateStandby(),
             new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
             new FakeAuthService(), NullLogger<LiveStreamController>.Instance);
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
@@ -211,5 +231,146 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
         var result = await controller.GetFile("live.m3u8");
 
         Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetFile_AccessDeniedAfterLogin_Returns500Not401()
+    {
+        // Eine UnauthorizedAccessException hinter der Anmeldeprüfung (z. B. ein
+        // verweigerter Dateizugriff während der Auslieferung) ist ein Serverfehler —
+        // 401 bleibt ausschließlich dem Anmeldefehler vorbehalten. Die beteiligten
+        // Dienste sind versiegelt; die Query-Attrappe löst denselben Ausnahmetyp
+        // im Auslieferungspfad aus (Request.Query wird nach dem Login gelesen).
+        _controller.HttpContext.Request.Query = new DenyingQueryCollection();
+
+        var result = await _controller.GetFile("live.m3u8");
+
+        var error = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(500, error.StatusCode);
+    }
+
+    private sealed class DenyingQueryCollection : IQueryCollection
+    {
+        public StringValues this[string key]
+            => throw new UnauthorizedAccessException("Simulierte Zugriffsverweigerung.");
+
+        public int Count => 0;
+        public ICollection<string> Keys => [];
+        public bool ContainsKey(string key) => false;
+        public bool TryGetValue(string key, out StringValues value)
+        {
+            value = default;
+            return false;
+        }
+
+        public IEnumerator<KeyValuePair<string, StringValues>> GetEnumerator()
+            => Enumerable.Empty<KeyValuePair<string, StringValues>>().GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    [Fact]
+    public async Task GetFile_MissingPlaylist_ServesStandbyPlaylist()
+    {
+        SetQueryToken("tok 123");
+
+        var result = await _controller.GetFile("live.m3u8");
+
+        var content = Assert.IsType<ContentResult>(result);
+        Assert.StartsWith("application/vnd.apple.mpegurl", content.ContentType);
+        Assert.Contains("#EXTM3U", content.Content);
+        Assert.Contains("standby_0_", content.Content);
+        Assert.Contains("?access_token=tok%20123", content.Content);
+        Assert.Equal("no-store", _controller.HttpContext.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public async Task GetFile_SegmentlessPlaylist_ServesStandbyPlaylist()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await File.WriteAllTextAsync(Path.Combine(_segDir, "live.m3u8"),
+            "#EXTM3U\n#EXT-X-VERSION:3\n", ct);
+
+        var result = await _controller.GetFile("live.m3u8");
+
+        var content = Assert.IsType<ContentResult>(result);
+        Assert.Contains("standby_0_", content.Content);
+    }
+
+    [Fact]
+    public async Task GetFile_StandbySegment_ServedFromMemory()
+    {
+        var result = await _controller.GetFile("standby_0_00.ts");
+
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("video/mp2t", file.ContentType);
+        Assert.Equal(0x47, file.FileContents[0]);
+        Assert.Equal("no-store", _controller.HttpContext.Response.Headers.CacheControl.ToString());
+
+        // Auch mit vorhandener echter Playlist bleibt der aktive Standby-Satz erreichbar —
+        // ein Client darf die zuletzt beworbene Playlist nicht mit 404 verlieren.
+        var ct = TestContext.Current.CancellationToken;
+        await File.WriteAllTextAsync(Path.Combine(_segDir, "live.m3u8"), "#EXTM3U\nseg_001.ts\n", ct);
+        var again = await _controller.GetFile("standby_0_00.ts");
+        Assert.IsType<FileContentResult>(again);
+    }
+
+    [Fact]
+    public async Task GetFile_TsSegment_SetsNoStoreCacheHeader()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await File.WriteAllTextAsync(Path.Combine(_segDir, "seg_001.ts"), "segment-bytes", ct);
+
+        var result = await _controller.GetFile("seg_001.ts");
+
+        Assert.IsType<FileStreamResult>(result);
+        Assert.Equal("no-store", _controller.HttpContext.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public async Task GetFile_RealPlaylistAfterStandby_InjectsDiscontinuity()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await _controller.GetFile("live.m3u8"); // Standby-Auslieferung setzt das Transition-Flag
+        await File.WriteAllTextAsync(Path.Combine(_segDir, "live.m3u8"),
+            "#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:6.0,\nseg_001.ts\n", ct);
+
+        var first = await _controller.GetFile("live.m3u8");
+        var content = Assert.IsType<ContentResult>(first);
+        var discont = content.Content!.IndexOf("#EXT-X-DISCONTINUITY", StringComparison.Ordinal);
+        Assert.True(discont >= 0 && discont < content.Content.IndexOf("seg_001.ts", StringComparison.Ordinal));
+
+        var second = await _controller.GetFile("live.m3u8");
+        Assert.DoesNotContain("#EXT-X-DISCONTINUITY", Assert.IsType<ContentResult>(second).Content);
+    }
+
+    [Theory]
+    [InlineData("live.m3u8")]
+    [InlineData("standby_0_00.ts")]
+    public async Task GetFile_FeatureDisabled_Returns404(string fileName)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        (await _fixture.Db.Setups.FirstAsync(ct)).TvSenderEnabled = false;
+        await _fixture.Db.SaveChangesAsync(ct);
+
+        var result = await _controller.GetFile(fileName);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task GetFile_MissingPlaylist_WithoutStandbyAssets_Returns404()
+    {
+        var controller = new LiveStreamController(
+            new LiveStreamSegmentStore(
+                new TestWebHostEnvironment { ContentRootPath = _contentRoot },
+                new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
+                NullLogger<LiveStreamSegmentStore>.Instance),
+            CreateStandby(loadDefaultSet: () => null),
+            new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
+            new FakeAuthService { CurrentUser = new ApplicationUser { Id = "u1", UserName = "u@x.de" } },
+            NullLogger<LiveStreamController>.Instance);
+        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+
+        Assert.IsType<NotFoundResult>(await controller.GetFile("live.m3u8"));
     }
 }

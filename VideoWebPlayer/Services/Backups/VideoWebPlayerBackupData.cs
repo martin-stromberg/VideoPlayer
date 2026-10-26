@@ -79,6 +79,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.PlaylistId)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.PlaylistBackfillLastSweepAt)}",
         $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.SourceType)}",
+        $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.HiddenInMenu)}",
         $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.Kind)}",
         $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.TicketHash)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.MdnsAdvertisementEnabled)}",
@@ -129,7 +130,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.IsPublic), false),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.MdnsAdvertisementEnabled), true),
         (nameof(ApplicationDbContext.MovieMediaItems), nameof(MovieMediaItem.IsTrailer), false),
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.TvSenderEnabled), false)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.TvSenderEnabled), false),
+        (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.HiddenInMenu), false)
     };
 
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =

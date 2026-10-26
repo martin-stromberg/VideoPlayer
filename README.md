@@ -40,6 +40,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 - Einzelne Serien und Filmsammlungen für andere Anwender freischalten, ohne die gesamte Quelle freizugeben.
 - Altersfreigaben aus den NFO-Dateien (`<mpaa>`/`<certification>`) für Filme und Serien erfassen, normalisieren (FSK 0/6/12/16/18, MPAA G/PG/PG-13/R/NC-17) und als Badge in den Detailansichten anzeigen; optional fehlertolerante Ergänzung über TMDB (`Tmdb`-Konfiguration, API-Key außerhalb des Repositorys) und Pflege im Admin-Editiermodus.
 - Browserbasierte Oberfläche für Bibliothek, Wiedergabe und Administration.
+- Saisonale Genre-Listen auf der Startseite: Webansicht und mobile App nutzen gemeinsam `GET /api/home/seasonal-genres`; der authentifizierte Vertrag liefert nur aktive, nichtleere und für den Benutzer freigegebene Sektionen samt UTC-Ablaufzeitpunkt. Die Webansicht blendet Sektionen am Saisonende auch ohne Seitenwechsel aus. Vor dem Ausrollen einer App-Version mit Saisonlisten muss dieser Serverstand bereitgestellt sein. Details: [API-Vertrag](./docs/api/seasonal-genres.md) und [Anwenderhilfe](./docs/help/saisonale-startseitenlisten.md).
 - Automatische Erfassung und Übersicht von Schauspielern inklusive Such- und Filtermöglichkeiten.
 - Backups, strukturierte Programmupdates, Benutzer, Genres und Sicherheitseinstellungen verwalten.
 - Backup-Dateien chunked hochladen — auch sehr große Archive über 6 GB — mit Fortschrittsanzeige und Wiederaufnahme nach Unterbrechungen.

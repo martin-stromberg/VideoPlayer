@@ -1630,6 +1630,16 @@ input[type="text"]:focus {
     font-weight: 700;
 }
 
+.agerating-badge {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 0 0.4em;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
 .collection-plot,
 .tvshow-plot {
     max-width: 760px;

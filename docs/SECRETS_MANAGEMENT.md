@@ -16,6 +16,7 @@ Diese Dokumentation verwendet ausschließlich synthetische Platzhalter. Werte wi
 | `Jwt:ApiToken:Web` | Ja | Gate für Web-/Browser-API-Aufrufe | User Secrets, Umgebungsvariable, Secret Store |
 | `Jwt:ApiToken:Maui` | Ja | Fallback-Gate für App-Logins (`MauiOnly`); Pflicht in Produktion | User Secrets, Umgebungsvariable, Secret Store |
 | `Jwt:Issuer` | Nein | Aussteller-Name im JWT | Konfiguration |
+| `Tmdb:ApiKey` | Ja | API-Schlüssel für die optionale TMDB-Altersfreigabe-Ergänzung | `appsettings.Local.json`, Umgebungsvariable, User Secrets |
 | Geräte-Tokens | Ja | Individuelles Gate pro gekoppeltem Gerät (`MauiOnly`) | Datenbank, nur als SHA-256-Hash |
 | Benutzerpasswörter | Ja | Anmeldung | Datenbank/Identity-System |
 | JWT Access Token | Ja | Benutzerautorisierung nach Login | Laufzeitspeicher des Clients |

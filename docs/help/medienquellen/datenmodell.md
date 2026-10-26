@@ -75,3 +75,18 @@ erDiagram
 - Die Migration `AddMediaSourceSourceType` (`VideoWebPlayer/Migrations/20260922180232_AddMediaSourceSourceType.cs`) fügt `MediaSources.SourceType` als non-nullable `INTEGER` mit Default `0` hinzu; Bestandsdaten erhalten `Sftp`.
 - `VideoWebPlayerBackupData` trägt `MediaSources.SourceType` in `OptionalRestoreColumns` und `OptionalRestoreIntDefaults` (Default `0`) ein: Backups älterer Versionen ohne die Spalte sind weiter restorierbar, neue Backups enthalten die Spalte automatisch (Entity-Iteration über `DbContext.Model`).
 - `DtoMediaSource` enthält bewusst kein `SourceType` — kein API-Consumer benötigt den Typ; das reflektionsbasierte `ApiBaseController.Create<T>` kopiert nur typgleiche Properties.
+
+## Altersfreigabe-Felder an `Movies` und `TVShows`
+
+Bei der Klassifizierung persistiert der `MediaSourceClassifier` die Altersfreigabe auf `Movie` und `TVShow` (gemeinsames Interface `IAgeRated`). `TVShowSeason`, `TVShowEpisode` und `MovieCollection` tragen keine eigenen Felder — die Detailansicht zeigt bei Staffeln und Episoden die Serienfreigabe (Anzeige-Vererbung).
+
+| Eigenschaft | Typ | Beschreibung |
+|-------------|-----|--------------|
+| `AgeRating` | `string?` | Kanonischer Anzeigewert („FSK 12", „PG-13"); bei unbekannten Stufen der getrimmte Rohwert |
+| `AgeRatingRaw` | `string?` | Unveränderter Quellwert aus der NFO (`<mpaa>`/`<certification>`) bzw. von TMDB („{Land}:{Certification}") |
+| `AgeRatingMinAge` | `int?` | Vergleichbares Mindestalter für spätere Filter-/Zugriffsregeln; `null` bei unbekannter Stufe |
+| `AgeRatingClassifiedAt` | `DateTime?` | Marker der Altersfreigabe-Klassifizierung für den Backfill (Muster `ActorsClassifiedAt`) |
+
+- Die Migration `AddAgeRatings` fügt alle acht Spalten (je vier auf `Movies` und `TVShows`) nullable hinzu — keine Defaults nötig.
+- `VideoWebPlayerBackupData.OptionalRestoreColumns` enthält alle acht Spalten: Backups aus Versionen vor dem Feature sind weiter restorierbar.
+- DTO-Grenze: `DtoMovie`/`DtoTVShow` enthalten `AgeRating` und `AgeRatingMinAge` (automatische Befüllung durch `ApiBaseController.Create<T>`); `AgeRatingRaw` wird nicht nach außen gegeben. `MediaMetadataUpdateRequest.AgeRating` macht den Wert im Admin-Editiermodus pflegbar.

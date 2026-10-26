@@ -13,6 +13,7 @@ using VideoWebPlayer.Data;
 using VideoWebPlayer.Events;
 using VideoWebPlayer.Hubs;
 using VideoWebPlayer.Services.EpisodeBackgroundImage;
+using VideoWebPlayer.Utils;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace VideoWebPlayer.Services
@@ -31,6 +32,7 @@ namespace VideoWebPlayer.Services
         private readonly ILogger<MediaSourceClassifier> _logger;
         private readonly IMediaMetadataWriteCoordinator? _writeCoordinator;
         private readonly HttpClient _httpClient;
+        private readonly ITmdbAgeRatingService? _ageRatingService;
 
         private static int _classificationRunning;
         private static readonly object _classificationQueueLock = new();
@@ -56,6 +58,7 @@ namespace VideoWebPlayer.Services
         /// <param name="httpClient">HTTP client for downloading actor images.</param>
         /// <param name="notificationService">Optional service used to notify clients about media updates.</param>
         /// <param name="writeCoordinator">Optional coordinator serializing metadata writes.</param>
+        /// <param name="ageRatingService">Optional TMDB lookup used when an NFO carries no age rating.</param>
         public MediaSourceClassifier(
             ApplicationDbContext db,
             IMediaSourceReader reader,
@@ -65,7 +68,8 @@ namespace VideoWebPlayer.Services
             ILogger<MediaSourceClassifier> logger,
             HttpClient httpClient,
             MediaUpdateNotificationService? notificationService = null,
-            IMediaMetadataWriteCoordinator? writeCoordinator = null)
+            IMediaMetadataWriteCoordinator? writeCoordinator = null,
+            ITmdbAgeRatingService? ageRatingService = null)
         {
             _db = db;
             _reader = reader;
@@ -76,6 +80,7 @@ namespace VideoWebPlayer.Services
             _notificationService = notificationService;
             _logger = logger;
             _writeCoordinator = writeCoordinator;
+            _ageRatingService = ageRatingService;
         }
 
         /// <summary>
@@ -530,6 +535,9 @@ namespace VideoWebPlayer.Services
                     else
                         existingShow.TVShowGenres.Add(new TVShowGenre { TVShowId = existingShow.Id, GenreId = genre.Id });
                 }
+
+                await TryApplyOnlineAgeRatingAsync(existingShow, xml, cancellationToken);
+                existingShow.AgeRatingClassifiedAt = DateTime.UtcNow;
             }
             await _db.SaveChangesAsync(cancellationToken);
             return existingShow;
@@ -866,6 +874,9 @@ namespace VideoWebPlayer.Services
                 }
                 if (!existingMovie.IsManuallyEdited)
                 {
+                    await TryApplyOnlineAgeRatingAsync(existingMovie, xml, cancellationToken);
+                    existingMovie.AgeRatingClassifiedAt = DateTime.UtcNow;
+
                     var movieGenres = await GetOrCreateGenresAsync(existingMovie.GenreNames, collection.MediaSourceId, cancellationToken);
                     existingMovie.GenreNames = string.Join(",", movieGenres.Select(g => g.Name));
                     existingMovie.MovieGenres.Clear();
@@ -1860,9 +1871,12 @@ namespace VideoWebPlayer.Services
             }
         }
 
-        private async Task<string?> TryReadActorNfoAsync(MediaItem mediaItem, IEnumerable<string> candidateNames, CancellationToken cancellationToken)
+        private Task<string?> TryReadActorNfoAsync(MediaItem mediaItem, IEnumerable<string> candidateNames, CancellationToken cancellationToken)
+            => TryReadNfoAsync(mediaItem.MediaCollection, candidateNames, cancellationToken);
+
+        private async Task<string?> TryReadNfoAsync(MediaCollection? collection, IEnumerable<string> candidateNames, CancellationToken cancellationToken)
         {
-            var currentCollection = mediaItem.MediaCollection;
+            var currentCollection = collection;
             while (currentCollection is not null)
             {
                 foreach (var candidate in candidateNames)
@@ -1885,6 +1899,174 @@ namespace VideoWebPlayer.Services
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Backfills age rating metadata for existing movies and TV shows that have not yet
+        /// been classified (NFO first, optional TMDB lookup when the NFO carries no rating).
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        public async Task BackfillMissingAgeRatingsAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Starte Nacherfassung der Altersfreigaben für den Altbestand.");
+
+            var movies = await _db.Movies
+                .Where(m => m.AgeRatingClassifiedAt == null)
+                .Include(m => m.MovieMediaItems)
+                    .ThenInclude(mmi => mmi.MediaItem)
+                    .ThenInclude(mi => mi.MediaCollection)
+                    .ThenInclude(mc => mc.MediaSource)
+                .ToListAsync(cancellationToken);
+
+            foreach (var movie in movies)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                try
+                {
+                    if (movie.IsManuallyEdited)
+                        continue;
+
+                    var mediaItem = movie.MovieMediaItems.Where(mmi => !mmi.IsTrailer).Select(mmi => mmi.MediaItem).FirstOrDefault();
+                    if (mediaItem?.MediaCollection is null)
+                        continue;
+
+                    XElement? xml = null;
+                    var videoBaseName = System.IO.Path.GetFileName(mediaItem.Path);
+                    var nfoContent = await TryReadNfoAsync(
+                        mediaItem.MediaCollection,
+                        new[]
+                        {
+                            System.IO.Path.ChangeExtension(videoBaseName, ".nfo"),
+                            "movie.nfo"
+                        },
+                        cancellationToken);
+                    if (nfoContent is not null)
+                    {
+                        try { xml = XElement.Parse(nfoContent); }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "NFO für Movie '{MovieName}' (ID: {MovieId}) ist kein gültiges XML; versuche Online-Lookup.", movie.Name, movie.Id);
+                        }
+                    }
+
+                    if (xml is not null)
+                        movie.LoadFromXml(xml);
+
+                    await TryApplyOnlineAgeRatingAsync(movie, xml ?? new XElement("movie"), cancellationToken);
+                    movie.AgeRatingClassifiedAt = DateTime.UtcNow;
+                    await _db.SaveChangesAsync(cancellationToken);
+                    _logger.LogDebug("Altersfreigabe für Movie '{MovieName}' nacherfasst.", movie.Name);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Fehler bei der Altersfreigabe-Nacherfassung für Movie '{MovieName}' (ID: {MovieId}).", movie.Name, movie.Id);
+                    DiscardPendingChanges();
+                }
+            }
+
+            var shows = await _db.TVShows
+                .Where(s => s.AgeRatingClassifiedAt == null)
+                .ToListAsync(cancellationToken);
+
+            foreach (var show in shows)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                try
+                {
+                    if (show.IsManuallyEdited)
+                        continue;
+
+                    var collection = await _db.MediaCollections
+                        .AsNoTracking()
+                        .Include(c => c.MediaSource)
+                        .FirstOrDefaultAsync(c => c.Id == show.CollectionId, cancellationToken);
+
+                    XElement? xml = null;
+                    if (collection is not null)
+                    {
+                        var nfoContent = await TryReadNfoAsync(collection, new[] { "tvshow.nfo" }, cancellationToken);
+                        if (nfoContent is not null)
+                        {
+                            try { xml = XElement.Parse(nfoContent); }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "tvshow.nfo für TVShow '{ShowName}' (ID: {ShowId}) ist kein gültiges XML; versuche Online-Lookup.", show.Name, show.Id);
+                            }
+                        }
+                    }
+
+                    if (xml is not null)
+                        show.LoadFromXml(xml);
+
+                    await TryApplyOnlineAgeRatingAsync(show, xml ?? new XElement("tvshow"), cancellationToken);
+                    show.AgeRatingClassifiedAt = DateTime.UtcNow;
+                    await _db.SaveChangesAsync(cancellationToken);
+                    _logger.LogDebug("Altersfreigabe für TVShow '{ShowName}' nacherfasst.", show.Name);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Fehler bei der Altersfreigabe-Nacherfassung für TVShow '{ShowName}' (ID: {ShowId}).", show.Name, show.Id);
+                    DiscardPendingChanges();
+                }
+            }
+
+            _logger.LogInformation("Nacherfassung der Altersfreigaben abgeschlossen.");
+        }
+
+        private Task TryApplyOnlineAgeRatingAsync(Movie movie, XElement xml, CancellationToken cancellationToken)
+            => TryApplyOnlineAgeRatingAsync(movie, "Film",
+                ct => _ageRatingService!.GetMovieAgeRatingAsync(
+                    movie.Name, movie.Year, ExtractTmdbId(xml), ct),
+                cancellationToken);
+
+        private Task TryApplyOnlineAgeRatingAsync(TVShow show, XElement xml, CancellationToken cancellationToken)
+            => TryApplyOnlineAgeRatingAsync(show, "Serie",
+                ct => _ageRatingService!.GetTVShowAgeRatingAsync(
+                    show.Name, show.PremieredAt?.Year, ExtractTmdbId(xml), ct),
+                cancellationToken);
+
+        private async Task TryApplyOnlineAgeRatingAsync<T>(
+            T entity,
+            string kind,
+            Func<CancellationToken, Task<TmdbAgeRating?>> lookup,
+            CancellationToken cancellationToken)
+            where T : MediaBaseEntry, IAgeRated
+        {
+            if (_ageRatingService is null || entity.AgeRatingRaw is not null)
+                return;
+
+            try
+            {
+                var rating = await lookup(cancellationToken);
+                if (rating is null || string.IsNullOrWhiteSpace(rating.Certification))
+                    return;
+
+                var raw = $"{rating.Country}:{rating.Certification}";
+                var normalized = AgeRatingNormalizer.Normalize(raw);
+                entity.AgeRatingRaw = raw;
+                entity.AgeRating = normalized.DisplayValue;
+                entity.AgeRatingMinAge = normalized.MinAge;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogDebug(ex, "Online-Altersfreigabe für {Kind} '{Name}' fehlgeschlagen.", kind, entity.Name);
+            }
+        }
+
+        private static string? ExtractTmdbId(XElement xml)
+        {
+            var uniqueId = xml.Elements("uniqueid")
+                .FirstOrDefault(e => string.Equals(e.Attribute("type")?.Value, "tmdb", StringComparison.OrdinalIgnoreCase))
+                ?.Value;
+            if (!string.IsNullOrWhiteSpace(uniqueId))
+                return uniqueId.Trim();
+
+            var tmdbId = xml.Element("tmdbid")?.Value;
+            return string.IsNullOrWhiteSpace(tmdbId) ? null : tmdbId.Trim();
         }
 
         internal async Task CheckReloadGenres(CancellationToken stoppingToken)

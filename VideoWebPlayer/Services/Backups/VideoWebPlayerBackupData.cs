@@ -96,7 +96,15 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.MovieMediaItems)}.{nameof(MovieMediaItem.IsTrailer)}",
         $"{nameof(ApplicationDbContext.ProgramRuleCursors)}.{nameof(ProgramRuleCursor.StrandKey)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.TvSenderEnabled)}",
-        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.PlaceholderGrace)}"
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.PlaceholderGrace)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.AgeRating)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.AgeRatingRaw)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.AgeRatingMinAge)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.AgeRatingClassifiedAt)}",
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRating)}",
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingRaw)}",
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingMinAge)}",
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingClassifiedAt)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)

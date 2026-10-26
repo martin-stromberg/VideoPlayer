@@ -43,6 +43,16 @@
 2. Prüfen, ob das Verzeichnis auf dem Server erreichbar ist.
 3. Beachten: Einträge, deren Name mit einem Punkt beginnt, sowie Verknüpfungen werden beim Einlesen übersprungen.
 
+## Bei einem Film oder einer Serie fehlt die Altersfreigabe
+
+**Symptom:** In der Detailansicht eines Titels erscheint kein Altersfreigabe-Badge.
+
+**Ursache:** Die Informationsdatei (NFO) des Titels enthält keine Freigabe, und die optionale Online-Ergänzung ist auf dem Server nicht eingerichtet oder war nicht erreichbar. Bei manuell bearbeiteten Titeln wird die Freigabe außerdem nicht mehr automatisch überschrieben.
+
+**Lösung:**
+1. Ein Administrator kann die Freigabe im Editiermodus der Detailansicht aus der Auswahlliste setzen.
+2. Sollen fehlende Angaben automatisch ergänzt werden, muss der Betreiber die Online-Anbindung in der Serverkonfiguration freischalten.
+
 ## Wann Hilfe nötig ist
 
 Wenden Sie sich an den Betreiber oder Administrator des Servers, wenn
@@ -50,4 +60,5 @@ Wenden Sie sich an den Betreiber oder Administrator des Servers, wenn
 - das Verzeichnis für das Dienstkonto der Anwendung freigegeben werden muss,
 - eine Netzwerkfreigabe dauerhaft nicht erreichbar ist,
 - ein wiederhergestelltes Backup Fehler meldet,
+- die automatische Altersfreigabe-Ergänzung über die Online-Quelle eingerichtet werden soll,
 - oder der Quelltyp einer bestehenden Quelle gewechselt werden soll (dazu muss die Quelle gelöscht und neu angelegt werden).

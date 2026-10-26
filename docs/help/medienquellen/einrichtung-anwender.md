@@ -37,3 +37,4 @@ Administratoren legen Medienquellen an und pflegen sie. Je nach Speicherort der 
 - Bei `Lokales Verzeichnis` prüft die Anwendung beim Speichern, ob der Pfad absolut ist, das Verzeichnis existiert und lesbar ist. Der Pfad gilt aus Sicht des Servers, nicht des eigenen Rechners — ein Pfad wie `C:\Videos` muss auf dem Server existieren.
 - UNC-Pfade (`\\server\share`) sind erlaubt; der Serverprozess benötigt lesenden Zugriff auf die Freigabe.
 - Über `Scan zurücksetzen` in der Übersicht kann das Einlesen einer einzelnen Quelle erneut angestoßen werden; `Löschen` entfernt die Quelle mitsamt aller eingelesenen Inhalte.
+- Altersfreigaben werden beim Einlesen automatisch aus den Informationsdateien (NFO) der Titel übernommen. Eine optionale Online-Ergänzung fehlender Angaben richtet der Betreiber in der Serverkonfiguration ein — dafür gibt es keinen Schalter in der Oberfläche.

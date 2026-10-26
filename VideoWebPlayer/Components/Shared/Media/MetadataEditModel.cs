@@ -8,6 +8,12 @@ namespace VideoWebPlayer.Components.Shared.Media;
 public sealed class MetadataEditModel
 {
     /// <summary>
+    /// Maximale Länge der Altersfreigabe — einzige Quelle für Client- und
+    /// Server-Validierung (<see cref="AgeRating"/>).
+    /// </summary>
+    public const int MaxAgeRatingLength = 64;
+
+    /// <summary>
     /// Gets or sets the edited title.
     /// </summary>
     [Required(ErrorMessage = "Der Titel darf nicht leer sein.")]
@@ -29,4 +35,10 @@ public sealed class MetadataEditModel
     /// Gets or sets additional comma-separated genre names.
     /// </summary>
     public string NewGenres { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the edited age rating (empty clears the value).
+    /// </summary>
+    [StringLength(MaxAgeRatingLength, ErrorMessage = "Die Altersfreigabe darf maximal 64 Zeichen lang sein.")]
+    public string AgeRating { get; set; } = string.Empty;
 }

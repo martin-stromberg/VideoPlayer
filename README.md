@@ -38,6 +38,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
   lesend (nur der Besitzer darf sie ändern); nicht freigeschaltete Titel erscheinen abgeblendet, und
   der Fortschritt eines Betrachters landet in dessen eigener Weiterschauen-Liste.
 - Einzelne Serien und Filmsammlungen für andere Anwender freischalten, ohne die gesamte Quelle freizugeben.
+- Altersfreigaben aus den NFO-Dateien (`<mpaa>`/`<certification>`) für Filme und Serien erfassen, normalisieren (FSK 0/6/12/16/18, MPAA G/PG/PG-13/R/NC-17) und als Badge in den Detailansichten anzeigen; optional fehlertolerante Ergänzung über TMDB (`Tmdb`-Konfiguration, API-Key außerhalb des Repositorys) und Pflege im Admin-Editiermodus.
 - Browserbasierte Oberfläche für Bibliothek, Wiedergabe und Administration.
 - Automatische Erfassung und Übersicht von Schauspielern inklusive Such- und Filtermöglichkeiten.
 - Backups, strukturierte Programmupdates, Benutzer, Genres und Sicherheitseinstellungen verwalten.

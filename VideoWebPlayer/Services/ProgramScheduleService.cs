@@ -25,6 +25,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // broadcasts that started "yesterday" and spill into the planning window.
     private static readonly TimeSpan OccurrenceLookback = TimeSpan.FromHours(24);
 
+    // Horizon of the diagnosis occurrence search: wide enough to find the next start of every
+    // daily/weekly recurrence (a week plus margin). A rule without an occurrence inside it —
+    // e.g. a SingleDate further out — is evaluated at its own TimeOfDay on the current local
+    // day: only the local time-of-day feeds the window check, so that yields the same instant
+    // the real next occurrence would produce.
+    private const int DiagnosisOccurrenceHorizonDays = 9;
+
     private readonly ApplicationDbContext _db;
     private readonly IProgramRuleService _ruleService;
     private readonly ProgramSettingsService _settings;
@@ -88,6 +95,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var access = await LoadAccessContextAsync(cancellationToken);
         var federalState = await _settings.GetHolidayFederalStateAsync(cancellationToken);
+        var ageRule = await LoadAgeRuleAsync(cancellationToken);
         var ruleIds = rules.Select(r => r.Id).ToList();
         var cursors = (await _db.ProgramRuleCursors
                 .Where(c => ruleIds.Contains(c.ProgramRuleId))
@@ -96,7 +104,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .ToDictionary(g => g.Key, g => (IReadOnlyList<ProgramRuleCursor>)g.ToList());
 
         var states = new Dictionary<long, RuleState>();
-        var clipContext = new ClipFillContext(access, null, coverageStart, [], horizonEnd.UtcDateTime, summary);
+        var clipContext = new ClipFillContext(access, null, coverageStart, [], horizonEnd.UtcDateTime, summary, ageRule);
         foreach (var rule in rules)
         {
             // Trailer material expands only after the occurrences are materialized — its content
@@ -126,14 +134,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .GroupBy(o => o.Rule.Id)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<DateTime>)g.Select(o => o.StartUtc).OrderBy(s => s).ToList());
         foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
-            MaterializeOccurrence(occurrence, states, blocked, newSlots, coverageStart, BoundaryAfter(boundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary);
+            MaterializeOccurrence(occurrence, states, blocked, newSlots, coverageStart, BoundaryAfter(boundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary, ageRule);
 
         var movieAirings = await LoadMovieAiringsAsync(channel.Id, coverageStart, newSlots, cancellationToken);
         await ExpandTrailerStatesAsync(states, cursors, access, movieAirings, coverageStart, summary, cancellationToken);
         clipContext = clipContext with { AiringsByMovie = movieAirings, BoundStarts = boundStarts, OccurrenceStarts = occurrenceStarts };
         await ExpandClipGroupStatesAsync(states, cursors, clipContext, cancellationToken);
         InsertClipFill(newSlots, blocked, states, clipContext);
-        FillGaps(states, rules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary, movieAirings);
+        FillGaps(states, rules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary, ageRule, movieAirings);
 
         PersistCursors(states, cursors);
         _db.ProgramSlots.AddRange(newSlots);
@@ -166,6 +174,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var summary = new SummaryCounters();
         var access = await LoadAccessContextAsync(cancellationToken);
         var federalState = await _settings.GetHolidayFederalStateAsync(cancellationToken);
+        var ageRule = await LoadAgeRuleAsync(cancellationToken);
 
         // States (expansion + cursor) are built for every rule — including inactive ones — because
         // displaced slots of inactive rules still need a cursor rewind so reactivation continues
@@ -179,7 +188,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var airingsByMovie = await LoadMovieAiringsAsync(channel.Id, coverageStart, [], cancellationToken);
         var states = new Dictionary<long, RuleState>();
-        var clipContext = new ClipFillContext(access, airingsByMovie, coverageStart, [], horizonEnd.UtcDateTime, summary);
+        var clipContext = new ClipFillContext(access, airingsByMovie, coverageStart, [], horizonEnd.UtcDateTime, summary, ageRule);
         foreach (var rule in rules)
         {
             var items = await ExpandMaterialAsync(rule, access, summary, airingsByMovie, coverageStart, cancellationToken);
@@ -208,7 +217,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // Everything derived from the loaded slot window lives in the ReconcileWindow — Reload()
         // re-derives and re-validates it atomically on every (re-)load, so no structure of a
         // narrower window can be reused by mistake.
-        var window = new ReconcileWindow(coverageStart, horizonEnd, federalState, activeRules, states, rulesById, _minStartRemain);
+        var window = new ReconcileWindow(coverageStart, horizonEnd, federalState, activeRules, states, rulesById, _minStartRemain, ageRule);
 
         // Cost heuristic only — carries no correctness weight: a slot starting at or before the
         // base window edge proves that pre-window context exists, so the window is widened once
@@ -331,7 +340,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // again (oscillation). Re-materialization therefore stays on the base window.
         foreach (var occurrence in window.Occurrences.Where(o => o.StartUtc >= coverageStart - OccurrenceLookback).OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
         {
-            var losers = MaterializeOccurrenceEvicting(occurrence, states, keptSlots, blocked, newSlots, coverageStart, BoundaryAfter(window.BoundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary, Evicts);
+            var losers = MaterializeOccurrenceEvicting(occurrence, states, keptSlots, blocked, newSlots, coverageStart, BoundaryAfter(window.BoundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary, Evicts, ageRule);
             if (losers is not null && losers.Count > 0)
             {
                 foreach (var loser in losers)
@@ -371,7 +380,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     .GroupBy(o => o.Rule.Id)
                     .ToDictionary(g => g.Key, g => (IReadOnlyList<DateTime>)g.Select(o => o.StartUtc).OrderBy(s => s).ToList())
             });
-        FillGaps(states, activeRules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary, leadAirings);
+        FillGaps(states, activeRules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary, ageRule, leadAirings);
 
         PersistCursors(states, cursors);
         _db.ProgramSlots.AddRange(newSlots);
@@ -380,7 +389,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var result = new ProgramScheduleReconcileSummary(
             displaced.Count, summary.SlotsCreated, summary.FillerSlotsCreated,
             summary.SkippedNoDuration, summary.SkippedNoAccess, summary.OrphanedRules,
-            summary.DroppedConflicts, summary.RemainingGapSeconds);
+            summary.DroppedConflicts, summary.RemainingGapSeconds, summary.BlockedByAgeWindow);
         _logger.LogInformation(
             "[ProgramSchedule] Re-Bewertung: {Displaced} Sendeplaetze verdrängt, {Created} erzeugt ({Filler} Fueller).",
             result.SlotsDisplaced, result.SlotsCreated, result.FillerSlotsCreated);
@@ -410,14 +419,36 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .ToListAsync(cancellationToken);
 
         var access = await LoadAccessContextAsync(cancellationToken);
-        var airingsByMovie = await LoadMovieAiringsAsync(channelId, DateTime.UtcNow, [], cancellationToken);
+        var federalState = await _settings.GetHolidayFederalStateAsync(cancellationToken);
+        var ageRule = await LoadAgeRuleAsync(cancellationToken);
+        var nowUtc = DateTime.UtcNow;
+        var airingsByMovie = await LoadMovieAiringsAsync(channelId, nowUtc, [], cancellationToken);
+
+        // Evaluation time of a rule's window check: its next upcoming occurrence start —
+        // the same local time-of-day the materialization would plan against. Without an
+        // occurrence inside the horizon the rule's own TimeOfDay on the current day is the
+        // equivalent evaluation instant (see DiagnosisOccurrenceHorizonDays); filler rules
+        // have no nominal start at all and evaluate at "now".
+        var nextStarts = BuildOccurrences(rules.Where(r => r.RuleType != ProgramRuleType.Filler),
+                nowUtc, new DateTimeOffset(nowUtc.AddDays(DiagnosisOccurrenceHorizonDays)), federalState, TimeSpan.Zero)
+            .GroupBy(o => o.Rule.Id)
+            .ToDictionary(g => g.Key, g => g.Min(o => o.StartUtc));
+
         var diagnoses = new Dictionary<long, ProgramRuleDiagnosis>();
         foreach (var rule in rules)
         {
             // Fresh counters per rule — the same expansion the schedule run uses, with the skip
             // reasons tallied into a per-rule diagnosis instead of the run summary.
             var counters = new SummaryCounters();
-            var items = await ExpandMaterialAsync(rule, access, counters, airingsByMovie, DateTime.UtcNow, cancellationToken);
+            var items = await ExpandMaterialAsync(rule, access, counters, airingsByMovie, nowUtc, cancellationToken);
+            var evaluationStart = nextStarts.TryGetValue(rule.Id, out var nextStart)
+                ? nextStart
+                : rule.RuleType == ProgramRuleType.Filler
+                    ? nowUtc
+                    : TimeZoneInfo.ConvertTimeToUtc(
+                        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, TimeZoneInfo.Local))
+                            .ToDateTime(rule.TimeOfDay),
+                        TimeZoneInfo.Local);
             diagnoses[rule.Id] = new ProgramRuleDiagnosis(
                 rule.Id,
                 counters.MaterialMissing > 0,
@@ -426,7 +457,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 counters.NoMediaItem,
                 counters.ProbePending,
                 counters.ProbeExhausted,
-                counters.SkippedNoAccess);
+                counters.SkippedNoAccess,
+                ProgramScheduleAgeWindow.CountBlockedAt(
+                    items.Select(i => i.AgeRatingMinAge), evaluationStart, ageRule));
         }
 
         return diagnoses;
@@ -501,6 +534,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         List<(DateTime StartUtc, int Priority)> BoundStarts,
         Dictionary<DateTime, DateTime> InvaderStarts,
         TimeSpan MinStartRemain,
+        ProgramScheduleAgeWindowRule AgeRule,
         Dictionary<(int Offset, DateTime AfterStart), bool> Memo);
 
     // An airing is still valid iff its producing rule would schedule exactly this slot sequence for
@@ -529,7 +563,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return ids;
     }
 
-    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, Dictionary<DateTime, DateTime> invaderStarts, TimeSpan minStartRemain)
+    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, Dictionary<DateTime, DateTime> invaderStarts, TimeSpan minStartRemain, ProgramScheduleAgeWindowRule ageRule)
     {
         var clipIds = ClipMediaItemIds(state);
         var effective = airing;
@@ -569,7 +603,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 return false; // an airing always carries at least one title
         }
         return AiringReproducible(effective, 0, DateTime.MinValue,
-            new ReproContext(state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, new Dictionary<(int Offset, DateTime AfterStart), bool>()));
+            new ReproContext(state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, ageRule, new Dictionary<(int Offset, DateTime AfterStart), bool>()));
     }
 
     // Validates airing[offset..] as a chain of sub-airings anchored at strictly ascending
@@ -594,7 +628,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
     private static bool FlatAiringTailReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
     {
-        var (state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, _) = context;
+        var (state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, ageRule, _) = context;
         var items = state.Items;
         if (items.Count == 0 || occurrenceStarts.Count == 0)
             return false;
@@ -606,27 +640,63 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var rule = state.Rule;
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
         var clipGrace = state.ClipGrace;
+        var preservesOrder = state.PreservesOrder;
 
         var count = items.Count;
         var earliestStart = occurrenceStarts.Min();
-        var skipped = TimeSpan.Zero;
+        // Backward hypotheses: k = taken-but-unwritten head items. The scan head may
+        // additionally lie behind window-skipped positions — a skipped position consumed the
+        // ring without producing airtime, so it counts toward the head index but not toward
+        // the reconstructed start. A predecessor position was skipped exactly when it was
+        // blocked at the next taken item's start (skips advance no airtime, so the selection
+        // evaluated them at that pick's slot time).
         for (var k = 0; k < wanted; k++)
         {
-            if (k > 0)
+            var skipped = TimeSpan.Zero;
+            var positionsBack = 0;
+            var takenBack = 0;
+            var skipRun = 0;
+            var possible = true;
+            while (takenBack < k)
             {
-                var headDuration = items[((idx - k) % count + count) % count].Duration;
-                if (headDuration <= TimeSpan.Zero)
-                    break; // degenerate duration — the backward walk would never progress
-                skipped += headDuration;
+                var p = ((idx - positionsBack - 1) % count + count) % count;
+                var item = items[p];
+                if (!preservesOrder
+                    && !ProgramScheduleAgeWindow.IsAllowedAt(
+                        item.AgeRatingMinAge, airing[offset].Start - skipped, ageRule))
+                {
+                    positionsBack++;
+                    if (++skipRun >= count)
+                    {
+                        possible = false; // a full ring lap of skips is impossible — the scan would have stopped
+                        break;
+                    }
+                    continue;
+                }
+                skipRun = 0;
+                if (item.Duration <= TimeSpan.Zero)
+                {
+                    possible = false; // degenerate duration — the backward walk would never progress
+                    break;
+                }
+                skipped += item.Duration;
+                positionsBack++;
+                takenBack++;
             }
-            // The sub-airing's real start — its first item began here; the nominal occurrence
-            // started at or before this point (the remainder was blocked by an overshooting
-            // predecessor).
+            // The backward hypotheses are deterministic: a walk that hit a wall (a full ring
+            // lap of skips or a degenerate duration) fails identically for every larger k —
+            // break, like the interleaved counterpart does, instead of scanning on forever
+            // (wanted is int.MaxValue for rules without EpisodeCount).
+            if (!possible)
+                break;
+
+            // The sub-airing's real start — its first taken item began here; the nominal
+            // occurrence started at or before this point.
             var airingStart = airing[offset].Start - skipped;
             if (airingStart < earliestStart)
                 break; // skipped duration already reaches past the oldest occurrence in the window
 
-            var headIndex = ((idx - k) % count + count) % count;
+            var headIndex = ((idx - positionsBack) % count + count) % count;
             foreach (var occurrenceStart in occurrenceStarts.Where(o => o > afterStart && o <= airingStart))
             {
                 // A shift needs invader evidence: an occupied slot covering the nominal start
@@ -636,11 +706,18 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     && !(invaderStarts.TryGetValue(airingStart, out var invaderStart) && invaderStart < occurrenceStart))
                     continue;
                 var expected = SelectAiringItems(items, headIndex, rule, airingStart,
-                    BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain, clipGrace);
+                    BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain, clipGrace,
+                    preservesOrder, ageRule);
+                // Hypothesis k claims exactly k taken-but-unwritten picks before the airing
+                // head — the head is therefore pick #k of the simulation and must sit on the
+                // observed ring position.
+                var headPick = k < expected.Taken.Count && expected.Positions[k] == idx ? k : -1;
+                if (headPick < 0)
+                    continue;
                 // The candidate may cover a real prefix of the group — the merged chain holds
                 // one airing per occurrence; the remainder is checked recursively against
                 // strictly later occurrences.
-                var consumed = expected.Count - k;
+                var consumed = expected.Taken.Count - headPick;
                 if (consumed < 1 || consumed > airing.Count - offset)
                     continue;
 
@@ -649,7 +726,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 for (var i = 0; i < consumed; i++)
                 {
                     var slot = airing[offset + i];
-                    var item = expected[k + i];
+                    var item = expected.Taken[headPick + i];
                     if (slot.MediaItemId != item.MediaItemId || slot.Start != start || slot.End != start + item.Duration)
                     {
                         matches = false;
@@ -676,7 +753,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // fails the check, so the airing is displaced and re-materialized rather than kept stale.
     private static bool InterleavedAiringTailReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
     {
-        var (state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, _) = context;
+        var (state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, ageRule, _) = context;
         var strands = state.Strands;
         var m = strands.Count;
         var rule = state.Rule;
@@ -684,11 +761,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         if (occurrenceStarts.Count == 0)
             return false;
 
-        // Locate each slot of the remaining tail inside its strand; a strand's slots must be
-        // consecutive ring entries in order (episodes of a series never air shuffled).
+        // Locate each slot of the remaining tail inside its strand. Ordered strands keep
+        // strict ring contiguity (episodes of a series never air shuffled); unordered rings
+        // may contain window-skipped positions — every intermediate position must have been
+        // blocked at the following pick's slot start (skips advance no airtime, so the
+        // selection evaluated them at exactly that time).
         var rest = airing.Count - offset;
         var strandOf = new int[rest];
         var firstIndex = new int[m];
+        var lastIndex = new int[m];
+        var firstStart = new DateTime[m];
         var countInAiring = new int[m];
         Array.Fill(firstIndex, -1);
         for (var i = 0; i < rest; i++)
@@ -711,11 +793,28 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             if (firstIndex[s] < 0)
             {
                 firstIndex[s] = idx;
+                firstStart[s] = airing[offset + i].Start;
             }
-            else if (idx != (firstIndex[s] + countInAiring[s]) % strands[s].Items.Count)
+            else if (strands[s].PreservesOrder)
             {
-                return false;
+                if (idx != (lastIndex[s] + 1) % strands[s].Items.Count)
+                    return false;
             }
+            else
+            {
+                var n = strands[s].Items.Count;
+                var distance = ((idx - lastIndex[s]) % n + n) % n;
+                if (distance == 0)
+                    distance = n; // a full lap back to the same position
+                for (var d = 1; d < distance; d++)
+                {
+                    if (ProgramScheduleAgeWindow.IsAllowedAt(
+                            strands[s].Items[(lastIndex[s] + d) % n].AgeRatingMinAge,
+                            airing[offset + i].Start, ageRule))
+                        return false; // an allowed intermediate position would have been taken
+                }
+            }
+            lastIndex[s] = idx;
             countInAiring[s]++;
         }
 
@@ -752,27 +851,55 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     if (!possible)
                         break;
 
+                    // Reconstruct each strand's scan head: the scan consumes taken prefix picks
+                    // plus window-skipped positions. Walking the ring back from the first
+                    // airing index, a predecessor counts as skipped iff it was blocked at the
+                    // strand's next taken pick's start — taken picks drive the reconstructed
+                    // real start back, skipped positions only the scan head.
+                    var cursorBack = new int[m];
+                    var nextTakenStart = new DateTime[m];
+                    for (var s = 0; s < m; s++)
+                        nextTakenStart[s] = firstStart[s];
+                    var simStart = airing[offset].Start;
+                    var reconstructable = true;
+                    for (var q = p - 1; q >= 0 && reconstructable; q--)
+                    {
+                        var s = (startOffset + q) % m;
+                        var items = strands[s].Items;
+                        var count = items.Count;
+                        var skipRun = 0;
+                        while (true)
+                        {
+                            var ringPos = ((firstIndex[s] - cursorBack[s] - 1) % count + count) % count;
+                            var item = items[ringPos];
+                            if (!strands[s].PreservesOrder
+                                && !ProgramScheduleAgeWindow.IsAllowedAt(item.AgeRatingMinAge, nextTakenStart[s], ageRule))
+                            {
+                                cursorBack[s]++;
+                                if (++skipRun >= count)
+                                {
+                                    reconstructable = false; // a full ring lap of skips is impossible
+                                    break;
+                                }
+                                continue;
+                            }
+                            cursorBack[s]++;
+                            simStart -= item.Duration;
+                            nextTakenStart[s] = simStart;
+                            break;
+                        }
+                    }
+                    if (!reconstructable)
+                        break;
+
                     var simStrands = new List<StrandState>(m);
                     for (var s = 0; s < m; s++)
                     {
                         var items = strands[s].Items;
-                        var head = countInAiring[s] > 0
-                            ? ((firstIndex[s] - prefixCount[s]) % items.Count + items.Count) % items.Count
+                        var head = firstIndex[s] >= 0
+                            ? ((firstIndex[s] - cursorBack[s]) % items.Count + items.Count) % items.Count
                             : 0;
                         simStrands.Add(new StrandState(strands[s].Key, items, head));
-                    }
-
-                    // The airing's real start: the p prefix picks occupy contiguous time ending at
-                    // the first written slot — walk their durations back from the tail's head.
-                    var simStart = airing[offset].Start;
-                    var localPick = new int[m];
-                    for (var q = 0; q < p; q++)
-                    {
-                        var s = (startOffset + q) % m;
-                        var items = strands[s].Items;
-                        var head = simStrands[s].NextIndex;
-                        simStart -= items[(head + localPick[s]) % items.Count].Duration;
-                        localPick[s]++;
                     }
 
                     // The materialization derived the start-strand offset from the real start's
@@ -786,17 +913,18 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         continue; // shift requires an occupied slot covering the nominal start
 
                     var picks = SelectAiringItemsInterleaved(simStrands, rule, simStart,
-                        BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain, clipGrace);
+                        BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain, clipGrace,
+                        ageRule);
                     // A real prefix of the group suffices — the remainder is checked recursively
                     // against strictly later occurrences (merged multi-occurrence chains).
-                    var consumed = picks.Count - p;
+                    var consumed = picks.Picks.Count - p;
                     if (consumed < 1 || consumed > rest)
                         continue;
 
                     var start = simStart;
                     var matches = true;
                     var pos = 0;
-                    foreach (var pk in picks)
+                    foreach (var pk in picks.Picks)
                     {
                         if (pos >= p)
                         {
@@ -810,7 +938,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         start += pk.Item.Duration;
                         pos++;
                     }
-                    if (matches && pos == picks.Count
+                    if (matches && pos == picks.Picks.Count
                         && AiringReproducible(airing, offset + consumed, occurrenceStart, context))
                         return true;
                 }
@@ -900,7 +1028,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         List<ProgramRule> activeRules,
         Dictionary<long, RuleState> states,
         Dictionary<long, ProgramRule> rulesById,
-        TimeSpan minStartRemain)
+        TimeSpan minStartRemain,
+        ProgramScheduleAgeWindowRule ageRule)
     {
         public List<ProgramSlot> Scheduled { get; private set; } = [];
 
@@ -964,7 +1093,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     var rule = airing[0].ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
                     var invalid = rule is null || !rule.IsActive
                         || !_occurrenceStarts.TryGetValue(rule.Id, out var starts)
-                        || !AiringReproducible(airing, states[rule.Id], starts, BoundStarts, _invaderStarts, minStartRemain);
+                        || !AiringReproducible(airing, states[rule.Id], starts, BoundStarts, _invaderStarts, minStartRemain, ageRule);
                     if (invalid)
                     {
                         firstInvalid = i;
@@ -993,7 +1122,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         DateTime coverageStart,
         (DateTime StartUtc, bool Hard)? bound,
         SummaryCounters summary,
-        Func<ProgramRule, ProgramSlot, bool> evicts)
+        Func<ProgramRule, ProgramSlot, bool> evicts,
+        ProgramScheduleAgeWindowRule ageRule)
     {
         var state = states[occurrence.Rule.Id];
         if (state.Items.Count == 0)
@@ -1001,7 +1131,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked);
 
-        var (taken, takenCounts) = SelectItems(state, occurrence.Rule, airingStart, bound);
+        var selection = SelectItems(state, occurrence.Rule, airingStart, bound, ageRule);
+        var taken = selection.Taken;
+        summary.BlockedByAgeWindow += selection.BlockedByAgeWindow;
         if (taken.Count == 0)
             return null;
 
@@ -1051,7 +1183,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
 
         blocked.AddRange(ranges);
-        CommitTaken(state, taken, takenCounts);
+        CommitTaken(state, selection);
         summary.SlotsCreated += ranges.Count;
         return conflicts.Count > 0 ? conflicts : null;
     }
@@ -1065,7 +1197,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         long? MovieId,
         long? TVShowEpisodeId,
         TimeSpan Duration,
-        string StrandKey = "");
+        string StrandKey = "",
+        int? AgeRatingMinAge = null);
 
     // Strand key of the shared strand holding all non-episode content of a genre expansion
     // (movies rotate through it like a series of their own — sequential, not looping daily).
@@ -1082,6 +1215,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public int NextIndex { get; private set; } = nextIndex;
         public SchedulableItem? LastPlaced { get; private set; }
 
+        // Ordered strands hold air-order material (series episodes, playlist entries): their
+        // head may never be reordered, so a window-blocked head defers instead of being
+        // skipped. Unordered rings (movies, "other" genre material, clips) may skip. Computed
+        // once — the item list never changes for a strand's lifetime, while the selection scan
+        // and the tail checks read this per candidate.
+        public bool PreservesOrder { get; } = items.Count > 0 && items.All(i => i.ContentType
+            is ProgramCursorContentType.TVShowEpisode or ProgramCursorContentType.PlaylistEntry);
+
         public SchedulableItem? PeekAt(int offset)
             => Items.Count == 0 ? null : Items[(NextIndex + offset) % Items.Count];
 
@@ -1090,6 +1231,17 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             for (var i = 0; i < count; i++)
                 LastPlaced = Items[(NextIndex + i) % Items.Count];
             NextIndex += count;
+        }
+
+        // Scan-based commit: NextIndex moves behind the last scanned position (window-skipped
+        // positions stay consumed for the run), while LastPlaced must always be the last
+        // actually taken item — pointing it at a skipped position would persist a never-aired
+        // title and NextIndexFor would put it permanently behind the cursor.
+        public void CommitScan(int scanned, SchedulableItem? lastTaken)
+        {
+            NextIndex += scanned;
+            if (lastTaken is not null)
+                LastPlaced = lastTaken;
         }
 
         public void RewindTo(int index) => NextIndex = index;
@@ -1143,8 +1295,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // reproducibility check — identical semantics to the former single ring.
         public int NextIndex => Strands[0].NextIndex;
         public SchedulableItem? LastPlaced => Strands[0].LastPlaced;
+        public bool PreservesOrder => Strands[0].PreservesOrder;
         public SchedulableItem? PeekAt(int offset) => Strands[0].PeekAt(offset);
         public void Commit(int count) => Strands[0].Commit(count);
+        public void CommitScan(int scanned, SchedulableItem? lastTaken) => Strands[0].CommitScan(scanned, lastTaken);
         public void RewindTo(int index) => Strands[0].RewindTo(index);
 
         // Rebuilds items and strands — used when a rule's expansion refreshes mid-run
@@ -1265,6 +1419,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public int OrphanedRules;
         public int DroppedConflicts;
         public long RemainingGapSeconds;
+        public int BlockedByAgeWindow;
 
         // Diagnosis detail counters — only consumed by GetRuleDiagnosesAsync; the public run
         // and reconcile summaries are unchanged.
@@ -1275,7 +1430,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public int ProbeExhausted;
 
         public ProgramScheduleRunSummary ToSummary()
-            => new(SlotsCreated, FillerSlotsCreated, SkippedNoDuration, SkippedNoAccess, OrphanedRules, DroppedConflicts, RemainingGapSeconds);
+            => new(SlotsCreated, FillerSlotsCreated, SkippedNoDuration, SkippedNoAccess, OrphanedRules, DroppedConflicts, RemainingGapSeconds, BlockedByAgeWindow);
     }
 
     // The audience-access snapshot: a content is schedulable when every non-admin user can see it —
@@ -1359,6 +1514,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         };
     }
 
+    /// <summary>
+    /// Loads the channel-wide youth-protection rule ("Jugendschutz-Regelung") of the program
+    /// schedule — the configured window schema plus the behavior for material without a
+    /// known rating.
+    /// </summary>
+    private async Task<ProgramScheduleAgeWindowRule> LoadAgeRuleAsync(CancellationToken cancellationToken)
+        => new(
+            await _settings.GetProgramScheduleAgeWindowsAsync(cancellationToken),
+            await _settings.GetProgramScheduleUnknownRatingModeAsync(cancellationToken));
+
     // Index of the element right after the cursor position; 0 when there is no cursor or the
     // cursor element no longer exists in the expanded list.
     private static int NextIndexFor(List<SchedulableItem> items, ProgramRuleCursor? cursor)
@@ -1404,7 +1569,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return occurrences;
     }
 
-    private void MaterializeOccurrence(Occurrence occurrence, Dictionary<long, RuleState> states, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, (DateTime StartUtc, bool Hard)? bound, SummaryCounters summary)
+    private void MaterializeOccurrence(Occurrence occurrence, Dictionary<long, RuleState> states, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, (DateTime StartUtc, bool Hard)? bound, SummaryCounters summary, ProgramScheduleAgeWindowRule ageRule)
     {
         var state = states[occurrence.Rule.Id];
         if (state.Items.Count == 0)
@@ -1414,7 +1579,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // it always airs to the end, so this airing starts behind it ("verschiebt sich").
         var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked);
 
-        var (taken, takenCounts) = SelectItems(state, occurrence.Rule, airingStart, bound);
+        var selection = SelectItems(state, occurrence.Rule, airingStart, bound, ageRule);
+        var taken = selection.Taken;
+        summary.BlockedByAgeWindow += selection.BlockedByAgeWindow;
         if (taken.Count == 0)
             return;
 
@@ -1457,7 +1624,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
 
         blocked.AddRange(ranges);
-        CommitTaken(state, taken, takenCounts);
+        CommitTaken(state, selection);
         summary.SlotsCreated += ranges.Count;
     }
 
@@ -1469,39 +1636,65 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // come back in the second tuple element (null when flat). <paramref name="airingStartUtc"/>
     // is the airing's real start — the occurrence start, or the end of an overshooting
     // predecessor when the window begins occupied.
-    private (List<SchedulableItem> Taken, int[]? TakenCounts) SelectItems(
-        RuleState state, ProgramRule rule, DateTime airingStartUtc, (DateTime StartUtc, bool Hard)? bound)
+    // The outcome of one airing selection: the taken items in pick order plus, per strand, how
+    // many ring positions the scan consumed (taken plus window-skipped) and how many candidates
+    // the age window blocked. Scanned positions stay consumed for the run — a window-skipped
+    // title is re-offered on the next ring lap against the then-current air time. The persisted
+    // cursor follows LastPlaced, which CommitTaken sets to the last actually taken item only.
+    private sealed record SelectionResult(
+        List<SchedulableItem> Taken,
+        List<StrandPick>? Picks,
+        int[] Scanned,
+        int BlockedByAgeWindow);
+
+    // One pick of the interleaved selection: the strand and the taken item. The per-strand
+    // scan extent (taken plus window-skipped positions) comes back in
+    // <see cref="InterleavedSelection.Scanned"/> — the reproducibility check reconstructs the
+    // ring positions itself from that scan trace and the slot sequence.
+    private sealed record StrandPick(int Strand, SchedulableItem Item);
+
+    // The outcome of the flat selection: taken items, each pick's ring position (scan trace),
+    // the consumed scan positions and the window-blocked candidate count.
+    private sealed record FlatSelection(List<SchedulableItem> Taken, int[] Positions, int Scanned, int BlockedByAgeWindow);
+
+    // The outcome of the interleaved selection: picks, per-strand consumed scan positions and
+    // the window-blocked candidate count.
+    private sealed record InterleavedSelection(List<StrandPick> Picks, int[] Scanned, int BlockedByAgeWindow);
+
+    private SelectionResult SelectItems(
+        RuleState state, ProgramRule rule, DateTime airingStartUtc, (DateTime StartUtc, bool Hard)? bound,
+        ProgramScheduleAgeWindowRule ageRule)
     {
         var clipGrace = state.ClipGrace;
 
         if (!state.IsInterleaved)
         {
-            var taken = SelectAiringItems(state.Items, state.NextIndex, rule, airingStartUtc, bound, _minStartRemain, clipGrace);
-            return (taken, null);
+            var flat = SelectAiringItems(state.Items, state.NextIndex, rule, airingStartUtc, bound, _minStartRemain, clipGrace, state.PreservesOrder, ageRule);
+            return new SelectionResult(flat.Taken, null, [flat.Scanned], flat.BlockedByAgeWindow);
         }
 
-        var picks = SelectAiringItemsInterleaved(state.Strands, rule, airingStartUtc, bound, _minStartRemain, clipGrace);
-        var takenCounts = new int[state.Strands.Count];
+        var interleaved = SelectAiringItemsInterleaved(state.Strands, rule, airingStartUtc, bound, _minStartRemain, clipGrace, ageRule);
         var selected = new List<SchedulableItem>();
-        foreach (var (strand, item) in picks)
-        {
-            takenCounts[strand]++;
-            selected.Add(item);
-        }
-        return (selected, takenCounts);
+        foreach (var pick in interleaved.Picks)
+            selected.Add(pick.Item);
+        return new SelectionResult(selected, interleaved.Picks, interleaved.Scanned, interleaved.BlockedByAgeWindow);
     }
 
-    // Commits the taken items of a selection after the airing passed the conflict check.
-    private static void CommitTaken(RuleState state, List<SchedulableItem> taken, int[]? takenCounts)
+    // Commits a selection after the airing passed the conflict check: each strand's cursor
+    // moves behind its last scanned position while LastPlaced follows the last taken item.
+    private static void CommitTaken(RuleState state, SelectionResult selection)
     {
-        if (takenCounts is not null)
+        if (selection.Picks is not null)
         {
+            var lastTaken = new SchedulableItem?[state.Strands.Count];
+            foreach (var pick in selection.Picks)
+                lastTaken[pick.Strand] = pick.Item;
             for (var i = 0; i < state.Strands.Count; i++)
-                state.Strands[i].Commit(takenCounts[i]);
+                state.Strands[i].CommitScan(selection.Scanned[i], lastTaken[i]);
         }
         else
         {
-            state.Commit(taken.Count);
+            state.CommitScan(selection.Scanned[0], selection.Taken.Count > 0 ? selection.Taken[^1] : null);
         }
     }
 
@@ -1513,18 +1706,21 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // bounds); a strand stops contributing when its head may no longer start (or cannot
     // complete before a hard bound) — the item defers, it is never skipped or cut.
     // Returns the pick sequence: (strand index, item).
-    private static List<(int Strand, SchedulableItem Item)> SelectAiringItemsInterleaved(
+    private static InterleavedSelection SelectAiringItemsInterleaved(
         List<StrandState> strands, ProgramRule rule, DateTime airingStartUtc,
-        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain, TimeSpan? clipGrace = null)
+        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain, TimeSpan? clipGrace,
+        ProgramScheduleAgeWindowRule ageRule)
     {
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value
             : rule.SlotDuration is not null ? int.MaxValue : 1;
         var target = rule.EpisodeCount is > 0 ? (TimeSpan?)null : rule.SlotDuration;
 
         var m = strands.Count;
-        var picks = new List<(int Strand, SchedulableItem Item)>();
-        var taken = new int[m];
+        var picks = new List<StrandPick>();
+        var scanned = new int[m];
+        var skipsInRow = new int[m];
         var done = new bool[m];
+        var blockedByWindow = 0;
         var slotStart = airingStartUtc;
         var accumulated = TimeSpan.Zero;
         var selected = 0;
@@ -1553,18 +1749,43 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     graceHit = true; // period remainder below the grace — the rest goes to clip fill
                     break;
                 }
-                var item = strand.Items[(strand.NextIndex + taken[s]) % strand.Items.Count];
-                if (bound is { } b && (b.StartUtc - slotStart < minStartRemain || (b.Hard && slotStart + item.Duration > b.StartUtc)))
+
+                var count = strand.Items.Count;
+                while (true)
                 {
-                    done[s] = true; // head may not start / cannot complete — the strand rests
-                    continue;
+                    var item = strand.Items[(strand.NextIndex + scanned[s]) % count];
+                    if (!ProgramScheduleAgeWindow.IsAllowedAt(item.AgeRatingMinAge, slotStart, ageRule))
+                    {
+                        blockedByWindow++;
+                        if (strand.PreservesOrder)
+                        {
+                            // Ordered strand: the blocked head rests for this occurrence —
+                            // air order stays strict, the position is not consumed.
+                            done[s] = true;
+                            break;
+                        }
+                        scanned[s]++; // unordered ring: skip — position consumed without a take
+                        if (++skipsInRow[s] >= count)
+                        {
+                            done[s] = true; // a full ring lap without an allowed item
+                            break;
+                        }
+                        continue;
+                    }
+                    if (bound is { } b && (b.StartUtc - slotStart < minStartRemain || (b.Hard && slotStart + item.Duration > b.StartUtc)))
+                    {
+                        done[s] = true; // head may not start / cannot complete — the strand rests
+                        break;
+                    }
+                    picks.Add(new StrandPick(s, item));
+                    scanned[s]++;
+                    skipsInRow[s] = 0;
+                    selected++;
+                    slotStart += item.Duration;
+                    accumulated += item.Duration;
+                    progressed = true;
+                    break;
                 }
-                picks.Add((s, item));
-                taken[s]++;
-                selected++;
-                slotStart += item.Duration;
-                accumulated += item.Duration;
-                progressed = true;
                 if (target is not null && accumulated >= target)
                     break;
             }
@@ -1574,7 +1795,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             if (noProgressLaps > maxLap)
                 break; // every strand cycled a full lap without gaining airtime — degenerate durations
         }
-        return picks;
+        return new InterleavedSelection(picks, scanned, blockedByWindow);
     }
 
     // Boundary ownership: every occurrence owns [StartUtc, next occurrence start of any
@@ -1585,9 +1806,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // next occurrence) an item must additionally complete inside the window. An item that may
     // not start simply waits — it is never cut and never silently skipped: the cursor stays and
     // the next occurrence retries it.
-    private static List<SchedulableItem> SelectAiringItems(
+    private static FlatSelection SelectAiringItems(
         List<SchedulableItem> items, int headIndex, ProgramRule rule, DateTime airingStartUtc,
-        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain, TimeSpan? clipGrace = null)
+        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain, TimeSpan? clipGrace,
+        bool preservesOrder, ProgramScheduleAgeWindowRule ageRule)
     {
         // EpisodeCount wins; without it SlotDuration bounds the airing; when neither is set the
         // airing gets exactly one item (rule validation normally requires one of both).
@@ -1597,12 +1819,28 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var count = items.Count;
         var selected = new List<SchedulableItem>();
+        var positions = new List<int>();
         var accumulated = TimeSpan.Zero;
         var slotStart = airingStartUtc;
-        var ring = 0;
+        var ring = 0;            // consumed scan positions (taken + skipped)
+        var blockedByWindow = 0;
+        var sinceProgress = 0;   // scanned positions since the accumulated airtime last grew
         while (selected.Count < wanted)
         {
             var item = items[(headIndex + ring) % count];
+            if (!ProgramScheduleAgeWindow.IsAllowedAt(item.AgeRatingMinAge, slotStart, ageRule))
+            {
+                // Blocked at this slot's local start: an ordered strand keeps its head waiting
+                // (air order stays strict); an unordered ring skips the title — the scanned
+                // position stays consumed without a take.
+                blockedByWindow++;
+                if (preservesOrder)
+                    break;
+                ring++;
+                if (++sinceProgress >= count)
+                    break; // a full ring lap without an allowed item
+                continue;
+            }
             if (clipGrace is { } grace && target is { } t && t - accumulated < grace)
                 break; // period remainder below the grace — the rest goes to clip fill
             if (bound is { } b)
@@ -1614,14 +1852,17 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             }
 
             selected.Add(item);
+            positions.Add((headIndex + ring) % count);
+            ring++;
             slotStart += item.Duration;
             accumulated += item.Duration;
+            sinceProgress = item.Duration > TimeSpan.Zero ? 0 : sinceProgress + 1;
+            if (sinceProgress >= count)
+                break; // a full ring gained no airtime — degenerate (zero) durations
             if (target is not null && accumulated >= target)
                 break;
-            if (++ring >= count && accumulated <= TimeSpan.Zero)
-                break; // a full ring gained no airtime — degenerate (zero) durations
         }
-        return selected;
+        return new FlatSelection(selected, positions.ToArray(), ring, blockedByWindow);
     }
 
     // Sorted start times of all occurrences whose rule currently expands to schedulable items —
@@ -1650,6 +1891,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     }
 
     private void FillGaps(Dictionary<long, RuleState> states, List<ProgramRule> rules, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, DateTime horizonEnd, SummaryCounters summary,
+        ProgramScheduleAgeWindowRule ageRule,
         IReadOnlyDictionary<long, List<DateTime>>? airingsByMovie = null)
     {
         var fillerStates = rules
@@ -1706,10 +1948,30 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                             continue;
                         take = offset.Value + 1;
                         item = filler.PeekAt(offset.Value);
+                        if (item is not null
+                            && !ProgramScheduleAgeWindow.IsAllowedAt(item.AgeRatingMinAge, fillAt, ageRule))
+                            continue;
                     }
                     else
                     {
-                        item = filler.PeekAt(0);
+                        // Age window: scan the filler ring for the first item allowed at this
+                        // position — the positions passed over stay consumed once a take
+                        // commits the scan (take covers them).
+                        item = null;
+                        take = 0;
+                        for (var o = 0; o < filler.Items.Count; o++)
+                        {
+                            var candidate = filler.PeekAt(o);
+                            if (candidate is not null
+                                && ProgramScheduleAgeWindow.IsAllowedAt(candidate.AgeRatingMinAge, fillAt, ageRule))
+                            {
+                                item = candidate;
+                                take = o + 1;
+                                break;
+                            }
+                        }
+                        if (item is null)
+                            continue;
                     }
                     // Fillers must fit inside the gap — except at the horizon edge, where the last
                     // one may overshoot the window end so coverage truly reaches the horizon.
@@ -1890,12 +2152,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             summary.SkippedNoAccess++;
             return null;
         }
-        return new SchedulableItem(ProgramCursorContentType.Movie, movie.Id, media.MediaItemId, movie.Id, null, media.Duration.Value);
+        return new SchedulableItem(ProgramCursorContentType.Movie, movie.Id, media.MediaItemId, movie.Id, null, media.Duration.Value, AgeRatingMinAge: movie.AgeRatingMinAge);
     }
 
     private async Task<List<SchedulableItem>> ExpandShowAsync(long showId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
     {
-        if (!await _db.TVShows.AnyAsync(s => s.Id == showId, cancellationToken))
+        var showRating = await _db.TVShows
+            .Where(s => s.Id == showId)
+            .Select(s => new { s.AgeRatingMinAge })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (showRating is null)
         {
             summary.MaterialMissing++;
             return [];
@@ -1911,7 +2177,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var mediaItems = await EpisodeMediaItemsAsync(episodes.Select(e => e.Id).ToList(), cancellationToken);
 
         return episodes
-            .Select(e => ToItem(new ProxyEpisode(e.Id, e.MediaSourceId), showId, mediaItems, access, summary))
+            .Select(e => ToItem(new ProxyEpisode(e.Id, e.MediaSourceId), showId, mediaItems, access, summary, showRating.AgeRatingMinAge))
             .Where(i => i is not null)
             .Cast<SchedulableItem>()
             .ToList();
@@ -1920,7 +2186,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // Minimal carrier for episode fields needed by ToItem (id + source).
     private sealed record ProxyEpisode(long Id, long MediaSourceId);
 
-    private SchedulableItem? ToItem(ProxyEpisode episode, long showId, Dictionary<long, MediaItemRef> mediaItems, AccessContext access, SummaryCounters summary)
+    private SchedulableItem? ToItem(ProxyEpisode episode, long showId, Dictionary<long, MediaItemRef> mediaItems, AccessContext access, SummaryCounters summary, int? ageRatingMinAge)
     {
         summary.Candidates++;
         mediaItems.TryGetValue(episode.Id, out var media);
@@ -1934,7 +2200,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             summary.SkippedNoAccess++;
             return null;
         }
-        return new SchedulableItem(ProgramCursorContentType.TVShowEpisode, episode.Id, media.MediaItemId, null, episode.Id, media.Duration.Value);
+        return new SchedulableItem(ProgramCursorContentType.TVShowEpisode, episode.Id, media.MediaItemId, null, episode.Id, media.Duration.Value, AgeRatingMinAge: ageRatingMinAge);
     }
 
     private async Task<List<SchedulableItem>> ExpandMovieAsync(long movieId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
@@ -2066,6 +2332,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var mediaByMovie = await MovieMediaItemsAsync(movies.Select(m => m.Id).ToList(), cancellationToken);
         var mediaByEpisode = await EpisodeMediaItemsAsync(episodes.Select(e => e.Id).ToList(), cancellationToken);
+        var showMinAges = await _db.TVShows
+            .Where(s => showIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.AgeRatingMinAge, cancellationToken);
 
         // Strand keys drive the series interleaving (N19): every show is its own strand so its
         // episodes continue in air order at a stable slot position; movies share the "other"
@@ -2076,7 +2345,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .Cast<SchedulableItem>()
             .Select(i => i with { StrandKey = OtherStrandKey });
         var episodeItems = episodes
-            .Select(e => (Item: ToItem(new ProxyEpisode(e.Id, e.MediaSourceId), e.ShowId, mediaByEpisode, access, summary), e.ShowId))
+            .Select(e => (Item: ToItem(new ProxyEpisode(e.Id, e.MediaSourceId), e.ShowId, mediaByEpisode, access, summary, showMinAges.GetValueOrDefault(e.ShowId)), e.ShowId))
             .Where(x => x.Item is not null)
             .Select(x => x.Item! with { StrandKey = $"show:{x.ShowId}" });
         return movieItems.Concat(episodeItems).ToList();
@@ -2287,6 +2556,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .Where(e => episodeIds.Contains(e.Id))
             .Select(e => new { e.Id, e.MediaSourceId, ShowId = e.TVShowSeason.TVShowId })
             .ToDictionaryAsync(e => e.Id, cancellationToken);
+        var showMinAges = await _db.TVShows
+            .Where(s => episodeShowIds.Values.Select(e => e.ShowId).Distinct().Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.AgeRatingMinAge, cancellationToken);
 
         var mediaByMovie = await MovieMediaItemsAsync(movieIds, cancellationToken);
         var mediaByEpisode = await EpisodeMediaItemsAsync(episodeIds, cancellationToken);
@@ -2302,7 +2574,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             }
             else if (entry.MediaType == MediaTypeValues.TVShowEpisode && episodeShowIds.TryGetValue(entry.MediaId, out var episode))
             {
-                var item = ToItem(new ProxyEpisode(episode.Id, episode.MediaSourceId), episode.ShowId, mediaByEpisode, access, summary);
+                var item = ToItem(new ProxyEpisode(episode.Id, episode.MediaSourceId), episode.ShowId, mediaByEpisode, access, summary, showMinAges.GetValueOrDefault(episode.ShowId));
                 if (item is not null)
                     items.Add(item with { ContentType = ProgramCursorContentType.PlaylistEntry, ContentId = entry.Id });
             }
@@ -2325,6 +2597,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         IReadOnlyList<(DateTime StartUtc, int Priority)> BoundStarts,
         DateTime HorizonEnd,
         SummaryCounters Summary,
+        ProgramScheduleAgeWindowRule AgeRule,
         // Nominale Occurrence-Starts je Regel (aufsteigend) — die Grundlage des Periodenendes.
         // Die Ausstrahlung kann real spaeter beginnen (invader shift) oder der geschriebene
         // Kopf mitten in der Periode liegen; das Periodenende darf sich dadurch nie nach
@@ -2644,12 +2917,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             while (true)
             {
                 var clip = NextClipItem(state.ClipGroups, ref roundRobin, pos, airingsByMovie,
-                    item => tail
-                        ? pos < periodEnd && pos < chainEnd
-                            && pos + item.Duration <= (placed > TimeSpan.Zero
-                                ? tailLimit
-                                : periodEnd < tailLimit ? periodEnd : tailLimit)
-                        : placed + item.Duration <= budget && pos < chainEnd && pos + item.Duration <= tailLimit);
+                    item => ProgramScheduleAgeWindow.IsAllowedAt(item.AgeRatingMinAge, pos, ctx.AgeRule)
+                        && (tail
+                            ? pos < periodEnd && pos < chainEnd
+                                && pos + item.Duration <= (placed > TimeSpan.Zero
+                                    ? tailLimit
+                                    : periodEnd < tailLimit ? periodEnd : tailLimit)
+                            : placed + item.Duration <= budget && pos < chainEnd && pos + item.Duration <= tailLimit));
                 if (clip is null)
                     break;
 

@@ -12,6 +12,7 @@ namespace VideoWebPlayer.Services;
 /// <param name="OrphanedRules">How many rules referenced material that no longer exists.</param>
 /// <param name="DroppedConflicts">How many rule airings were dropped because a higher-priority airing occupied their window.</param>
 /// <param name="RemainingGapSeconds">Total seconds of the planning window left uncovered (e.g. no fitting filler).</param>
+/// <param name="BlockedByAgeWindow">How many scanned candidates were blocked by the youth-protection window.</param>
 public readonly record struct ProgramScheduleRunSummary(
     int SlotsCreated,
     int FillerSlotsCreated,
@@ -19,7 +20,8 @@ public readonly record struct ProgramScheduleRunSummary(
     int SkippedNoAccess,
     int OrphanedRules,
     int DroppedConflicts,
-    long RemainingGapSeconds);
+    long RemainingGapSeconds,
+    int BlockedByAgeWindow);
 
 /// <summary>
 /// The outcome of one <see cref="IProgramScheduleService.ReconcileAsync"/> run.
@@ -32,6 +34,7 @@ public readonly record struct ProgramScheduleRunSummary(
 /// <param name="OrphanedRules">How many rules referenced material that no longer exists.</param>
 /// <param name="DroppedConflicts">How many rule airings were dropped because higher-priority coverage occupied their window.</param>
 /// <param name="RemainingGapSeconds">Total seconds of the planning window left uncovered (e.g. no fitting filler).</param>
+/// <param name="BlockedByAgeWindow">How many scanned candidates were blocked by the youth-protection window.</param>
 public readonly record struct ProgramScheduleReconcileSummary(
     int SlotsDisplaced,
     int SlotsCreated,
@@ -40,7 +43,8 @@ public readonly record struct ProgramScheduleReconcileSummary(
     int SkippedNoAccess,
     int OrphanedRules,
     int DroppedConflicts,
-    long RemainingGapSeconds);
+    long RemainingGapSeconds,
+    int BlockedByAgeWindow);
 
 /// <summary>
 /// Per-rule planning diagnosis for the administration view: how much content of a
@@ -61,6 +65,9 @@ public readonly record struct ProgramScheduleReconcileSummary(
 /// probe attempt budget is exhausted (permanently failed).</param>
 /// <param name="NoAccessCount">Candidates with a probed duration that are not released for the
 /// whole (non-admin) audience.</param>
+/// <param name="AgeWindowBlockedCount">Schedulable candidates that are not age-appropriate for
+/// the rule's evaluation time (its next occurrence start) under the configured
+/// youth-protection window.</param>
 public readonly record struct ProgramRuleDiagnosis(
     long RuleId,
     bool MaterialMissing,
@@ -69,7 +76,8 @@ public readonly record struct ProgramRuleDiagnosis(
     int NoMediaItemCount,
     int ProbePendingCount,
     int ProbeExhaustedCount,
-    int NoAccessCount);
+    int NoAccessCount,
+    int AgeWindowBlockedCount);
 
 /// <summary>
 /// The outcome of <see cref="IProgramScheduleService.ResetScheduleAsync"/>.

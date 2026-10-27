@@ -416,6 +416,84 @@ public sealed class ProgramSettingsService
     }
 
     /// <summary>
+    /// Gets the youth-protection window schema of the program schedule of the automated TV
+    /// channel. Stored combinations violating the schema invariants
+    /// (<see cref="ProgramScheduleAgeWindowSettings.IsValid"/> — corrupted rows) are
+    /// normalized to <see cref="ProgramScheduleAgeWindowSettings.Default"/>.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured window schema (default 20:00/22:00/23:00, night end 06:00).</returns>
+    public async Task<ProgramScheduleAgeWindowSettings> GetProgramScheduleAgeWindowsAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        var windows = new ProgramScheduleAgeWindowSettings(
+            setup.ProgramScheduleAgeWindow12Local,
+            setup.ProgramScheduleAgeWindow16Local,
+            setup.ProgramScheduleAgeWindow18Local,
+            setup.ProgramScheduleAgeWindowNightEndLocal);
+        return windows.IsValid() ? windows : ProgramScheduleAgeWindowSettings.Default;
+    }
+
+    /// <summary>
+    /// Persists the youth-protection window schema of the program schedule of the automated
+    /// TV channel.
+    /// </summary>
+    /// <param name="windows">The window schema: the earliest local air times must be monotone
+    /// (<c>Fsk12 ≤ Fsk16 ≤ Fsk18</c>) and the common night end must lie before the FSK-12
+    /// window start.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">The window schema violates its invariants.</exception>
+    public async Task UpdateProgramScheduleAgeWindowsAsync(ProgramScheduleAgeWindowSettings windows, CancellationToken cancellationToken = default)
+    {
+        if (!windows.IsValid())
+            throw new ArgumentException(
+                "Die Fensterzeiten müssen aufsteigend sein (FSK 12 ≤ FSK 16 ≤ FSK 18) und das Nachtende muss vor dem FSK-12-Fensterbeginn liegen.");
+
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.ProgramScheduleAgeWindow12Local = windows.Fsk12Earliest;
+        setup.ProgramScheduleAgeWindow16Local = windows.Fsk16Earliest;
+        setup.ProgramScheduleAgeWindow18Local = windows.Fsk18Earliest;
+        setup.ProgramScheduleAgeWindowNightEndLocal = windows.NightEnd;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the behavior for material without a known age rating in the program schedule of
+    /// the automated TV channel. Values not defined in
+    /// <see cref="ProgramScheduleUnknownRatingMode"/> (corrupted rows) are normalized to the
+    /// restrictive <see cref="ProgramScheduleUnknownRatingMode.RestrictToNightWindow"/>.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured mode (default <see cref="ProgramScheduleUnknownRatingMode.RestrictToNightWindow"/>).</returns>
+    public async Task<ProgramScheduleUnknownRatingMode> GetProgramScheduleUnknownRatingModeAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return Enum.IsDefined(setup.ProgramScheduleUnknownRatingMode)
+            ? setup.ProgramScheduleUnknownRatingMode
+            : ProgramScheduleUnknownRatingMode.RestrictToNightWindow;
+    }
+
+    /// <summary>
+    /// Persists the behavior for material without a known age rating in the program schedule
+    /// of the automated TV channel.
+    /// </summary>
+    /// <param name="mode">One of <see cref="ProgramScheduleUnknownRatingMode.RestrictToNightWindow"/>
+    /// or <see cref="ProgramScheduleUnknownRatingMode.Unrestricted"/>.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">The value is not a defined <see cref="ProgramScheduleUnknownRatingMode"/>.</exception>
+    public async Task UpdateProgramScheduleUnknownRatingModeAsync(ProgramScheduleUnknownRatingMode mode, CancellationToken cancellationToken = default)
+    {
+        if (!Enum.IsDefined(mode))
+            throw new ArgumentException($"Unbekannter Modus für fehlende Altersfreigabe: {mode}");
+
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.ProgramScheduleUnknownRatingMode = mode;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Gets the target HLS segment length of the live stream.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>

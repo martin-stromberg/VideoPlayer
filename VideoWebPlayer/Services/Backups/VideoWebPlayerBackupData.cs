@@ -108,7 +108,12 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingMinAge)}",
         $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingClassifiedAt)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamStandbyMediaItemId)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleContentScope)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleContentScope)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindow12Local)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindow16Local)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindow18Local)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindowNightEndLocal)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleUnknownRatingMode)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -155,12 +160,21 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentLengthSeconds), 6),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentRetentionMinutes), 30),
         (nameof(ApplicationDbContext.MediaItems), nameof(MediaItem.DurationProbeAttempts), 0),
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleContentScope), (int)ProgramScheduleContentScope.SharedOnly)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleContentScope), (int)ProgramScheduleContentScope.SharedOnly),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleUnknownRatingMode), (int)ProgramScheduleUnknownRatingMode.RestrictToNightWindow)
     };
 
     private static readonly (string Table, string Column, TimeSpan DefaultValue)[] OptionalRestoreTimeSpanDefaults =
     {
         (nameof(ApplicationDbContext.ProgramRules), nameof(ProgramRule.PlaceholderGrace), ProgramRule.DefaultPlaceholderGrace)
+    };
+
+    private static readonly (string Table, string Column, TimeOnly DefaultValue)[] OptionalRestoreTimeOnlyDefaults =
+    {
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleAgeWindow12Local), new TimeOnly(20, 0)),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleAgeWindow16Local), new TimeOnly(22, 0)),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleAgeWindow18Local), new TimeOnly(23, 0)),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleAgeWindowNightEndLocal), new TimeOnly(6, 0))
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -1010,6 +1024,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
 
         foreach (var (tableName, columnName, defaultValue) in OptionalRestoreTimeSpanDefaults)
             InjectDefault(tableName, columnName, defaultValue);
+
+        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreTimeOnlyDefaults)
+            InjectDefault(tableName, columnName, defaultValue.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture));
 
         return insertColumns;
     }

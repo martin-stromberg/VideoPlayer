@@ -35,15 +35,133 @@ public abstract class TVSenderAdminE2ETestBase : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync(readyTabSelector, new PageWaitForSelectorOptions { Timeout = 30_000 });
     }
 
-    /// <summary>Enables the TV-sender feature flag directly in the persisted setup row.</summary>
-    protected async Task EnableTvSenderAsync()
+    /// <summary>Applies a mutation to the persisted setup row — the shared pattern behind
+    /// <see cref="EnableTvSenderAsync"/> and feature-specific setup seeds.</summary>
+    protected async Task UpdateSetupAsync(Action<Setup> mutate)
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var ct = TestContext.Current.CancellationToken;
         var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(ct);
-        setup.TvSenderEnabled = true;
+        mutate(setup);
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Enables the TV-sender feature flag directly in the persisted setup row.</summary>
+    protected Task EnableTvSenderAsync() => UpdateSetupAsync(s => s.TvSenderEnabled = true);
+
+    /// <summary>
+    /// Seeds a media collection on the shared E2E media source and releases the source for
+    /// every non-admin user so its items are schedulable (the schedule only plans material
+    /// released for the whole audience) — returns the persisted collection.
+    /// </summary>
+    /// <param name="name">Name and path prefix of the collection.</param>
+    /// <param name="releaseToAudience">With <see langword="false"/> the grant loop is skipped
+    /// and the source stays unreleased — for tests that need a missing audience grant
+    /// (e.g. the content-scope check).</param>
+    protected async Task<MediaCollection> SeedSharedCollectionAsync(string name, bool releaseToAudience = true)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var ct = TestContext.Current.CancellationToken;
+        var sourceId = await EnsureMediaSourceIdAsync(db);
+        var collection = new MediaCollection
+        {
+            Name = $"{name}-{Guid.NewGuid():N}",
+            MediaSourceId = sourceId,
+            Path = $"/test/{name}-{Guid.NewGuid():N}",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaCollections.Add(collection);
+        await db.SaveChangesAsync(ct);
+        if (releaseToAudience)
+        {
+            foreach (var u in await db.Users.Where(u => !u.IsAdmin).ToListAsync(ct))
+                if (!await db.MediaSourceUsers.AnyAsync(m => m.UserId == u.Id && m.MediaSourceId == sourceId, ct))
+                    db.MediaSourceUsers.Add(new MediaSourceUser { UserId = u.Id, MediaSourceId = sourceId });
+            await db.SaveChangesAsync(ct);
+        }
+        return collection;
+    }
+
+    /// <summary>
+    /// Seeds a movie with a single probed media item on the shared E2E media source — the
+    /// shape the schedule needs to plan a movie (a classified <see cref="Movie"/> with a
+    /// <see cref="MovieMediaItem"/> link to an item with a probed <see cref="MediaItem.Duration"/>)
+    /// and that the media search lists (it only shows classified movies) — returns the
+    /// movie id.
+    /// </summary>
+    /// <param name="name">Movie name; the media item is named "<c>&lt;name&gt;.mkv</c>".</param>
+    /// <param name="duration">Probed duration of the media item.</param>
+    /// <param name="minAge">Normalized minimum age (<see cref="IAgeRated.AgeRatingMinAge"/>) —
+    /// <see langword="null"/> leaves the rating unknown.</param>
+    /// <param name="releaseToAudience">Forwarded to <see cref="SeedSharedCollectionAsync"/>.</param>
+    protected async Task<long> SeedMovieWithItemAsync(string name, TimeSpan duration, int? minAge = null, bool releaseToAudience = true)
+    {
+        var collection = await SeedSharedCollectionAsync("movies", releaseToAudience);
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var ct = TestContext.Current.CancellationToken;
+        var movie = new Movie
+        {
+            Name = name,
+            MediaSourceId = collection.MediaSourceId,
+            CreatedAt = DateTime.UtcNow,
+            AgeRatingMinAge = minAge
+        };
+        db.Movies.Add(movie);
+        var item = new MediaItem
+        {
+            Name = $"{name}.mkv",
+            Path = $"{collection.Path}/{name}.mkv",
+            MediaCollectionId = collection.Id,
+            Duration = duration,
+            DurationProbedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaItems.Add(item);
+        await db.SaveChangesAsync(ct);
+        db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
+        await db.SaveChangesAsync(ct);
+        return movie.Id;
+    }
+
+    /// <summary>
+    /// Seeds an active daily <see cref="ProgramRuleType.MoviePrimeTime"/> rule that airs a
+    /// single movie on the delivered channel (created on demand — the same channel the admin
+    /// page materializes on first load) — returns the persisted rule id.
+    /// </summary>
+    /// <param name="name">Rule name.</param>
+    /// <param name="hour">Local hour of the daily start.</param>
+    /// <param name="minute">Local minute of the daily start.</param>
+    /// <param name="movieId">Movie to air (<see cref="ProgramRule.MaterialId"/>).</param>
+    /// <param name="priority">Rule priority — higher wins on overlapping occurrences.</param>
+    /// <param name="slotDuration">Optional fixed slot duration; <see langword="null"/> lets the
+    /// material length decide.</param>
+    protected async Task<long> SeedMovieRuleAsync(string name, int hour, int minute, long movieId, int priority = 0, TimeSpan? slotDuration = null)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var ct = TestContext.Current.CancellationToken;
+        var channel = await new ProgramRuleService(db).GetOrCreateChannelAsync(ct);
+        var rule = new ProgramRule
+        {
+            TVChannelId = channel.Id,
+            Name = name,
+            RuleType = ProgramRuleType.MoviePrimeTime,
+            Recurrence = ProgramRuleRecurrence.Daily,
+            TimeOfDay = new TimeOnly(hour, minute),
+            SlotDuration = slotDuration,
+            MaterialType = ProgramRuleMaterialType.Movie,
+            MaterialId = movieId,
+            Priority = priority,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.ProgramRules.Add(rule);
+        await db.SaveChangesAsync(ct);
+        return rule.Id;
     }
 
     /// <summary>
@@ -53,23 +171,10 @@ public abstract class TVSenderAdminE2ETestBase : PlaylistsE2ETestBase
     /// </summary>
     protected async Task<List<long>> SeedClipItemsAsync(params (string Name, TimeSpan? Duration)[] clips)
     {
+        var collection = await SeedSharedCollectionAsync("clips");
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var ct = TestContext.Current.CancellationToken;
-        var sourceId = await EnsureMediaSourceIdAsync(db);
-        var collection = new MediaCollection
-        {
-            Name = $"clips-{Guid.NewGuid():N}",
-            MediaSourceId = sourceId,
-            Path = $"/test/clips-{Guid.NewGuid():N}",
-            CreatedAt = DateTime.UtcNow
-        };
-        db.MediaCollections.Add(collection);
-        await db.SaveChangesAsync(ct);
-        foreach (var u in await db.Users.Where(u => !u.IsAdmin).ToListAsync(ct))
-            if (!await db.MediaSourceUsers.AnyAsync(m => m.UserId == u.Id && m.MediaSourceId == sourceId, ct))
-                db.MediaSourceUsers.Add(new MediaSourceUser { UserId = u.Id, MediaSourceId = sourceId });
-        await db.SaveChangesAsync(ct);
         var items = clips.Select(c => new MediaItem
         {
             Name = c.Name,

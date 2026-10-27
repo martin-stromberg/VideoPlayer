@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
-using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -61,41 +60,6 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         db.ProgramRuleClipGroups.Add(new ProgramRuleClipGroup { ProgramRuleId = ruleId, ProgramClipGroupId = groupId });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-    }
-
-    /// <summary>Seeds a movie plus its media item (the media search only lists classified
-    /// movies) on the shared E2E source and returns the movie id.</summary>
-    private async Task<long> SeedMovieWithItemAsync(string name)
-    {
-        using var scope = Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var ct = TestContext.Current.CancellationToken;
-        var sourceId = await EnsureMediaSourceIdAsync(db);
-        var collection = new MediaCollection
-        {
-            Name = $"movies-{Guid.NewGuid():N}",
-            MediaSourceId = sourceId,
-            Path = $"/test/m-{Guid.NewGuid():N}",
-            CreatedAt = DateTime.UtcNow
-        };
-        db.MediaCollections.Add(collection);
-        var movie = new Movie { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
-        db.Movies.Add(movie);
-        await db.SaveChangesAsync(ct);
-        var item = new MediaItem
-        {
-            Name = $"{name}.mkv",
-            Path = $"{collection.Path}/{name}.mkv",
-            MediaCollectionId = collection.Id,
-            Duration = TimeSpan.FromMinutes(76),
-            DurationProbedAt = DateTime.UtcNow,
-            CreatedAt = DateTime.UtcNow
-        };
-        db.MediaItems.Add(item);
-        await db.SaveChangesAsync(ct);
-        db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
-        await db.SaveChangesAsync(ct);
-        return movie.Id;
     }
 
     private Task OpenClipGroupsTabAsync() => SwitchTabAsync("#tvsender-tab-clipgruppen", "#tab-clipgruppen");
@@ -201,7 +165,7 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         await SeedTrailerClipGroupAsync();
         var groupId = await SeedClipGroupAsync("Maskottchen");
         // Die Mediensuche liefert nur klassifizierte Filme → Film mit MediaItem säen.
-        var movieId = await SeedMovieWithItemAsync("E2E-Film");
+        var movieId = await SeedMovieWithItemAsync("E2E-Film", TimeSpan.FromMinutes(76));
         await OpenAdminPageAsAdminAsync();
         await DriveUntilStateAsync(
             async () =>
@@ -271,40 +235,11 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
     {
         await EnableTvSenderAsync();
         await SeedTrailerClipGroupAsync();
-        long ruleId;
-        using (var scope = Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var ct = TestContext.Current.CancellationToken;
-            var sourceId = await EnsureMediaSourceIdAsync(db);
-            var collection = new MediaCollection { Name = "C", MediaSourceId = sourceId, Path = "/c", CreatedAt = DateTime.UtcNow };
-            db.MediaCollections.Add(collection);
-            var movie = new Movie { Name = "E2E-Film", MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
-            db.Movies.Add(movie);
-            await db.SaveChangesAsync(ct);
-            var movieItem = new MediaItem { Name = "m.mkv", Path = "/c/m.mkv", MediaCollectionId = collection.Id, Duration = TimeSpan.FromMinutes(76), DurationProbedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow };
-            db.MediaItems.Add(movieItem);
-            await db.SaveChangesAsync(ct);
-            db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = movieItem.Id });
-            var channel = await new ProgramRuleService(db).GetOrCreateChannelAsync(ct);
-            var rule = new ProgramRule
-            {
-                TVChannelId = channel.Id,
-                Name = "Primetime",
-                RuleType = ProgramRuleType.MoviePrimeTime,
-                Recurrence = ProgramRuleRecurrence.Daily,
-                TimeOfDay = new TimeOnly(20, 0),
-                SlotDuration = TimeSpan.FromHours(4),
-                MaterialType = ProgramRuleMaterialType.Movie,
-                MaterialId = movie.Id,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            db.ProgramRules.Add(rule);
-            await db.SaveChangesAsync(ct);
-            ruleId = rule.Id;
-        }
+        // Der Test zielt auf die Clip-Füllung, nicht auf das Jugendschutzfenster —
+        // freigabelose Clips bleiben mit Unrestricted zu jeder Sendezeit planbar.
+        await UpdateSetupAsync(s => s.ProgramScheduleUnknownRatingMode = ProgramScheduleUnknownRatingMode.Unrestricted);
+        var movieId = await SeedMovieWithItemAsync("E2E-Film", TimeSpan.FromMinutes(76));
+        var ruleId = await SeedMovieRuleAsync("Primetime", 20, 0, movieId, slotDuration: TimeSpan.FromHours(4));
         var clipIds = await SeedClipItemsAsync(("funki-clip.mkv", TimeSpan.FromSeconds(60)));
         var groupId = await SeedClipGroupAsync("E2E-Clips");
         await SeedClipGroupItemAsync(groupId, clipIds[0]);

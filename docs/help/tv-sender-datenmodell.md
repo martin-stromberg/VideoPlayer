@@ -132,10 +132,20 @@ FK-Kaskaden, NOCASE-Unique auf `ProgramClipGroups.Name`), fügt `ProgramRules.Pl
 |-------------|-----|--------------|
 | `LiveStreamStandbyMediaItemId` | `long?` (nullable) | Standby-Clip des Live-Streams: das `MediaItem`, das die Warm-up-Phase und alle Zustände ohne produzierte Segmente ausliefert; `null` = eingebetteter Standard-Clip. **Weiche Referenz ohne Fremdschlüssel** (Konvention wie `ProgramSlot.MediaItemId`): Ein gelöschtes Medium setzt die Einstellung nicht zurück — die Standby-Vorbereitung fällt dann auf den Standard-Clip zurück. |
 | `ProgramScheduleContentScope` | `int` (`ProgramScheduleContentScope`-Enum, Default `SharedOnly` = 0) | Inhaltsspektrum der Sendeplanung: `SharedOnly` plant nur für das gesamte Nicht-Admin-Publikum freigegebene Inhalte; `AllContent` hebt die Zuschauer-Freigabeprüfung auf (`AccessContext { Everything = true }` in `LoadAccessContextAsync`). Gepflegt über `ProgramSettingsService.GetProgramScheduleContentScopeAsync`/`UpdateProgramScheduleContentScopeAsync` (Updater validiert `Enum.IsDefined`; der Getter normalisiert ungültige Werte leseseitig auf `SharedOnly`). |
+| `ProgramScheduleAgeWindow12Local` | `TimeOnly` (`TEXT`, `NOT NULL`, `DEFAULT '20:00'`) | Früheste lokale Sendezeit für Material mit Mindestfreigabe 12–15 (Jugendschutzfenster). |
+| `ProgramScheduleAgeWindow16Local` | `TimeOnly` (`TEXT`, `NOT NULL`, `DEFAULT '22:00'`) | Früheste lokale Sendezeit für Mindestfreigabe 16–17. |
+| `ProgramScheduleAgeWindow18Local` | `TimeOnly` (`TEXT`, `NOT NULL`, `DEFAULT '23:00'`) | Früheste lokale Sendezeit für Mindestfreigabe ≥ 18. |
+| `ProgramScheduleAgeWindowNightEndLocal` | `TimeOnly` (`TEXT`, `NOT NULL`, `DEFAULT '06:00'`) | Gemeinsames Ende aller Nachtfenster — danach gilt wieder die tagesseitige Sperre. |
+| `ProgramScheduleUnknownRatingMode` | `int` (`ProgramScheduleUnknownRatingMode`-Enum, Default `RestrictToNightWindow` = 0) | Verhalten für Material ohne bekannte Freigabe (inkl. Clips, Trailer, Füller): `RestrictToNightWindow` = nur im FSK-18-Nachtfenster, `Unrestricted` = jederzeit. `RestrictToNightWindow` behält bewusst den Wert 0, damit Alt-Backups und korrupte Werte restriktiv ausfallen. |
 
 **Migration:** `AddSetupLiveStreamStandbyMediaItem` — fügt die nullable Spalte
 `LiveStreamStandbyMediaItemId` zu `Setups` hinzu; `AddSetupProgramScheduleContentScope`
-fügt `ProgramScheduleContentScope` (`INTEGER`, `NOT NULL`, `DEFAULT 0`) hinzu.
-Beide `Setups`-Spalten stehen in `VideoWebPlayerBackupData.OptionalRestoreColumns`
-(`ProgramScheduleContentScope` zusätzlich in `OptionalRestoreIntDefaults` mit `SharedOnly`
-= 0); Alt-Backups ohne die Spalten bleiben restaurierbar (Regressionstests vorhanden).
+fügt `ProgramScheduleContentScope` (`INTEGER`, `NOT NULL`, `DEFAULT 0`) hinzu;
+`AddProgramScheduleAgeWindows` fügt die vier Fenster-`TimeOnly`-Spalten (`TEXT`,
+`NOT NULL`, Defaults 20:00/22:00/23:00/06:00) und `ProgramScheduleUnknownRatingMode`
+(`INTEGER`, `NOT NULL`, `DEFAULT 0`) hinzu.
+Alle `Setups`-Spalten stehen in `VideoWebPlayerBackupData.OptionalRestoreColumns`
+(`ProgramScheduleContentScope` und `ProgramScheduleUnknownRatingMode` zusätzlich in
+`OptionalRestoreIntDefaults` mit den restriktiven Defaults; die vier Fensterzeiten in
+`OptionalRestoreTimeOnlyDefaults` mit dem ausgelieferten Schema). Alt-Backups ohne die
+Spalten bleiben restaurierbar (Regressionstests vorhanden).

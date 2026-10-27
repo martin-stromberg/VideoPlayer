@@ -52,6 +52,40 @@ gewählte Bundesland (Auswahlfeld, Standard: nur bundesweit gültige Feiertage) 
 landesspezifischen Feiertage zusätzlich gelten. Die Einstellung wird über die
 Programmeinstellungen (`Setups.HolidayFederalState`) gespeichert.
 
+## Altersgerechte Sendezeiten (Jugendschutzfenster)
+
+Vier Zeitfelder in der Gruppe „Planung" des Einstellungen-Tabs (Beschriftung
+„Altersgerechte Sendezeiten (Jugendschutz)") steuern, ab welcher lokalen Uhrzeit
+altersgeprüfte Inhalte frühestens sendbar sind:
+
+- **ab 12 Jahre frühestens** — Standard 20:00
+- **ab 16 Jahre frühestens** — Standard 22:00
+- **ab 18 Jahre frühestens** — Standard 23:00
+- **Ende des Nachtfensters** — Standard 06:00
+
+Beim Speichern müssen die Zeiten aufsteigend sein („ab 12 Jahre" ≤ „ab 16 Jahre" ≤
+„ab 18 Jahre"), und das Ende des Nachtfensters muss vor „ab 12 Jahre" liegen — ungültige
+Kombinationen weist die Seite mit einer Fehlermeldung ab.
+
+Ein Titel darf nur beginnen, wenn seine Altersfreigabe zur lokalen Sendezeit des
+Sendeplatzes passt: unter 12 jederzeit, ab 12 ab der ersten Zeit, ab 16 ab der zweiten,
+ab 18 ab der dritten — alle Fenster laufen jeweils bis zum gemeinsamen Nachtende.
+MPAA-Freigaben wirken über ihr normalisiertes Mindestalter auf dieselben Fenster
+(z. B. „R" im Ab-16-Fenster). Ein begonnener Beitrag läuft immer zu Ende, auch wenn er
+über die Fenstergrenze hinausreicht. Episoden übernehmen die Freigabe ihrer Serie; bei
+Strängen mit Sendereihenfolge (Serien, Playlists) wartet ein gesperrter Kopf, bei
+ungeordneten Ringen (Filme, Genre-„Sonstiges", Clips) wird ein gesperrter Titel
+übersprungen und auf der nächsten Runde erneut angeboten. Füller und Clip-Füllung
+unterliegen denselben Regeln. Bereits eingeplante Sendeplätze, die gegen ein verschärftes
+Fenster verstoßen, werden beim nächsten Planlauf verdrängt und regelkonform neu geplant —
+das Speichern der Einstellungen stößt die Neubewertung sofort an.
+
+**Material ohne Altersfreigabe** (Auswahlfeld): „Wie ‚ab 18 Jahre' behandeln (nur nachts
+planbar)" (Standard) oder „Jederzeit planbar". Die Regel gilt auch für Clips, Trailer und
+Füller ohne Altersfreigabe — im Standard füllen sie daher nur noch im Nachtfenster auf;
+Restlücken zu anderen Zeiten bleiben dann ungefüllt. Der Standby-Clip des Live-Streams
+ist ausgenommen.
+
 ## Programmregeln
 
 Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
@@ -352,8 +386,10 @@ gewählten Materials aktuell planbar sind — gerechnet mit derselben Logik wie 
 Sendeplan-Erzeugung (Genre-Vereinigung, Quell-Filter, Freigabe für das gesamte Publikum,
 bekannte Laufzeit). Ist nichts planbar, nennt die Zelle den Grund: „Material nicht gefunden
 (verwaist)", „ohne Mediendatei", „ohne Laufzeit (Ermittlung läuft)" bzw. „ohne Laufzeit
-(gescheitert)" — sobald die Versuchsgrenze der Laufzeitermittlung erreicht ist — oder „nicht
-für alle freigegeben". Steht das Inhaltsspektrum auf „Alle Inhalte", treten
+(gescheitert)" — sobald die Versuchsgrenze der Laufzeitermittlung erreicht ist —, „nicht
+für alle freigegeben" oder „{n} nicht altersgerecht im Sendefenster" (bzw. „kein
+altersgerechtes Material im Fenster", wenn sämtliche planbaren Kandidaten zur nächsten
+Sendezeit der Regel gesperrt wären). Steht das Inhaltsspektrum auf „Alle Inhalte", treten
 Zugriffs-Ausschlüsse nicht mehr auf — die Diagnose spiegelt das wirksame Verhalten. Die
 Diagnose wird bei jedem Laden der Seite und nach jeder Regel-
 Änderung neu berechnet; sie verändert den Sendeplan selbst nicht.

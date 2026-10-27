@@ -35,22 +35,7 @@ public sealed class TVSenderAdminClipBlocksE2ETests : TVSenderAdminE2ETestBase
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var channel = await new ProgramRuleService(db).GetOrCreateChannelAsync(ct);
-            var rule = new ProgramRule
-            {
-                TVChannelId = channel.Id,
-                Name = "E2E-Clipregel",
-                RuleType = ProgramRuleType.MoviePrimeTime,
-                Recurrence = ProgramRuleRecurrence.Daily,
-                TimeOfDay = new TimeOnly(20, 0),
-                SlotDuration = TimeSpan.FromHours(4),
-                MaterialType = ProgramRuleMaterialType.Movie,
-                MaterialId = 1,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            db.ProgramRules.Add(rule);
-            await db.SaveChangesAsync(ct);
+            var ruleId = await SeedMovieRuleAsync("E2E-Clipregel", 20, 0, 1, slotDuration: TimeSpan.FromHours(4));
 
             var clipNames = clipCounts
                 .SelectMany((count, run) => Enumerable.Range(0, count)
@@ -77,8 +62,8 @@ public sealed class TVSenderAdminClipBlocksE2ETests : TVSenderAdminE2ETestBase
                         Start = start,
                         End = start.AddMinutes(5),
                         MediaItemId = itemId,
-                        ProgramRuleId = rule.Id,
-                        RuleType = rule.RuleType,
+                        ProgramRuleId = ruleId,
+                        RuleType = ProgramRuleType.MoviePrimeTime,
                         IsClipFill = true,
                         CreatedAt = DateTime.UtcNow
                     });
@@ -95,15 +80,15 @@ public sealed class TVSenderAdminClipBlocksE2ETests : TVSenderAdminE2ETestBase
                         Start = start,
                         End = start.AddMinutes(60),
                         MediaItemId = separators[run],
-                        ProgramRuleId = rule.Id,
-                        RuleType = rule.RuleType,
+                        ProgramRuleId = ruleId,
+                        RuleType = ProgramRuleType.MoviePrimeTime,
                         CreatedAt = DateTime.UtcNow
                     });
                     start = start.AddMinutes(60);
                 }
             }
             await db.SaveChangesAsync(ct);
-            return (rule.Id, clipItemIds);
+            return (ruleId, clipItemIds);
         }
     }
 

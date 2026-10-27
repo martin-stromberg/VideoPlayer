@@ -300,6 +300,18 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime?>("PlaylistBackfillLastSweepAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<TimeOnly>("ProgramScheduleAgeWindow12Local")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeOnly>("ProgramScheduleAgeWindow16Local")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeOnly>("ProgramScheduleAgeWindow18Local")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeOnly>("ProgramScheduleAgeWindowNightEndLocal")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("ProgramScheduleContentScope")
                         .HasColumnType("INTEGER");
 
@@ -307,6 +319,9 @@ namespace VideoWebPlayer.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("ProgramScheduleIntervalMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ProgramScheduleUnknownRatingMode")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("ScanProcessIntervalMinutes")

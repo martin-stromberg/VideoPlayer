@@ -312,3 +312,89 @@ schlägt dann fehl und der Default-Satz greift (in der UI als Hinweis-Chip sicht
 `Setups.LiveStreamStandbyMediaItemId` steht in
 `VideoWebPlayerBackupData.OptionalRestoreColumns`; ein Regressionstest stellt ein
 Alt-Backup ohne die Spalte wieder her.
+
+## Jugendschutzfenster (altersgerechte Sendezeiten)
+
+### Übersicht
+
+Die Sendeplanung prüft seit diesem Schritt jede geplante Position gegen ein konfigurierbares
+Jugendschutzfenster: ein Titel darf nur starten, wenn seine normalisierte Mindestfreigabe
+(`IAgeRated.AgeRatingMinAge`) zur **lokalen** Startzeit des Sendeplatzes passt
+(`TimeZoneInfo.Local`, dieselbe Basis wie `ProgramRule.TimeOfDay`).
+
+### Bausteine
+
+- `Setup`: vier `TimeOnly`-Spalten (`ProgramScheduleAgeWindow12Local`/`…16Local`/`…18Local`/
+  `ProgramScheduleAgeWindowNightEndLocal`) plus `ProgramScheduleUnknownRatingMode` (int-Enum:
+  `RestrictToNightWindow` = 0, `Unrestricted` = 1) — Migration `AddProgramScheduleAgeWindows`.
+- `ProgramScheduleAgeWindowSettings` (Services): Wertobjekt mit `Default` (20:00/22:00/23:00
+  bis 06:00) und `IsValid()` (monotone Schwellen, Nachtende vor dem FSK-12-Beginn).
+- `ProgramScheduleAgeWindowRule` (Services): Record, der Fensterschema (`Windows`) und
+  Unbekannt-Modus (`UnknownMode`) zu einer Einheit bündelt — beide werden nie getrennt
+  gebraucht und wandern gemeinsam durch Materialisierung, Auswahl und Reproduzierbarkeit.
+- `ProgramScheduleAgeWindow` (Services): statischer Helfer `IsAllowedAt(minAge, utcStart,
+  ageRule)` — Schwellenabbildung (größte Schwelle ≤ Mindestalter; < 12 immer erlaubt;
+  `null` je nach Modus), Nachtfenster über Mitternacht (`local >= earliest || local < end`).
+  `CountBlockedAt` zählt für die Regeldiagnose.
+- `SchedulableItem.AgeRatingMinAge`: die Expansionen füllen es aus `Movie.AgeRatingMinAge`
+  bzw. `TVShow.AgeRatingMinAge` (Episoden erben die Freigabe der Serie; Clips/Trailer/Füller
+  tragen `null`).
+- `ProgramSettingsService`: `Get/UpdateProgramScheduleAgeWindowsAsync` (lesende Seite
+  normalisiert ungültige Schemata auf `Default`; die schreibende Seite validiert
+  `IsValid()` mit `ArgumentException`) und `Get/UpdateProgramScheduleUnknownRatingModeAsync`
+  (`Enum.IsDefined`, korrupte Werte → restriktiv).
+
+### Auswahl- und Commit-Semantik
+
+`StrandState` kennt neu `PreservesOrder` (true, wenn alle Items vom Typ `TVShowEpisode` oder
+`PlaylistEntry` sind — strenge Sendereihenfolge). `SelectAiringItems` und
+`SelectAiringItemsInterleaved` werten je Scan-Position `IsAllowedAt` gegen den laufenden
+`slotStart` aus:
+
+- Geordneter Strang + gesperrter Kopf ⇒ **Defer**: der Strang ruht für diese Ausstrahlung
+  (`done[s]`), Position wird nicht konsumiert.
+- Ungeordneter Ring + gesperrter Titel ⇒ **Skip**: Position konsumiert, ohne Take
+  (`ring++`/`scanned[s]++`); ein voller Ringumlauf ohne zulässiges Item beendet den Scan.
+- `CommitTaken` verteilt das Ergebnis auf die Stränge: `StrandState.CommitScan`/`RuleState.CommitScan`
+  committet `Scanned` (genommene + übersprungene Positionen) als neuen
+  `NextIndex`, setzt `LastPlaced` aber nur auf das letzte wirklich genommene Item —
+  ein übersprungener Titel landet nie als persistierter Cursor (`NextIndexFor` würde ihn
+  sonst dauerhaft hinter den Cursor legen).
+
+`FillGaps` sucht im Füller-Ring per `PeekAt(offset)` nach dem ersten zulässigen Kandidaten
+(der Take-Count deckt die übersprungenen Positionen mit ab); die Vorlauf-Logik der Trailer
+bleibt unverändert und bekommt zusätzlich die Fensterprüfung. Im Clip-Fill wertet das
+`fits`-Prädikat von `FillAiringSegments`/`NextClipItem` jetzt auch die Fensterzulässigkeit an
+der Position `pos` aus (`ClipFillContext` trägt die Regel als `AgeRule`). Alle drei
+Entry-Points (`EnsureCoverageAsync`, `ReconcileAsync`, `GetRuleDiagnosesAsync`) laden
+Schema und Modus einmal pro Lauf, bauen daraus die `ProgramScheduleAgeWindowRule` und
+reichen sie durch.
+
+### Reproduzierbarkeit
+
+`ReproContext` trägt die Regel als `AgeRule`; `FlatAiringTailReproducible` und
+`InterleavedAiringTailReproducible` simulieren die Auswahl mit identischer Skip-/Defer-
+Semantik. Die Rückwärtsrekonstruktion ist lückentolerant: ein Vorgänger-Ringplatz zählt als
+Skip, wenn er zur Startzeit des folgenden Takes gesperrt war (Skips verbrauchen keine
+Sendezeit). `ReconcileAsync` verdrängt Ausstrahlungen, die unter dem verschärften Schema
+nicht mehr reproduzierbar sind, und materialisiert sie neu.
+
+### Diagnose
+
+`ProgramRuleDiagnosis.AgeWindowBlockedCount` zählt per `ProgramScheduleAgeWindow.CountBlockedAt`
+die expandierten Kandidaten, die zur Auswerte-Sendezeit der Regel gesperrt wären —
+das ist die nächste Occurrence innerhalb von `DiagnosisOccurrenceHorizonDays`,
+hilfsweise die eigene `rule.TimeOfDay` des Tages, für Füller-Regeln der Jetzt-Zeitpunkt.
+`TVSenderAdmin.DiagnosisLabel` meldet „{n} nicht altersgerecht im Sendefenster" bzw.
+„kein altersgerechtes Material im Fenster", wenn `SchedulableCount ==
+AgeWindowBlockedCount` (alle planbaren Kandidaten gesperrt).
+`SummaryCounters.BlockedByAgeWindow` läuft in `ProgramScheduleRunSummary`/
+`ProgramScheduleReconcileSummary` mit.
+
+### Alt-Backup-Restore
+
+Die fünf `Setups`-Spalten stehen in `OptionalRestoreColumns`; Restore-Defaults:
+`ProgramScheduleUnknownRatingMode` via `OptionalRestoreIntDefaults` (`RestrictToNightWindow`
+= 0), die vier Fensterzeiten via `OptionalRestoreTimeOnlyDefaults` (20:00/22:00/23:00/06:00).
+Der Regressionstest `VideoWebPlayerBackupDataTests_AgeWindows` stellt ein Alt-Backup ohne
+die Spalten wieder her.

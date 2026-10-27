@@ -562,6 +562,36 @@ else
                         </select>
                         <span class="form-text" id="tvsender-content-scope-hint">„Alle Inhalte" plant ohne Zuschauer-Freigabe — Zuschauer sehen im Stream dann auch Inhalte, die ihnen in der Mediathek nicht freigegeben sind.</span>
                     </div>
+                    <div class="mb-2">
+                        <span class="form-label d-block">Altersgerechte Sendezeiten (Jugendschutz)</span>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label" for="tvsender-agewindow-12">ab 12 Jahre frühestens</label>
+                                <input id="tvsender-agewindow-12" type="time" class="form-control" value="@ageWindow12" @onchange="e => ageWindow12 = e.Value?.ToString() ?? ageWindow12" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label" for="tvsender-agewindow-16">ab 16 Jahre frühestens</label>
+                                <input id="tvsender-agewindow-16" type="time" class="form-control" value="@ageWindow16" @onchange="e => ageWindow16 = e.Value?.ToString() ?? ageWindow16" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label" for="tvsender-agewindow-18">ab 18 Jahre frühestens</label>
+                                <input id="tvsender-agewindow-18" type="time" class="form-control" value="@ageWindow18" @onchange="e => ageWindow18 = e.Value?.ToString() ?? ageWindow18" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label" for="tvsender-agewindow-nightend">Ende des Nachtfensters</label>
+                                <input id="tvsender-agewindow-nightend" type="time" class="form-control" value="@ageWindowNightEnd" @onchange="e => ageWindowNightEnd = e.Value?.ToString() ?? ageWindowNightEnd" />
+                            </div>
+                        </div>
+                        <span class="form-text">Ein Titel darf nur beginnen, wenn seine Altersfreigabe zur lokalen Sendezeit passt; begonnene Beiträge laufen immer zu Ende.</span>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label" for="tvsender-unknown-rating">Material ohne Altersfreigabe</label>
+                        <select id="tvsender-unknown-rating" class="form-control" @bind="unknownRatingMode">
+                            <option value="@ProgramScheduleUnknownRatingMode.RestrictToNightWindow">Wie „ab 18 Jahre" behandeln (nur nachts planbar)</option>
+                            <option value="@ProgramScheduleUnknownRatingMode.Unrestricted">Jederzeit planbar</option>
+                        </select>
+                        <span class="form-text" id="tvsender-unknown-rating-hint">Gilt auch für Clips, Trailer und Füller ohne Altersfreigabe — der Standby-Clip des Live-Streams ist ausgenommen.</span>
+                    </div>
                 </div>
                 <div class="admin-sub-card">
                     <h3 class="mb-2">Segmentierung</h3>
@@ -1002,6 +1032,11 @@ else
     private int horizonHours = 48;
     private int intervalMinutes = 15;
     private ProgramScheduleContentScope contentScope = ProgramScheduleContentScope.SharedOnly;
+    private string ageWindow12 = "20:00";
+    private string ageWindow16 = "22:00";
+    private string ageWindow18 = "23:00";
+    private string ageWindowNightEnd = "06:00";
+    private ProgramScheduleUnknownRatingMode unknownRatingMode = ProgramScheduleUnknownRatingMode.RestrictToNightWindow;
     private int segmentLengthSeconds = 6;
     private string? segmentDirectory;
     private int segmentRetentionMinutes = 30;
@@ -1113,6 +1148,12 @@ else
         horizonHours = (int)(await ProgramSettings.GetProgramScheduleHorizonAsync()).TotalHours;
         intervalMinutes = (int)(await ProgramSettings.GetProgramScheduleIntervalAsync()).TotalMinutes;
         contentScope = await ProgramSettings.GetProgramScheduleContentScopeAsync();
+        var windows = await ProgramSettings.GetProgramScheduleAgeWindowsAsync();
+        ageWindow12 = windows.Fsk12Earliest.ToString("HH:mm");
+        ageWindow16 = windows.Fsk16Earliest.ToString("HH:mm");
+        ageWindow18 = windows.Fsk18Earliest.ToString("HH:mm");
+        ageWindowNightEnd = windows.NightEnd.ToString("HH:mm");
+        unknownRatingMode = await ProgramSettings.GetProgramScheduleUnknownRatingModeAsync();
         segmentLengthSeconds = (int)(await ProgramSettings.GetLiveStreamSegmentLengthAsync()).TotalSeconds;
         segmentDirectory = await ProgramSettings.GetLiveStreamSegmentDirectoryAsync();
         segmentRetentionMinutes = (int)(await ProgramSettings.GetLiveStreamSegmentRetentionAsync()).TotalMinutes;
@@ -1648,6 +1689,10 @@ else
             parts.Add($"{d.ProbeExhaustedCount} ohne Laufzeit (gescheitert)");
         if (d.NoAccessCount > 0)
             parts.Add($"{d.NoAccessCount} nicht für alle freigegeben");
+        if (d.AgeWindowBlockedCount > 0)
+            parts.Add(d.SchedulableCount == d.AgeWindowBlockedCount
+                ? "kein altersgerechtes Material im Fenster"
+                : $"{d.AgeWindowBlockedCount} nicht altersgerecht im Sendefenster");
 
         if (parts.Count == 0)
             return "Keine Inhalte im Material";
@@ -1775,15 +1820,52 @@ else
         }
     }
 
+    // <input type="time"> may return "HH:mm" or "HH:mm:ss" depending on the browser —
+    // accept both; anything else is rejected with a friendly status in the caller.
+    private static bool TryParseWindowTime(string? value, out TimeOnly result)
+        => TimeOnly.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out result);
+
     private async Task SaveChannelSettingsAsync()
     {
         channelStatus = null;
+        // Die Fensterzeiten werden VOR jeder Persistenz geprüft — reine Eingabevalidierung
+        // ohne DB-Zugriff. Andernfalls stünde bei einer abgelehnten Fensterkonfiguration ein
+        // Teil-Speicherstand (Name, Bundesland, Horizont, Inhaltsspektrum), ohne dass die
+        // Anwenderin das an der Fehlermeldung erkennen könnte.
+        if (!TryParseWindowTime(ageWindow12, out var w12))
+        {
+            channelStatus = "Fensterzeit 'ab 12 Jahre frühestens': bitte eine gültige Uhrzeit eingeben (z. B. 20:00).";
+            return;
+        }
+        if (!TryParseWindowTime(ageWindow16, out var w16))
+        {
+            channelStatus = "Fensterzeit 'ab 16 Jahre frühestens': bitte eine gültige Uhrzeit eingeben (z. B. 22:00).";
+            return;
+        }
+        if (!TryParseWindowTime(ageWindow18, out var w18))
+        {
+            channelStatus = "Fensterzeit 'ab 18 Jahre frühestens': bitte eine gültige Uhrzeit eingeben (z. B. 23:00).";
+            return;
+        }
+        if (!TryParseWindowTime(ageWindowNightEnd, out var wNightEnd))
+        {
+            channelStatus = "Fensterzeit 'Ende des Nachtfensters': bitte eine gültige Uhrzeit eingeben (z. B. 06:00).";
+            return;
+        }
+        var windows = new ProgramScheduleAgeWindowSettings(w12, w16, w18, wNightEnd);
+        if (!windows.IsValid())
+        {
+            channelStatus = "Die Fensterzeiten müssen aufsteigend sein ('ab 12 Jahre' ≤ 'ab 16 Jahre' ≤ 'ab 18 Jahre'), und das Ende des Nachtfensters muss vor 'ab 12 Jahre' liegen.";
+            return;
+        }
         try
         {
             channel = await ProgramRuleService.RenameChannelAsync(userId, channelName);
             await ProgramSettings.UpdateHolidayFederalStateAsync(string.IsNullOrWhiteSpace(federalState) ? null : federalState);
             await ProgramSettings.UpdateProgramScheduleSettingsAsync(horizonHours, intervalMinutes);
             await ProgramSettings.UpdateProgramScheduleContentScopeAsync(contentScope);
+            await ProgramSettings.UpdateProgramScheduleAgeWindowsAsync(windows);
+            await ProgramSettings.UpdateProgramScheduleUnknownRatingModeAsync(unknownRatingMode);
             await ProgramSettings.UpdateLiveStreamSettingsAsync(segmentLengthSeconds, segmentDirectory, segmentRetentionMinutes);
             await ProgramSettings.UpdateLiveStreamStandbyClipAsync(standbyMediaItemId);
             standbySavedMediaItemId = standbyMediaItemId;

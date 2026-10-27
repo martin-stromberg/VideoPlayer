@@ -37,7 +37,10 @@ internal sealed class ProgramScheduleTestDb : IDisposable
 
         // Feature-Flag: Tests der Sender-Funktionen laufen standardmaessig mit Freigabe;
         // Tests der Sperre setzen den Wert explizit auf false.
-        db.Setups.Add(new Setup { TvSenderEnabled = true });
+        // Unbekannte-Freigabe-Modus explizit Unrestricted: die freigabelosen Seeds der
+        // Bestandstests bleiben so weiterhin zu jeder Sendezeit planbar (der produktive
+        // Default ist RestrictToNightWindow — Fenster-Tests wählen die Regelung explizit).
+        db.Setups.Add(new Setup { TvSenderEnabled = true, ProgramScheduleUnknownRatingMode = ProgramScheduleUnknownRatingMode.Unrestricted });
         await db.SaveChangesAsync(ct);
         var fixture = new ProgramScheduleTestDb(connection, db);
         await fixture.SeedTrailerClipGroupAsync(ct);
@@ -169,11 +172,26 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         return item;
     }
 
-    /// <summary>Creates a movie linked to a media item with the given duration.</summary>
-    public async Task<Movie> CreateMovieAsync(string name, long sourceId = 1, TimeSpan? duration = null, long? collectionId = null, DateTime? releaseDate = null)
+    /// <summary>Creates a movie linked to a media item with the given duration; optionally with
+    /// a normalized minimum age (<see cref="Movie.AgeRatingMinAge"/>) for the age-window rules.
+    /// <paramref name="ageRating"/> seeds a raw rating (e.g. an MPAA value) and normalizes it
+    /// through <see cref="Utils.AgeRatingNormalizer"/> like the NFO import does — it wins over
+    /// <paramref name="ageRatingMinAge"/>.</summary>
+    public async Task<Movie> CreateMovieAsync(string name, long sourceId = 1, TimeSpan? duration = null, long? collectionId = null, DateTime? releaseDate = null, int? ageRatingMinAge = null, string? ageRating = null)
     {
         await EnsureSourceAsync(sourceId);
-        var movie = new Movie { Name = name, MediaSourceId = sourceId, MovieCollectionId = collectionId, CreatedAt = DateTime.UtcNow, ReleaseDate = releaseDate };
+        var normalized = ageRating is null ? null : VideoWebPlayer.Utils.AgeRatingNormalizer.Normalize(ageRating);
+        var movie = new Movie
+        {
+            Name = name,
+            MediaSourceId = sourceId,
+            MovieCollectionId = collectionId,
+            CreatedAt = DateTime.UtcNow,
+            ReleaseDate = releaseDate,
+            AgeRatingRaw = ageRating,
+            AgeRating = normalized?.DisplayValue,
+            AgeRatingMinAge = normalized?.MinAge ?? ageRatingMinAge
+        };
         Db.Movies.Add(movie);
         await SaveDiagAsync();
         var item = await CreateMediaItemAsync(sourceId, duration);
@@ -182,11 +200,13 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         return movie;
     }
 
-    /// <summary>Creates a show with one season and the given episodes (numbered 1..n, each with a probed media item).</summary>
-    public async Task<(TVShow Show, TVShowSeason Season, List<TVShowEpisode> Episodes)> CreateShowAsync(string name, int episodeCount, long sourceId = 1, TimeSpan? duration = null)
+    /// <summary>Creates a show with one season and the given episodes (numbered 1..n, each with
+    /// a probed media item); optionally with a normalized minimum age
+    /// (<see cref="TVShow.AgeRatingMinAge"/>) the episodes inherit for the age-window rules.</summary>
+    public async Task<(TVShow Show, TVShowSeason Season, List<TVShowEpisode> Episodes)> CreateShowAsync(string name, int episodeCount, long sourceId = 1, TimeSpan? duration = null, int? ageRatingMinAge = null)
     {
         await EnsureSourceAsync(sourceId);
-        var show = new TVShow { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+        var show = new TVShow { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow, AgeRatingMinAge = ageRatingMinAge };
         Db.TVShows.Add(show);
         await SaveDiagAsync();
         var season = new TVShowSeason { Name = "Staffel 1", TVShowId = show.Id, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };

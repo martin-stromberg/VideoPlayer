@@ -71,7 +71,9 @@ public sealed class ProgramScheduleWorkerTests
             db.Movies.Add(movie);
             await db.SaveChangesAsync(ct);
             db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
-            db.Setups.Add(new Setup { TvSenderEnabled = tvSenderEnabled });
+            // Der Test zielt auf die Worker-Mechanik, nicht auf das Jugendschutzfenster —
+            // der freigabelose Film bleibt mit Unrestricted zu jeder Sendezeit planbar.
+            db.Setups.Add(new Setup { TvSenderEnabled = tvSenderEnabled, ProgramScheduleUnknownRatingMode = ProgramScheduleUnknownRatingMode.Unrestricted });
             await db.SaveChangesAsync(ct);
             db.ProgramRules.Add(new ProgramRule
             {

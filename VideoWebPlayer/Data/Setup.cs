@@ -108,6 +108,49 @@ public class Setup
     public VideoWebPlayer.Data.ProgramScheduleContentScope ProgramScheduleContentScope { get; set; } = VideoWebPlayer.Data.ProgramScheduleContentScope.SharedOnly;
 
     /// <summary>
+    /// Gets or sets the earliest local air time of the FSK-12 window of the program
+    /// schedule's youth-protection scheme: titles with a normalized minimum age of 12–15
+    /// (<see cref="VideoWebPlayer.Data.IAgeRated.AgeRatingMinAge"/>) may only start airing at
+    /// or after this local time (until <see cref="ProgramScheduleAgeWindowNightEndLocal"/>).
+    /// Default: 20:00.
+    /// </summary>
+    public TimeOnly ProgramScheduleAgeWindow12Local { get; set; } = new(20, 0);
+
+    /// <summary>
+    /// Gets or sets the earliest local air time of the FSK-16 window: titles with a minimum
+    /// age of 16–17 may only start airing at or after this local time. Default: 22:00.
+    /// </summary>
+    public TimeOnly ProgramScheduleAgeWindow16Local { get; set; } = new(22, 0);
+
+    /// <summary>
+    /// Gets or sets the earliest local air time of the FSK-18 window: titles with a minimum
+    /// age of 18 or more (and — depending on
+    /// <see cref="ProgramScheduleUnknownRatingMode"/> — unrated material) may only start
+    /// airing at or after this local time. Default: 23:00.
+    /// </summary>
+    public TimeOnly ProgramScheduleAgeWindow18Local { get; set; } = new(23, 0);
+
+    /// <summary>
+    /// Gets or sets the common end of all night windows: rated material airs freely again
+    /// before this local time. Must lie before
+    /// <see cref="ProgramScheduleAgeWindow12Local"/> so the night window is unambiguous.
+    /// Default: 06:00.
+    /// </summary>
+    public TimeOnly ProgramScheduleAgeWindowNightEndLocal { get; set; } = new(6, 0);
+
+    /// <summary>
+    /// Gets or sets how the program schedule treats material without a known age rating
+    /// (<see cref="VideoWebPlayer.Data.IAgeRated.AgeRatingMinAge"/> is <see langword="null"/> —
+    /// including clips, trailers and fillers that carry no rating at all):
+    /// <see cref="VideoWebPlayer.Data.ProgramScheduleUnknownRatingMode.RestrictToNightWindow"/>
+    /// restricts it to the FSK-18 night window (default — the restrictive variant legacy
+    /// backups restore to), <see cref="VideoWebPlayer.Data.ProgramScheduleUnknownRatingMode.Unrestricted"/>
+    /// lets it air at any time. Applies only to materialized schedule slots — the live
+    /// stream's standby clip (<see cref="LiveStreamStandbyMediaItemId"/>) is unaffected.
+    /// </summary>
+    public VideoWebPlayer.Data.ProgramScheduleUnknownRatingMode ProgramScheduleUnknownRatingMode { get; set; } = VideoWebPlayer.Data.ProgramScheduleUnknownRatingMode.RestrictToNightWindow;
+
+    /// <summary>
     /// Gets or sets the target HLS segment length in seconds the live stream is
     /// segmented with. Default: 6 seconds.
     /// </summary>

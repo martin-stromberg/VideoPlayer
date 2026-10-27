@@ -512,59 +512,12 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
         await EnableTvSenderAsync();
 
         // Seed: a probed movie on the shared source plus a daily prime-time rule. The seeded
-        // non-admin user B has no media-source access, so the source is not fully released.
-        long movieId;
-        {
-            using var scope = Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var ct = TestContext.Current.CancellationToken;
-            var sourceId = await EnsureMediaSourceIdAsync(db);
-            var collection = new VideoWebPlayer.Data.MediaCollection
-            {
-                Name = "scope",
-                Path = "/test/scope",
-                MediaSourceId = sourceId,
-                CreatedAt = DateTime.UtcNow
-            };
-            db.MediaCollections.Add(collection);
-            await db.SaveChangesAsync(ct);
-            var item = new VideoWebPlayer.Data.MediaItem
-            {
-                Name = "scope-film.mkv",
-                Path = "/test/scope/scope-film.mkv",
-                MediaCollectionId = collection.Id,
-                CreatedAt = DateTime.UtcNow,
-                Duration = TimeSpan.FromMinutes(90),
-                DurationProbedAt = DateTime.UtcNow
-            };
-            db.MediaItems.Add(item);
-            var movie = new VideoWebPlayer.Data.Movie
-            {
-                Name = "E2E Scope-Film",
-                MediaSourceId = sourceId,
-                CreatedAt = DateTime.UtcNow
-            };
-            db.Movies.Add(movie);
-            await db.SaveChangesAsync(ct);
-            db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
-            var channel = await new VideoWebPlayer.Services.ProgramRuleService(db).GetOrCreateChannelAsync(ct);
-            db.ProgramRules.Add(new VideoWebPlayer.Data.ProgramRule
-            {
-                TVChannelId = channel.Id,
-                Name = "Scope-Filmabend",
-                RuleType = VideoWebPlayer.Data.ProgramRuleType.MoviePrimeTime,
-                Recurrence = VideoWebPlayer.Data.ProgramRuleRecurrence.Daily,
-                TimeOfDay = new TimeOnly(20, 0),
-                MaterialType = VideoWebPlayer.Data.ProgramRuleMaterialType.Movie,
-                MaterialId = movie.Id,
-                Priority = 1,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
-            await db.SaveChangesAsync(ct);
-            movieId = movie.Id;
-        }
+        // non-admin user B has no media-source access (releaseToAudience: false), so the
+        // source is not fully released.
+        var movieId = await SeedMovieWithItemAsync("E2E Scope-Film", TimeSpan.FromMinutes(90),
+            minAge: 0, // nur Inhaltsspektrum relevant — nicht das Jugendschutzfenster
+            releaseToAudience: false);
+        await SeedMovieRuleAsync("Scope-Filmabend", 20, 0, movieId, priority: 1);
 
         await OpenAdminPageAsAdminAsync();
 

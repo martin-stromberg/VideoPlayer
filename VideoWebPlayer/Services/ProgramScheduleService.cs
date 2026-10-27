@@ -1295,18 +1295,29 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 || (collectionId is { } c && UnlockedCollectionIdsForAll.Contains(c));
     }
 
+    private static AccessContext EverythingContext()
+        => new()
+        {
+            Everything = true,
+            FullySharedSourceIds = [],
+            UnlockedShowIdsForAll = [],
+            UnlockedCollectionIdsForAll = []
+        };
+
     private async Task<AccessContext> LoadAccessContextAsync(CancellationToken cancellationToken)
     {
+        // The "Alle Inhalte" scope lifts the audience-release check entirely — the same
+        // Everything context the "no non-admin users" branch below produces, and it spares
+        // the three audience queries.
+        if (await _settings.GetProgramScheduleContentScopeAsync(cancellationToken) == ProgramScheduleContentScope.AllContent)
+        {
+            return EverythingContext();
+        }
+
         var userIds = await _db.Users.Where(u => !u.IsAdmin).Select(u => u.Id).ToListAsync(cancellationToken);
         if (userIds.Count == 0)
         {
-            return new AccessContext
-            {
-                Everything = true,
-                FullySharedSourceIds = [],
-                UnlockedShowIdsForAll = [],
-                UnlockedCollectionIdsForAll = []
-            };
+            return EverythingContext();
         }
 
         var audienceCount = userIds.Count;

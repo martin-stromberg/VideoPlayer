@@ -113,9 +113,11 @@ FK-Kaskaden, NOCASE-Unique auf `ProgramClipGroups.Name`), fügt `ProgramRules.Pl
 | Eigenschaft | Typ | Beschreibung |
 |-------------|-----|--------------|
 | `LiveStreamStandbyMediaItemId` | `long?` (nullable) | Standby-Clip des Live-Streams: das `MediaItem`, das die Warm-up-Phase und alle Zustände ohne produzierte Segmente ausliefert; `null` = eingebetteter Standard-Clip. **Weiche Referenz ohne Fremdschlüssel** (Konvention wie `ProgramSlot.MediaItemId`): Ein gelöschtes Medium setzt die Einstellung nicht zurück — die Standby-Vorbereitung fällt dann auf den Standard-Clip zurück. |
+| `ProgramScheduleContentScope` | `int` (`ProgramScheduleContentScope`-Enum, Default `SharedOnly` = 0) | Inhaltsspektrum der Sendeplanung: `SharedOnly` plant nur für das gesamte Nicht-Admin-Publikum freigegebene Inhalte; `AllContent` hebt die Zuschauer-Freigabeprüfung auf (`AccessContext { Everything = true }` in `LoadAccessContextAsync`). Gepflegt über `ProgramSettingsService.GetProgramScheduleContentScopeAsync`/`UpdateProgramScheduleContentScopeAsync` (Updater validiert `Enum.IsDefined`; der Getter normalisiert ungültige Werte leseseitig auf `SharedOnly`). |
 
 **Migration:** `AddSetupLiveStreamStandbyMediaItem` — fügt die nullable Spalte
-`LiveStreamStandbyMediaItemId` zu `Setups` hinzu.
-`Setups.LiveStreamStandbyMediaItemId` steht in
-`VideoWebPlayerBackupData.OptionalRestoreColumns`; Alt-Backups ohne die Spalte bleiben
-restaurierbar (Regressionstest vorhanden).
+`LiveStreamStandbyMediaItemId` zu `Setups` hinzu; `AddSetupProgramScheduleContentScope`
+fügt `ProgramScheduleContentScope` (`INTEGER`, `NOT NULL`, `DEFAULT 0`) hinzu.
+Beide `Setups`-Spalten stehen in `VideoWebPlayerBackupData.OptionalRestoreColumns`
+(`ProgramScheduleContentScope` zusätzlich in `OptionalRestoreIntDefaults` mit `SharedOnly`
+= 0); Alt-Backups ohne die Spalten bleiben restaurierbar (Regressionstests vorhanden).

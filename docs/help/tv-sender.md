@@ -101,11 +101,25 @@ Zeitzone des Servers — gespeichert werden sie intern in UTC; die Sendezeit ein
 ebenfalls in der Server-Zeitzone interpretiert.
 
 Der Server erzeugt aus den aktiven Programmregeln automatisch einen rollierenden, lückenlosen
-Sendeplan. Zwei Einstellungen im Tab „Einstellungen" (Gruppe „Planung") steuern die Erzeugung:
+Sendeplan. Drei Einstellungen im Tab „Einstellungen" (Gruppe „Planung") steuern die Erzeugung:
 
 - **Planungshorizont (Stunden)** — wie weit voraus geplant wird (Standard: 48 Stunden).
 - **Generierungsintervall (Minuten)** — in welchem Abstand der Hintergrundlauf den Plan
   fortschreibt (Standard: 15 Minuten; Änderungen greifen ohne Neustart).
+- **Inhaltsspektrum** — welche Inhalte eingeplant werden dürfen:
+  - *„Nur für alle Benutzer freigegebene Inhalte"* (Standard): Die Planung berücksichtigt
+    nur Inhalte, die für das gesamte (Nicht-Administrator-)Publikum freigegeben sind —
+    über den regulären Medienquellenzugriff oder eine Einzelfreischaltung der Serie bzw.
+    Filmsammlung.
+  - *„Alle Inhalte, die sich aus den Regeln ergeben"*: Die Zuschauer-Freigabe wird bei der
+    Planung vollständig ignoriert — senderweit und gleichermaßen für Titel (Filme,
+    Episoden), Füller-Material „Clip-Quelle", Clip-Gruppen und Trailer.
+    **Achtung:** Zuschauer sehen im Stream dann auch Inhalte, die ihnen in der Mediathek
+    nicht freigegeben sind. Die Einstellung wirkt auf die nächste Planerstellung; bereits
+    eingeplante Sendeplätze mit nicht mehr zulässigen Inhalten werden beim Zurückstellen
+    auf die restriktive Variante beim nächsten Lauf verdrängt und lückenlos neu geplant.
+    Das Speichern der Sender-Einstellungen stößt die Neubewertung sofort an — ohne auf
+    das Generierungsintervall zu warten.
 
 Dabei gilt:
 
@@ -126,7 +140,8 @@ Dabei gilt:
   Lücke passen; der letzte Füller darf über das Planungsende hinauslaufen.
 - Eingeplant werden ausschließlich Inhalte mit bekannter Laufzeit, die für das gesamte
   (Nicht-Administrator-)Publikum freigegeben sind — über den regulären Medienquellenzugriff oder
-  eine Einzelfreischaltung der Serie bzw. Filmsammlung.
+  eine Einzelfreischaltung der Serie bzw. Filmsammlung (solange das Inhaltsspektrum auf
+  „Nur für alle Benutzer freigegebene Inhalte" steht; siehe Gruppe „Planung").
 - Regeln auf nicht mehr vorhandenes Material werden übersprungen und protokolliert.
 
 ### Trailer
@@ -157,7 +172,8 @@ Füllmaterial rotieren — ohne als reguläre Filme in der Mediathek aufzutauche
    Filmen/Serien eingeordnet, die Clips bleiben damit „uneingeordnet" und unsichtbar in der
    Bibliothek (Laufzeit wird trotzdem ermittelt, das gilt für jede Videodatei).
 2. Die Quelle **für alle Anwender freigeben** — Füller werden nur eingeplant, wenn sie für
-   die gesamte Nicht-Admin-Zuhörerschaft sichtbar sind.
+   die gesamte Nicht-Admin-Zuhörerschaft sichtbar sind (außer das Inhaltsspektrum steht auf
+   „Alle Inhalte").
 3. **Füller-Regel** anlegen (Regelart „Platzhalter/Füller") und als Programmmaterial
    **„Clip-Quelle"** die Maskottchen-Quelle wählen. Alle uneingeordneten Videodateien der
    Quelle rotieren dann als Füller — pro Durchlauf in fester Reihenfolge, danach von vorn.
@@ -199,7 +215,8 @@ Einschränkungen gelten zusätzlich:
   sich zuordnen, wird bei der Restzeit-Auffüllung aber nicht berücksichtigt. Die
   Laufzeitermittlung läuft im Hintergrund nach (Tab „Laufzeitermittlung").
 - Wie überall im Sendeplan werden nur Clips eingeplant, deren Quelle für das gesamte
-  (Nicht-Administrator-)Publikum freigegeben ist.
+  (Nicht-Administrator-)Publikum freigegeben ist (solange das Inhaltsspektrum auf
+  „Nur für alle Benutzer freigegebene Inhalte" steht; siehe Gruppe „Planung").
 
 ##### Reservierte Gruppe „Trailer"
 
@@ -314,7 +331,9 @@ Sendeplan-Erzeugung (Genre-Vereinigung, Quell-Filter, Freigabe für das gesamte 
 bekannte Laufzeit). Ist nichts planbar, nennt die Zelle den Grund: „Material nicht gefunden
 (verwaist)", „ohne Mediendatei", „ohne Laufzeit (Ermittlung läuft)" bzw. „ohne Laufzeit
 (gescheitert)" — sobald die Versuchsgrenze der Laufzeitermittlung erreicht ist — oder „nicht
-für alle freigegeben". Die Diagnose wird bei jedem Laden der Seite und nach jeder Regel-
+für alle freigegeben". Steht das Inhaltsspektrum auf „Alle Inhalte", treten
+Zugriffs-Ausschlüsse nicht mehr auf — die Diagnose spiegelt das wirksame Verhalten. Die
+Diagnose wird bei jedem Laden der Seite und nach jeder Regel-
 Änderung neu berechnet; sie verändert den Sendeplan selbst nicht.
 
 Die Schaltfläche **„Jetzt generieren"** im Tab „Sendeplan" stößt die Plan-Neubewertung

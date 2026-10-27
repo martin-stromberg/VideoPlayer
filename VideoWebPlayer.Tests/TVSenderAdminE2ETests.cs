@@ -468,4 +468,155 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
         var setup = await db.Setups.FirstAsync(TestContext.Current.CancellationToken);
         Assert.Equal(clipIds[0], setup.LiveStreamStandbyMediaItemId);
     }
+
+    /// <summary>
+    /// Drives the settings tab's "Inhaltsspektrum" select: both named options are offered with
+    /// the restrictive default preselected, the consequence hint is visible and the chosen
+    /// "Alle Inhalte" value is persisted into <c>Setups.ProgramScheduleContentScope</c>.
+    /// </summary>
+    [Fact]
+    public async Task Admin_ContentScope_SelectAndPersist()
+    {
+        if (SkipBrowser) return;
+        await EnableTvSenderAsync();
+        await OpenAdminPageAsAdminAsync();
+        await SwitchTabAsync("#tvsender-tab-einstellungen", "#tab-einstellungen");
+
+        var select = Page.Locator("#tvsender-content-scope");
+        await Expect(select).ToBeVisibleAsync();
+        await Expect(select).ToHaveValueAsync("SharedOnly");
+        await Expect(select.Locator("option").Nth(0)).ToContainTextAsync("Nur für alle Benutzer freigegebene Inhalte");
+        await Expect(select.Locator("option").Nth(1)).ToContainTextAsync("Alle Inhalte, die sich aus den Regeln ergeben");
+        await Expect(Page.Locator("#tvsender-content-scope-hint")).ToContainTextAsync("Mediathek");
+
+        await select.SelectOptionAsync("AllContent");
+        await Page.ClickAsync("#tvsender-save-settings");
+        await Expect(Page.Locator("#tvsender-channel-status")).ToContainTextAsync("gespeichert", new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
+
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var setup = await db.Setups.FirstAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(VideoWebPlayer.Data.ProgramScheduleContentScope.AllContent, setup.ProgramScheduleContentScope);
+    }
+
+    /// <summary>
+    /// Contrast run of the planning effect: a movie on a media source the seeded non-admin
+    /// user may not see produces no slot while the scope stays "SharedOnly"; after switching
+    /// the setting to "Alle Inhalte" and generating again the movie appears in the schedule —
+    /// covering UI → persistence → worker signal → visible plan in one browser run.
+    /// </summary>
+    [Fact]
+    public async Task Admin_ContentScope_AllContent_SchedulesUnreleased()
+    {
+        if (SkipBrowser) return;
+        await EnableTvSenderAsync();
+
+        // Seed: a probed movie on the shared source plus a daily prime-time rule. The seeded
+        // non-admin user B has no media-source access, so the source is not fully released.
+        long movieId;
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var ct = TestContext.Current.CancellationToken;
+            var sourceId = await EnsureMediaSourceIdAsync(db);
+            var collection = new VideoWebPlayer.Data.MediaCollection
+            {
+                Name = "scope",
+                Path = "/test/scope",
+                MediaSourceId = sourceId,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.MediaCollections.Add(collection);
+            await db.SaveChangesAsync(ct);
+            var item = new VideoWebPlayer.Data.MediaItem
+            {
+                Name = "scope-film.mkv",
+                Path = "/test/scope/scope-film.mkv",
+                MediaCollectionId = collection.Id,
+                CreatedAt = DateTime.UtcNow,
+                Duration = TimeSpan.FromMinutes(90),
+                DurationProbedAt = DateTime.UtcNow
+            };
+            db.MediaItems.Add(item);
+            var movie = new VideoWebPlayer.Data.Movie
+            {
+                Name = "E2E Scope-Film",
+                MediaSourceId = sourceId,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.Movies.Add(movie);
+            await db.SaveChangesAsync(ct);
+            db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
+            var channel = await new VideoWebPlayer.Services.ProgramRuleService(db).GetOrCreateChannelAsync(ct);
+            db.ProgramRules.Add(new VideoWebPlayer.Data.ProgramRule
+            {
+                TVChannelId = channel.Id,
+                Name = "Scope-Filmabend",
+                RuleType = VideoWebPlayer.Data.ProgramRuleType.MoviePrimeTime,
+                Recurrence = VideoWebPlayer.Data.ProgramRuleRecurrence.Daily,
+                TimeOfDay = new TimeOnly(20, 0),
+                MaterialType = VideoWebPlayer.Data.ProgramRuleMaterialType.Movie,
+                MaterialId = movie.Id,
+                Priority = 1,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+            movieId = movie.Id;
+        }
+
+        await OpenAdminPageAsAdminAsync();
+
+        // Restrictive default: "Jetzt generieren" must not schedule the unreleased movie.
+        await SwitchTabAsync("#tvsender-tab-sendeplan", "#tab-sendeplan");
+        await Page.ClickAsync("#tvsender-generate-now");
+        await Expect(Page.Locator("#tvsender-schedule-status")).ToContainTextAsync("aktualisiert",
+            new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
+        Assert.Equal(0, await Page.Locator(".tvsender-slot-row").CountAsync());
+
+        // Switch the scope to "Alle Inhalte" and persist it.
+        await SwitchTabAsync("#tvsender-tab-einstellungen", "#tab-einstellungen");
+        await Page.Locator("#tvsender-content-scope").SelectOptionAsync("AllContent");
+        await Page.ClickAsync("#tvsender-save-settings");
+        await Expect(Page.Locator("#tvsender-channel-status")).ToContainTextAsync("gespeichert", new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
+
+        // The next generation run schedules the movie. The page's 4-second wait is not a
+        // guarantee the worker finished: a running media-source scan suppresses
+        // NotifyScheduleChanged until the scan ends, so the slot is awaited in the database
+        // with a generous deadline (signal → worker → persisted plan).
+        await SwitchTabAsync("#tvsender-tab-sendeplan", "#tab-sendeplan");
+        await Page.ClickAsync("#tvsender-generate-now");
+        await Expect(Page.Locator("#tvsender-schedule-status")).ToContainTextAsync("aktualisiert",
+            new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
+        Assert.True(await WaitForScheduledMovieSlotAsync(movieId, TimeSpan.FromSeconds(90)),
+            "Der Sendeplan enthält den nicht freigegebenen Film trotz Inhaltsspektrum „Alle Inhalte“ nicht.");
+
+        // Fresh page load renders the slot card (the tab pane does not refresh by itself).
+        await Page.GotoAsync($"{ServerUrl}/admin/tv-sender");
+        await Page.WaitForSelectorAsync("#tvsender-tab-sendeplan");
+        await SwitchTabAsync("#tvsender-tab-sendeplan", "#tab-sendeplan");
+        await Expect(Page.Locator(".tvsender-slot-row", new PageLocatorOptions { HasText = "E2E Scope-Film" }).First)
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+    }
+
+    /// <summary>Polls the database until a scheduled slot for the seeded scope movie exists —
+    /// the observable end state of the worker run that "Jetzt generieren"/the save signal
+    /// triggers, robust against the scan-suppressed signal coalescing.</summary>
+    private async Task<bool> WaitForScheduledMovieSlotAsync(long movieId, TimeSpan timeout)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            if (await db.ProgramSlots.AnyAsync(
+                    s => s.MovieId == movieId
+                        && s.Status == VideoWebPlayer.Data.ProgramSlotStatus.Scheduled, ct))
+                return true;
+            await Task.Delay(1000, ct);
+        }
+        return false;
+    }
 }

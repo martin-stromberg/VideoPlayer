@@ -300,6 +300,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime?>("PlaylistBackfillLastSweepAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("ProgramScheduleContentScope")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("ProgramScheduleHorizonHours")
                         .HasColumnType("INTEGER");
 

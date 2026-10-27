@@ -383,6 +383,39 @@ public sealed class ProgramSettingsService
     }
 
     /// <summary>
+    /// Gets the content spectrum of the program schedule of the automated TV channel.
+    /// Values not defined in <see cref="ProgramScheduleContentScope"/> (corrupted rows) are
+    /// normalized to the restrictive <see cref="ProgramScheduleContentScope.SharedOnly"/>.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured content spectrum (default <see cref="ProgramScheduleContentScope.SharedOnly"/>).</returns>
+    public async Task<ProgramScheduleContentScope> GetProgramScheduleContentScopeAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return Enum.IsDefined(setup.ProgramScheduleContentScope)
+            ? setup.ProgramScheduleContentScope
+            : ProgramScheduleContentScope.SharedOnly;
+    }
+
+    /// <summary>
+    /// Persists the content spectrum of the program schedule of the automated TV channel.
+    /// </summary>
+    /// <param name="scope">One of <see cref="ProgramScheduleContentScope.SharedOnly"/> or
+    /// <see cref="ProgramScheduleContentScope.AllContent"/>.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">The value is not a defined <see cref="ProgramScheduleContentScope"/>.</exception>
+    public async Task UpdateProgramScheduleContentScopeAsync(ProgramScheduleContentScope scope, CancellationToken cancellationToken = default)
+    {
+        if (!Enum.IsDefined(scope))
+            throw new ArgumentException($"Unbekanntes Inhaltsspektrum: {scope}");
+
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.ProgramScheduleContentScope = scope;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Gets the target HLS segment length of the live stream.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>

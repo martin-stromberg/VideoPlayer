@@ -74,6 +74,15 @@ Beteiligte Komponenten:
 
 #### 3. Plangenerierung (`EnsureCoverageAsync`)
 
+Der Zuschauer-Freigabekontext (`AccessContext` über `LoadAccessContextAsync`, ausgewertet
+durch `access.Allows` an den Expansionsstellen) liest zu Beginn die Admin-Einstellung
+`Setups.ProgramScheduleContentScope` (`ProgramScheduleContentScope`-Enum, persistiert als
+`INTEGER`): Bei `AllContent` liefert sie sofort den `Everything`-Kontext — die
+Zuschauer-Freigabeprüfung ist für alle Expansionspfade aufgehoben (`SkippedNoAccess` bleibt
+0); bei `SharedOnly` (Default) läuft der bisherige Schnitt über alle Nicht-Admin-Benutzer
+unverändert. `ReconcileAsync` und `GetRuleDiagnosesAsync` nutzen denselben Kontext —
+beim Zurückschalten verdrängt der Mitgliedschafts-Check nicht mehr reproduzierbare Slots.
+
 1. Regeln werden inkl. `ClipGroups`-Navigation geladen. `BuildClipGroupStates` baut je
    zugeordneter Gruppe (aufsteigend nach `ProgramClipGroupId` = Round-Robin-Reihenfolge) einen
    `ClipGroupState`: Benutzergruppen expandieren sofort über `ExpandClipGroupItemsAsync`

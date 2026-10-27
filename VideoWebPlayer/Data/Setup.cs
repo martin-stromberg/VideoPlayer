@@ -99,6 +99,15 @@ public class Setup
     public int ProgramScheduleIntervalMinutes { get; set; } = 15;
 
     /// <summary>
+    /// Gets or sets the content spectrum of the program schedule:
+    /// <see cref="VideoWebPlayer.Data.ProgramScheduleContentScope.SharedOnly"/> plans only
+    /// contents released for the whole non-admin audience (default — the restrictive variant
+    /// legacy backups restore to), <see cref="VideoWebPlayer.Data.ProgramScheduleContentScope.AllContent"/>
+    /// plans every content the rules expand to and ignores the viewer release check entirely.
+    /// </summary>
+    public VideoWebPlayer.Data.ProgramScheduleContentScope ProgramScheduleContentScope { get; set; } = VideoWebPlayer.Data.ProgramScheduleContentScope.SharedOnly;
+
+    /// <summary>
     /// Gets or sets the target HLS segment length in seconds the live stream is
     /// segmented with. Default: 6 seconds.
     /// </summary>

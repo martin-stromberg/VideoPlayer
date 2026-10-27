@@ -106,7 +106,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingRaw)}",
         $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingMinAge)}",
         $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingClassifiedAt)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamStandbyMediaItemId)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamStandbyMediaItemId)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleContentScope)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -151,7 +152,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.ProgramSlots), nameof(ProgramSlot.Status), (int)ProgramSlotStatus.Scheduled),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentLengthSeconds), 6),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentRetentionMinutes), 30),
-        (nameof(ApplicationDbContext.MediaItems), nameof(MediaItem.DurationProbeAttempts), 0)
+        (nameof(ApplicationDbContext.MediaItems), nameof(MediaItem.DurationProbeAttempts), 0),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleContentScope), (int)ProgramScheduleContentScope.SharedOnly)
     };
 
     private static readonly (string Table, string Column, TimeSpan DefaultValue)[] OptionalRestoreTimeSpanDefaults =

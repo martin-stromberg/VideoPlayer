@@ -517,6 +517,14 @@ else
                         <label class="form-label" for="tvsender-interval-minutes">Generierungsintervall (Minuten)</label>
                         <input id="tvsender-interval-minutes" type="number" min="1" class="form-control" @bind="intervalMinutes" />
                     </div>
+                    <div class="mb-2">
+                        <label class="form-label" for="tvsender-content-scope">Inhaltsspektrum</label>
+                        <select id="tvsender-content-scope" class="form-control" @bind="contentScope">
+                            <option value="@ProgramScheduleContentScope.SharedOnly">Nur für alle Benutzer freigegebene Inhalte</option>
+                            <option value="@ProgramScheduleContentScope.AllContent">Alle Inhalte, die sich aus den Regeln ergeben</option>
+                        </select>
+                        <span class="form-text" id="tvsender-content-scope-hint">„Alle Inhalte" plant ohne Zuschauer-Freigabe — Zuschauer sehen im Stream dann auch Inhalte, die ihnen in der Mediathek nicht freigegeben sind.</span>
+                    </div>
                 </div>
                 <div class="admin-sub-card">
                     <h3 class="mb-2">Segmentierung</h3>
@@ -925,6 +933,7 @@ else
     private string? federalState;
     private int horizonHours = 48;
     private int intervalMinutes = 15;
+    private ProgramScheduleContentScope contentScope = ProgramScheduleContentScope.SharedOnly;
     private int segmentLengthSeconds = 6;
     private string? segmentDirectory;
     private int segmentRetentionMinutes = 30;
@@ -1035,6 +1044,7 @@ else
         federalState = await ProgramSettings.GetHolidayFederalStateAsync();
         horizonHours = (int)(await ProgramSettings.GetProgramScheduleHorizonAsync()).TotalHours;
         intervalMinutes = (int)(await ProgramSettings.GetProgramScheduleIntervalAsync()).TotalMinutes;
+        contentScope = await ProgramSettings.GetProgramScheduleContentScopeAsync();
         segmentLengthSeconds = (int)(await ProgramSettings.GetLiveStreamSegmentLengthAsync()).TotalSeconds;
         segmentDirectory = await ProgramSettings.GetLiveStreamSegmentDirectoryAsync();
         segmentRetentionMinutes = (int)(await ProgramSettings.GetLiveStreamSegmentRetentionAsync()).TotalMinutes;
@@ -1616,9 +1626,13 @@ else
             channel = await ProgramRuleService.RenameChannelAsync(userId, channelName);
             await ProgramSettings.UpdateHolidayFederalStateAsync(string.IsNullOrWhiteSpace(federalState) ? null : federalState);
             await ProgramSettings.UpdateProgramScheduleSettingsAsync(horizonHours, intervalMinutes);
+            await ProgramSettings.UpdateProgramScheduleContentScopeAsync(contentScope);
             await ProgramSettings.UpdateLiveStreamSettingsAsync(segmentLengthSeconds, segmentDirectory, segmentRetentionMinutes);
             await ProgramSettings.UpdateLiveStreamStandbyClipAsync(standbyMediaItemId);
             standbySavedMediaItemId = standbyMediaItemId;
+            // Planrelevante Änderungen (v. a. das Inhaltsspektrum) sollen nicht bis zum nächsten
+            // Generierungsintervall warten — der Worker wertet sie beim nächsten Lauf aus.
+            ScheduleSignal.NotifyScheduleChanged();
             channelStatus = "Einstellungen wurden gespeichert.";
         }
         catch (Exception ex)

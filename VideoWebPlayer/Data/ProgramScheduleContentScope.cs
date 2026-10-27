@@ -2,7 +2,7 @@ namespace VideoWebPlayer.Data
 {
     /// <summary>
     /// The content spectrum of the automated TV channel's program schedule — the admin setting
-    /// that decides whether the viewer-release check of <see cref="ProgramScheduleService"/>
+    /// that decides whether the viewer-release check of <see cref="VideoWebPlayer.Services.ProgramScheduleService"/>
     /// applies during planning. Persisted as <see cref="Setup.ProgramScheduleContentScope"/>
     /// (int column); <see cref="SharedOnly"/> must keep the value 0 so legacy backups and
     /// corrupted values fall back to the restrictive behaviour.

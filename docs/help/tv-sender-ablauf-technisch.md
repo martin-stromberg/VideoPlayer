@@ -91,6 +91,20 @@ beim Zurückschalten verdrängt der Mitgliedschafts-Check nicht mehr reproduzier
    `ExpandMediaSourceClipsAsync`; `CountNoDuration`/`SkippedNoAccess`-Buchhaltung), die
    Trailer-Gruppe bleibt zunächst leer. `SelectStrandCursor` initialisiert den Ring-Startindex
    je Gruppe über den Cursor-Strang `clipgroup:{groupId}`.
+   **Deterministische Ringmischung (Issue #297):** Beim Ringaufbau in `RuleState.SetItems`
+   und `ClipGroupState.SetItems` ersetzt `MixUnorderedRing` die Expansionsreihenfolge
+   ungeordneter Ringe durch eine Hash-Ordnung — `ItemOrderKey` (FNV-1a über
+   `{ruleId}:{strandKey}:{contentType}:{contentId}`, geteilter Kern mit `StrandOrderKey`)
+   plus `ContentId`-Tiebreak. Betroffen sind alle Ringe, deren sämtliche Elemente
+   `ContentType` `Movie` oder `MediaItem` tragen: Film-Sammlungen, der `other`-Strang
+   mehrsträngiger Genre-Expansionen (Seed `"other"`; der einsträngige Flachpfad seedet
+   `null`), Clip-Quellen und Nutzer-Clip-Gruppen. Ohne die Mischung startete jede Regel am
+   selben Sortier-Ersten (Alphabet/Id/Releasedatum) und bevorzugte ihn systematisch, weil
+   Cursor-Anker (`NextIndexFor`) ohne Treffer auf Index 0 zurückfallen. Geordnet bleiben
+   `TVShowEpisode`-/`PlaylistEntry`-Stränge (`PreservesOrder`), die airings-geordneten
+   Trailer-Ringe und der Genre-Füller-Flachring mit gemischtem Inhalt (dort würde eine
+   Vollmischung die Episoden-Sendedreihenfolge zerstören). Die Ordnung ist eine reine
+   Funktion der Expansion — Reproduzierbarkeitsprüfung und Cursor bleiben stabil.
 2. `SelectItems` übergibt `clipGrace = rule.PlaceholderGrace`, sofern die Regel Gruppen trägt
    und `SlotDuration` gesetzt ist. `SelectAiringItems`/`SelectAiringItemsInterleaved` brechen
    die Titel-Auswahl zusätzlich ab, sobald `target - accumulated < clipGrace`; die

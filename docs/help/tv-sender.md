@@ -114,7 +114,8 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
   statt eine einzelne Serie blockweise zu „strippen", bekommt pro Ausstrahlung jede Serie
   der Reihe nach ihren Sendeplatz (z. B. 12:00 Serie A, 12:45 Serie B — am Folgetag die
   nächste Folge jeder Serie an derselben Stelle). Filme des Genres laufen als gemeinsamer
-  Strang in Veröffentlichungsreihenfolge mit.
+  Strang mit — in einer festen, je Regel gemischten Reihenfolge statt nach
+  Veröffentlichungsdatum, damit sich die Auswahl gleichmäßig über den Filmbestand verteilt.
   Zusätzlich gibt es für Füller-Regeln die Materialart **„Trailer anstehender Filme"**
   (Checkbox ohne weitere Auswahl): Damit werden Trailer-Dateien eingeplanter Filme bevorzugt als
   Füllmaterial gesendet — siehe Abschnitt „Trailer" weiter unten.
@@ -188,6 +189,17 @@ Dabei gilt:
   wird ebenfalls nichts eingeplant — die Restlücke füllen Füller.
 - **Serien** werden je Regel in Sendedreihenfolge fortgesetzt; der Fortschritt überlebt Neustarts
   und beginnt nach dem letzten Titel wieder vorn.
+- **Reihenfolge des Materials ohne eigene Abspielreihenfolge** — Filmsammlungen, die Filme
+  einer Genre-Rotation, Clips aus Clip-Quellen und Clip-Gruppen — ist je Regel fest, aber
+  gemischt: nicht alphabetisch und nicht nach Erscheinungsdatum, sondern so gestreut, dass
+  sich die Auswahl über die Planläufe gleichmäßig über den gesamten Bestand verteilt und
+  nicht bevorzugt immer dieselben Titel zuerst zum Zug kommen. Die Mischung bleibt über
+  Neustarts und Planläufe hinweg stabil, damit Fortsetzung und Neu-Bewertung des Plans
+  reproduzierbar bleiben. Geordnete Abspielreihenfolgen bleiben unverändert: Serienfolgen,
+  die Sortierung von Playlists und Trailer, die ihren anstehenden Filmen vorauslaufen.
+  Einmalig nach dem Update auf diese Version kann die erste Neu-Bewertung einzelne, noch
+  unter der früheren Sortierung eingeplante Sendungen als „Verdrängt" markieren und neu
+  planen.
 - **Lücken** füllen die Regeln der Art „Platzhalter/Füller" — nur Inhalte, die vollständig in die
   Lücke passen; der letzte Füller darf über das Planungsende hinauslaufen.
 - Eingeplant werden ausschließlich Inhalte mit bekannter Laufzeit, die für das gesamte
@@ -228,7 +240,8 @@ Füllmaterial rotieren — ohne als reguläre Filme in der Mediathek aufzutauche
    „Alle Inhalte").
 3. **Füller-Regel** anlegen (Regelart „Platzhalter/Füller") und als Programmmaterial
    **„Clip-Quelle"** die Maskottchen-Quelle wählen. Alle uneingeordneten Videodateien der
-   Quelle rotieren dann als Füller — pro Durchlauf in fester Reihenfolge, danach von vorn.
+   Quelle rotieren dann als Füller — pro Durchlauf in einer festen, je Regel gemischten
+   Reihenfolge, danach von vorn.
    Bereits eingeordnete Inhalte derselben Quelle (Filme/Episoden) bleiben außen vor.
 
 In Programmauskunft, Live-TV und Sendeplan-Anzeige tragen die Sendeplätze den Dateinamen des
@@ -308,7 +321,8 @@ geprüft). In der Regel-Tabelle zeigt der Material-Eintrag zugeordnete Gruppen a
   Periodenende hinaus zu Ende). Stattdessen verteilt der Plan die Restzeit gleichmäßig auf
   Clips der zugeordneten Gruppen — **vor dem ersten Titel, zwischen den Titeln und nach
   dem letzten**.
-- Clips rotieren über die Gruppen im Wechsel (Round-Robin); jede Gruppe merkt sich ihren
+- Clips rotieren über die Gruppen im Wechsel (Round-Robin); innerhalb einer Gruppe folgen
+  sie dabei einer festen, je Regel gemischten Reihenfolge. Jede Gruppe merkt sich ihren
   Fortschritt über die Läufe hinweg, so dass keine Wiederholung direkt aufeinander folgt.
 - Der **letzte Clip** darf wie üblich über das Periodenende hinausragen; reicht der freie
   Raum für keinen Clip, bleibt die Restzeit eine normale Lücke für die Füller-Regeln. In

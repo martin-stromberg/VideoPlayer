@@ -240,8 +240,11 @@ public sealed class ProgramScheduleServiceTests_Boundary
         var collection = new MovieCollection { Name = "Sammlung", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         fixture.Db.MovieCollections.Add(collection);
         await fixture.SaveDiagAsync();
-        var longMovie = await fixture.CreateMovieAsync("Lang", collectionId: collection.Id, duration: TimeSpan.FromMinutes(45), releaseDate: new DateTime(2000, 1, 1));
+        // The 45-minute title must head the ring — under the ItemOrderKey mix (issue #297)
+        // that is Id 2 for rule 1, not the release-date order; the seed order is chosen so
+        // "Lang" leads (verified: ItemOrderKey(1, null, Movie, 2) < (…, 1)).
         await fixture.CreateMovieAsync("Kurz", collectionId: collection.Id, duration: TimeSpan.FromMinutes(2), releaseDate: new DateTime(2001, 1, 1));
+        var longMovie = await fixture.CreateMovieAsync("Lang", collectionId: collection.Id, duration: TimeSpan.FromMinutes(45), releaseDate: new DateTime(2000, 1, 1));
         var prime = await fixture.CreateMovieAsync("Prime", duration: TimeSpan.FromMinutes(60));
 
         var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));

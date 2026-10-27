@@ -37,7 +37,8 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         var collection = new MovieCollection { Name = "Abendfilme", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         fixture.Db.MovieCollections.Add(collection);
         await fixture.SaveDiagAsync();
-        // The blocked title sits at ring position 0 (oldest release first).
+        // Under the ItemOrderKey mix the blocked title sits behind the allowed one — its
+        // ring position is consumed-without-airing (skipped) at every daytime occurrence.
         var blocked18 = await fixture.CreateMovieAsync("FSK18-Film", collectionId: collection.Id, releaseDate: new DateTime(2000, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 18);
         var allowed0 = await fixture.CreateMovieAsync("FSK0-Film", collectionId: collection.Id, releaseDate: new DateTime(2001, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 0);
 
@@ -341,8 +342,9 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         var collection = new MovieCollection { Name = "Spielfilme", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         fixture.Db.MovieCollections.Add(collection);
         await fixture.SaveDiagAsync();
-        // The FSK-16 title heads the ring (oldest release first) — at 21:30 the FSK-12
-        // window is already open but the FSK-16 one is not.
+        // At 21:30 the FSK-12 window is already open but the FSK-16 one is not — under the
+        // ItemOrderKey mix the FSK-16 title sits behind the FSK-0 head and its ring position
+        // is consumed-without-airing (skipped) at the 21:30 occurrences.
         var fsk16 = await fixture.CreateMovieAsync("FSK16-Film", collectionId: collection.Id, releaseDate: new DateTime(2000, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 16);
         var fsk0 = await fixture.CreateMovieAsync("FSK0-Film", collectionId: collection.Id, releaseDate: new DateTime(2001, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 0);
 
@@ -356,7 +358,7 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         Assert.NotEmpty(slots);
         Assert.All(slots, s => Assert.Equal(fsk0.Id, s.MovieId));
 
-        // From 22:00 the FSK-16 window is open — the ring head airs.
+        // From 22:00 the FSK-16 window is open — the previously skipped position airs.
         rule.TimeOfDay = new TimeOnly(22, 30);
         await fixture.Db.SaveChangesAsync(ct);
         await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 25, 12, 0)), ct);
@@ -405,8 +407,9 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         await SetModeAsync(fixture, ProgramScheduleUnknownRatingMode.RestrictToNightWindow, ct);
 
         // Interleaved genre rule: an ordered show strand (FSK 12) plus an unordered "other"
-        // movie ring whose middle position is FSK-18-blocked during the evening window —
-        // the airing takes the ring positions 0 and 2 (a provable skip gap).
+        // movie ring whose middle position under the ItemOrderKey mix is FSK-18-blocked
+        // during the evening window — the airing takes the ring positions 0 and 2
+        // (a provable skip gap).
         var genre = await fixture.CreateGenreAsync("Abendmix");
         var (show, _, _) = await fixture.CreateShowAsync("Serie", 6, duration: TimeSpan.FromMinutes(45), ageRatingMinAge: 12);
         await fixture.LinkShowGenreAsync(show.Id, genre.Id);
@@ -461,8 +464,9 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         var channel = await fixture.GetChannelAsync(ct);
         await SetModeAsync(fixture, ProgramScheduleUnknownRatingMode.RestrictToNightWindow, ct);
 
-        // Unordered ring [FSK 0, FSK 18, FSK 0]: the middle position is consumed-without-
-        // airing (scanned and skipped) at every daytime occurrence.
+        // Unordered ring under the ItemOrderKey mix [FSK 18, FSK 0, FSK 0]: the blocked
+        // position is consumed-without-airing (scanned and skipped) at every daytime
+        // occurrence — regardless of which position it lands on.
         var collection = new MovieCollection { Name = "Rotation", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         fixture.Db.MovieCollections.Add(collection);
         await fixture.SaveDiagAsync();

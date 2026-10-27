@@ -28,10 +28,13 @@ public sealed class ProgramScheduleServiceTests_ClipFillPeriodBounds
         var collection = new MovieCollection { Name = "Primetime-Filme", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         fixture.Db.MovieCollections.Add(collection);
         await fixture.SaveDiagAsync();
-        // Zwei Titel je Ausstrahlung (~211 min) lassen mit Grace 30 min ~29 min Rest — die
+        // Zwei Titel je Ausstrahlung (212 min) lassen mit Grace 30 min 28 min Rest — die
         // Lookback-Occurrence des Vortags verbraucht denselben Ring, also muessen alle
-        // Vierer-Paare gleich lang sein.
-        foreach (var minutes in new[] { 105, 106, 105, 106 })
+        // Vierer-Paare gleich lang sein. Unter der ItemOrderKey-Ringmischung (Issue #297)
+        // ist die Entnahmereihenfolge eine Permutation: nur wirklich gleichlange Titel
+        // (106-119 min) halten die Paarsumme permutationsinvariant — 4×105 ergaebe Rest
+        // exakt 30 = Grace (strikt <), ab 120 stuende kein Rest mehr fuer Clips.
+        foreach (var minutes in new[] { 106, 106, 106, 106 })
             await fixture.CreateMovieAsync($"Film {minutes}", 1, TimeSpan.FromMinutes(minutes), collection.Id);
 
         var group = await fixture.CreateClipGroupAsync("Platzhalter", ct);

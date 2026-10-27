@@ -1252,19 +1252,27 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // reserved "Trailer" group whose items expand late from the freshly computed movie airings.
     private sealed class ClipGroupState
     {
-        public ClipGroupState(ProgramClipGroup group)
+        public ClipGroupState(ProgramClipGroup group, long ruleId)
         {
             Group = group;
+            RuleId = ruleId;
             Ring = new StrandState(StrandKey, [], 0);
         }
 
         public ProgramClipGroup Group { get; }
+
+        // Misch-Seed des Clip-Rings: Regeln mit derselben Clip-Gruppe erhalten so
+        // unterschiedliche Ringordnungen.
+        public long RuleId { get; }
         public bool IsTrailer => Group.Id == ProgramClipGroup.TrailerGroupId;
         public string StrandKey => $"clipgroup:{Group.Id}";
         public StrandState Ring { get; private set; }
 
         public void SetItems(List<SchedulableItem> items, IReadOnlyList<ProgramRuleCursor> cursors)
-            => Ring = new StrandState(StrandKey, items, NextIndexFor(items, SelectStrandCursor(cursors, StrandKey)));
+        {
+            var ring = MixUnorderedRing(RuleId, StrandKey, items);
+            Ring = new StrandState(StrandKey, ring, NextIndexFor(ring, SelectStrandCursor(cursors, StrandKey)));
+        }
     }
 
     private sealed class RuleState
@@ -1305,8 +1313,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // (trailer material expands only after the occurrences are materialized).
         public void SetItems(List<SchedulableItem> items, IReadOnlyList<ProgramRuleCursor> cursors)
         {
-            Items = items;
-
             if (Rule.MaterialType == ProgramRuleMaterialType.Genre && Rule.RuleType != ProgramRuleType.Filler)
             {
                 var order = new List<string>();
@@ -1329,15 +1335,29 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     // belegten fruehe Strang-Positionen zuverlaessig die alphabetisch ersten
                     // Serien. Der Hash-Mix nach (Regel, Strang) ist reproduzierbar, variiert
                     // aber von Regel zu Regel; Cursors und Slot-Positionen bleiben stabil.
+                    // Innerhalb der Stränge mischen dieselben Schluessel die ungeordneten
+                    // Ringe ("other"-Filme); show:-Stränge bleiben in Sendedreihenfolge.
+                    // Items bleibt die Expansionsliste — dort findet nur die
+                    // Mitgliedschaftspruefung der Reproduzierbarkeit statt.
+                    Items = items;
                     Strands = order
                         .OrderBy(key => StrandOrderKey(Rule.Id, key))
-                        .Select(key => new StrandState(key, byKey[key], NextIndexFor(byKey[key], FindCursor(cursors, key))))
+                        .Select(key =>
+                        {
+                            var ring = MixUnorderedRing(Rule.Id, key, byKey[key]);
+                            return new StrandState(key, ring, NextIndexFor(ring, FindCursor(cursors, key)));
+                        })
                         .ToList();
                     return;
                 }
             }
 
-            Strands = [new StrandState(null, items, NextIndexFor(items, FindCursor(cursors, null)))];
+            // Flachpfad: Items und der einzige Strang teilen dieselbe Ringinstanz —
+            // SelectAiringItems und der flache Tail-Check lesen positionsbasiert ueber
+            // state.Items.
+            var flat = MixUnorderedRing(Rule.Id, null, items);
+            Items = flat;
+            Strands = [new StrandState(null, flat, NextIndexFor(flat, FindCursor(cursors, null)))];
         }
 
         private static ProgramRuleCursor? FindCursor(IReadOnlyList<ProgramRuleCursor> cursors, string? key)
@@ -1360,11 +1380,22 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // wuerde die Strangreihenfolge von Lauf zu Lauf veraendern — die Mischung muss
     // reproduzierbar bleiben, damit Plaene und Cursor stabil sind.
     internal static int StrandOrderKey(long ruleId, string strandKey)
+        => Fnv1aHash($"{ruleId}:{strandKey}");
+
+    // Stabiler, prozess-invarianter Ordnungsschluessel je Ringelement ungeordneter Ringe:
+    // FNV-1a ueber Regel-Id, Strang-Schluessel und Inhaltsschluessel (gleiches Muster wie
+    // StrandOrderKey). Regel- und Strangabhaengigkeit streut die Ringkoepfe ueber die
+    // Regeln — ohne sie startete jede Materialmenge am selben Sortier-Ersten
+    // (Alphabet/Id/Releasedatum) und bevorzugte ihn systematisch.
+    internal static int ItemOrderKey(long ruleId, string? strandKey, ProgramCursorContentType contentType, long contentId)
+        => Fnv1aHash($"{ruleId}:{strandKey}:{contentType}:{contentId}");
+
+    private static int Fnv1aHash(string input)
     {
         unchecked
         {
             ulong hash = 14695981039346656037UL;
-            foreach (var b in System.Text.Encoding.UTF8.GetBytes($"{ruleId}:{strandKey}"))
+            foreach (var b in System.Text.Encoding.UTF8.GetBytes(input))
             {
                 hash ^= b;
                 hash *= 1099511628211UL;
@@ -1372,6 +1403,24 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             return (int)(hash & 0x7fffffff);
         }
     }
+
+    // Ungeordnete Ringe tragen ausschliesslich Inhalt ohne fachliche Abspielreihenfolge
+    // (Filme, Clip-MediaItems) — das Komplement der PreservesOrder-Stränge (Episoden,
+    // Playlist-Eintraege). Der Trailer-Ring ist weder das eine noch das andere: seine
+    // Airings-Reihenfolge (Vorlauf-Relevanz) bleibt erhalten.
+    private static bool IsUnorderedRing(IReadOnlyList<SchedulableItem> items)
+        => items.Count > 0 && items.All(i => i.ContentType
+            is ProgramCursorContentType.Movie or ProgramCursorContentType.MediaItem);
+
+    // Deterministische Mischung ungeordneter Ringe beim Ringaufbau: die Expansionen liefern
+    // weiter ihre fachliche Sortierung, erst hier wird die Ringordnung per ItemOrderKey
+    // gestreut. Geordnete und Trailer-Ringe gehen unveraendert durch.
+    private static List<SchedulableItem> MixUnorderedRing(long ruleId, string? strandKey, List<SchedulableItem> items)
+        => IsUnorderedRing(items)
+            ? items.OrderBy(i => ItemOrderKey(ruleId, strandKey, i.ContentType, i.ContentId))
+                .ThenBy(i => i.ContentId)
+                .ToList()
+            : items;
 
     // Deterministic winner pick among a rule's cursor rows of one strand: normally the
     // filtered unique index guarantees a single row, but defence in depth (duplicates could
@@ -2632,7 +2681,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             if (link.ClipGroup is null)
                 continue;
 
-            var clipState = new ClipGroupState(link.ClipGroup);
+            var clipState = new ClipGroupState(link.ClipGroup, rule.Id);
             if (clipState.IsTrailer)
             {
                 if (ctx.AiringsByMovie is not null)

@@ -313,24 +313,33 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         await OpenAdminPageAsAdminAsync();
         await OpenSendeplanTabAsync();
 
-        // „Jetzt generieren" weckt den Hintergrund-Worker über das echte Signal — die
-        // Slot-Karte erscheint, sobald der Lauf durch ist (erneut klicken, falls nötig).
-        var clipCard = Page.Locator(".tvsender-slot-row", new PageLocatorOptions { HasText = "funki-clip.mkv" });
+        // „Jetzt generieren" weckt den Hintergrund-Worker über das echte Signal — der
+        // generierte Clip-Füll-Lauf (>= 2 Slots) kollabiert zur Block-Karte, sobald der
+        // Lauf durch ist (erneut klicken, falls nötig).
+        var blockCard = Page.Locator(".tvsender-clip-block");
         await DriveUntilStateAsync(
             async () =>
             {
-                if (await clipCard.CountAsync() > 0)
+                if (await blockCard.CountAsync() > 0)
                     return;
                 var btn = Page.Locator("#tvsender-generate-now");
                 if (await btn.CountAsync() > 0 && await btn.IsEnabledAsync())
                     await btn.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
             },
-            () => clipCard.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
+            () => blockCard.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
 
-        // Sichtbare Slot-Karten: der Clip nutzt den MediaItem.Name-Fallback (kein Film/Episode).
-        await Expect(clipCard.First.Locator(".program-title")).ToHaveTextAsync("funki-clip.mkv");
+        // Die Clip-Einzelkarten sind zur aggregierten Block-Karte zusammengefasst; der
+        // Film bleibt eine normale Slot-Karte.
+        await Expect(blockCard.First.Locator(".program-title")).ToHaveTextAsync("Platzhalter-Clips");
         await Expect(Page.Locator(".tvsender-slot-row .program-title", new PageLocatorOptions { HasText = "E2E-Film" }).First)
             .ToBeVisibleAsync();
+
+        // Die Detailansicht listet die Clips einzeln — der Clip nutzt weiterhin den
+        // MediaItem.Name-Fallback (kein Film/Episode).
+        await blockCard.First.Locator("button[aria-label='Platzhalter-Clips anzeigen']").ClickAsync();
+        await Expect(Page.Locator("#tvsender-clip-block-dialog")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#tvsender-clip-block-dialog .tvsender-clip-block-row",
+            new PageLocatorOptions { HasText = "funki-clip.mkv" }).First).ToBeVisibleAsync();
 
         using (var scope = Services.CreateScope())
         {

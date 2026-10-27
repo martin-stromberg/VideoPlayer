@@ -55,15 +55,25 @@ Der Entnahme-Fortschritt je (Regel, Gruppe) wird als eigener Strang persistiert:
 `StrandKey = $"clipgroup:{groupId}"`, `LastContentType` = `MediaItem` bzw. `Trailer`. Keine
 Schema-Änderung nötig.
 
+### `ProgramSlot` (erweitert)
+
+| Eigenschaft | Typ | Beschreibung |
+|-------------|-----|--------------|
+| `IsClipFill` | `bool` (NOT NULL, Default `false`) | Markiert Slots, die `FillAiringSegments` als Clip-Füllung der Restzeit erzeugt hat — denormalisierter Snapshot zum Erzeugungszeitpunkt (Muster `RuleType`), damit die Sendeplan-Anzeige Clip-Füll-Slots auch nach Löschung der erzeugenden Regel oder Änderung der Clip-Gruppen erkennt. Kein Daten-Backfill: Clip-Slots aus der Zeit vor der Migration bleiben `false` und erscheinen einzeln. Steuert ausschließlich die Block-Gruppierung in `TVSenderAdmin.BuildScheduleDisplayItems`. |
+
 ## Beziehungen
 
 - `ProgramClipGroup` 1—n `ProgramClipGroupItem` n—1 `MediaItem`: Mitgliedschaften.
 - `ProgramClipGroup` 1—n `ProgramRuleClipGroup` n—1 `ProgramRule`: Regel-Zuordnungen.
 - Alle Fremdschlüssel kaskadieren; Tests laufen gegen echtes SQLite (Composite-PKs,
   NOCASE-Unique, Löschverhalten).
+- `ProgramRule` 1—n `ProgramSlot` über die weiche Referenz `ProgramSlot.ProgramRuleId`
+  (kein Fremdschlüssel — gelöschte Regeln lassen die Plan-Historie stehen).
 - Backup-Restore: Alle drei Tabellen stehen in `VideoWebPlayerBackupData.OptionalRestoreTables`,
   `ProgramRules.PlaceholderGrace` in `OptionalRestoreColumns` mit `TimeSpan`-Default über
-  `OptionalRestoreTimeSpanDefaults` — Alt-Backups ohne sie bleiben restaurierbar.
+  `OptionalRestoreTimeSpanDefaults`, `ProgramSlots.IsClipFill` in `OptionalRestoreColumns`
+  mit `Bool`-Default `false` über `OptionalRestoreBoolDefaults` — Alt-Backups ohne sie
+  bleiben restaurierbar.
 
 ## Diagramm
 
@@ -97,16 +107,24 @@ erDiagram
     ProgramRuleCursor {
         string StrandKey "'clipgroup:{id}'"
     }
+    ProgramSlot {
+        long Id PK
+        long ProgramRuleId "nullable, weiche Referenz"
+        bool IsClipFill "NOT NULL, default false"
+    }
     ProgramClipGroup ||--o{ ProgramClipGroupItem : "hat Mitglieder"
     MediaItem ||--o{ ProgramClipGroupItem : "ist Mitglied in"
     ProgramClipGroup ||--o{ ProgramRuleClipGroup : "zugeordnet zu"
     ProgramRule ||--o{ ProgramRuleClipGroup : "nutzt Gruppen"
     ProgramRule ||--o{ ProgramRuleCursor : "Clip-Fortschritt je Gruppe"
+    ProgramRule ||--o{ ProgramSlot : "erzeugt (weiche Referenz)"
 ```
 
 **Migration:** `AddProgramClipGroups` — erzeugt die drei Tabellen (Composite-PKs,
 FK-Kaskaden, NOCASE-Unique auf `ProgramClipGroups.Name`), fügt `ProgramRules.PlaceholderGrace`
 (`TEXT`, NOT NULL, `DEFAULT '00:15:00'`) hinzu und seedet die Trailer-Gruppe.
+`AddProgramSlotIsClipFill` fügt `ProgramSlots.IsClipFill` (`INTEGER`, NOT NULL,
+`DEFAULT 0`) hinzu — ohne Daten-Backfill.
 
 ## `Setup` (erweitert)
 

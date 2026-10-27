@@ -461,4 +461,25 @@ public sealed class ProgramScheduleServiceTests_ClipGroups
         for (var i = 1; i < scheduled.Count; i++)
             Assert.True(scheduled[i].Start >= scheduled[i - 1].End, "kein Overlap");
     }
+
+    [Fact]
+    public async Task EnsureCoverage_GeneratedClipFillSlots_MarkedIsClipFill()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("cg-isclipfill", ct);
+        var (rule, _, _, clips) = await SeedClipAiringAsync(fixture, ct, clipCount: 12);
+        var clipIds = clips.Select(c => c.Id).ToHashSet();
+
+        await fixture.CreateService().EnsureCoverageAsync(Now, ct);
+        var slots = await AiringSlotsAsync(fixture, rule, ct);
+
+        var clipSlots = slots.Where(s => clipIds.Contains(s.MediaItemId)).ToList();
+        var titles = slots.Where(s => !clipIds.Contains(s.MediaItemId)).ToList();
+        Assert.NotEmpty(clipSlots);
+        Assert.NotEmpty(titles);
+        // Nur die von FillAiringSegments erzeugten Slots tragen das Flag — die
+        // Titel-Slots derselben Ausstrahlung bleiben unmarkiert.
+        Assert.All(clipSlots, s => Assert.True(s.IsClipFill));
+        Assert.All(titles, s => Assert.False(s.IsClipFill));
+    }
 }

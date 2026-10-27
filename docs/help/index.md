@@ -6,7 +6,7 @@
 
 - [Episoden](episoden/index.md) — Funktionen und Einstellungen für Episode-Detailansichten, einschließlich dynamisch generierter Hintergrundbilder
 - [Medienbibliothek](medienbibliothek.md) — Überarbeitete Oberfläche und Navigation durch Ihre Mediencollection
-- [TV-Sender](tv-sender.md) — Automatischer TV-Sender: Programmregeln, Sendeplan und Clip-Gruppen verwalten; HLS-Live-Stream in der Live-TV-Ansicht — Warm-up-Phase und Zustände ohne Segmente überbrückt ein Standby-Clip (Standard-Clip oder eigener Clip aus den Medienquellen)
+- [TV-Sender](tv-sender.md) — Automatischer TV-Sender: Programmregeln, Sendeplan und Clip-Gruppen verwalten (zusammenhängende Platzhalter-Clip-Läufe als kompakte Block-Karte mit Detailansicht); HLS-Live-Stream in der Live-TV-Ansicht — Warm-up-Phase und Zustände ohne Segmente überbrückt ein Standby-Clip (Standard-Clip oder eigener Clip aus den Medienquellen)
 - [Playlists](playlists.md) — Eigene Playlists anlegen, öffnen, bearbeiten und löschen; als Administrator eigene Playlists für alle Anwender öffentlich (lesend) machen; Medieninhalte hinzufügen und entfernen; automatisch sortierte, fortlaufend nachladende Anzeige der Inhalte; Abbildung hochladen oder aus den Inhalten neu erzeugen
 - [Gesehen-Kennzeichen](gesehen-status.md) — Benutzerbezogene Markierung bereits gesehener Filme und Episoden
 - [Medienmetadaten bearbeiten](medien-editiermodus.md) — Administrativer Editiermodus für Serien, Staffeln, Episoden, Filme und Filmsammlungen

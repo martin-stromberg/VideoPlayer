@@ -27,6 +27,7 @@ namespace VideoWebPlayer.Data.Configurations
             builder.Property(s => s.MediaItemId).IsRequired();
             builder.Property(s => s.RuleType).IsRequired();
             builder.Property(s => s.Status).IsRequired();
+            builder.Property(s => s.IsClipFill).IsRequired();
             builder.Property(s => s.CreatedAt).IsRequired().HasConversion(UtcOnRead);
 
             builder

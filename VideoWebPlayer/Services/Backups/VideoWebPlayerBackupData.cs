@@ -91,6 +91,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleHorizonHours)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleIntervalMinutes)}",
         $"{nameof(ApplicationDbContext.ProgramSlots)}.{nameof(ProgramSlot.Status)}",
+        $"{nameof(ApplicationDbContext.ProgramSlots)}.{nameof(ProgramSlot.IsClipFill)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentLengthSeconds)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentDirectory)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentRetentionMinutes)}",
@@ -133,7 +134,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Setups), nameof(Setup.MdnsAdvertisementEnabled), true),
         (nameof(ApplicationDbContext.MovieMediaItems), nameof(MovieMediaItem.IsTrailer), false),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.TvSenderEnabled), false),
-        (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.HiddenInMenu), false)
+        (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.HiddenInMenu), false),
+        (nameof(ApplicationDbContext.ProgramSlots), nameof(ProgramSlot.IsClipFill), false)
     };
 
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =

@@ -100,6 +100,24 @@ Programmregel den Sendeplatz erzeugt hat. Alle angezeigten Sendezeiten folgen de
 Zeitzone des Servers — gespeichert werden sie intern in UTC; die Sendezeit einer Regel wird
 ebenfalls in der Server-Zeitzone interpretiert.
 
+Lückenlos aufeinanderfolgende **Platzhalter-Clips** (Restzeit-Auffüllung aus Clip-Gruppen,
+siehe [„Clip-Gruppen mit Karenzzeit im Sendeplatz"](#clip-gruppen-mit-karenzzeit-im-sendeplatz))
+fasst die Anzeige ab zwei Clips zu **einer Block-Karte** „Platzhalter-Clips" zusammen. Die
+Karte trägt ein neutrales Platzhalter-Poster und zeigt den Zeitraum des Blocks, die Zeile
+„N Clips · Gesamtdauer", die erzeugende Regel („Regel: …") sowie die Beschreibung
+„Automatische Restzeit-Auffüllung aus Clip-Gruppen." — dazu den Status-Chip „Geplant"
+und, wenn gerade einer der enthaltenen Clips läuft, das LIVE-Badge mit Fortschrittsbalken
+über die Blockspanne. Über den Symbolschalter „Platzhalter-Clips anzeigen" an der Karte
+öffnet der Overlay-Dialog „Platzhalter-Clips (N)" alle enthaltenen Clips in
+Abspielreihenfolge als Tabelle mit den Spalten „Start", „Dauer" und „Titel"; er schließt
+über die Schaltfläche „Schließen" oder einen Klick außerhalb des Dialogs. Ein einzelner
+Clip bleibt eine normale Karte; durch eine andere Sendung, einen Regelwechsel, einen
+Tageswechsel oder eine Zeitlücke unterbrochene Läufe erscheinen als getrennte Blöcke, und
+verdrängte Clips bleiben unverändert Einzelkarten. Clips, die bereits vor dieser
+Umstellung eingefüllt wurden, erscheinen ebenfalls weiterhin einzeln, bis sie aus dem
+rollierenden Sendeplan herauslaufen. Die Gruppierung ist reine Darstellung — Einplanung
+und Abspielreihenfolge bleiben unverändert.
+
 Der Server erzeugt aus den aktiven Programmregeln automatisch einen rollierenden, lückenlosen
 Sendeplan. Drei Einstellungen im Tab „Einstellungen" (Gruppe „Planung") steuern die Erzeugung:
 
@@ -263,6 +281,10 @@ geprüft). In der Regel-Tabelle zeigt der Material-Eintrag zugeordnete Gruppen a
   belegte Fenster oder reservierte Fenster höherpriorer Regeln ragen Clips niemals hinein.
 - Ist an einer Regel **keine** Clip-Gruppe hinterlegt, verhält sich der Sendeplatz exakt
   wie bisher (Titel-Overshoot über das Periodenende hinaus).
+- In der Sendeplan-Anzeige erscheinen die so eingefüllten Clips als kompakte
+  **Block-Karte** „Platzhalter-Clips" mit Detailansicht (siehe [Sendeplan](#sendeplan)) —
+  in der Programmauskunft und auf der Live-TV-Seite bleibt jeder Clip ein eigener
+  Eintrag in Abspielreihenfolge.
 
 Technische Einzelheiten zu Ablauf und Datenmodell: [TV-Sender — Technischer Ablauf](tv-sender-ablauf-technisch.md),
 [TV-Sender — Datenmodell](tv-sender-datenmodell.md).

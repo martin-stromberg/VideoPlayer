@@ -854,6 +854,67 @@ input[type="text"]:focus {
     text-decoration: none;
 }
 
+/* Platzhalter-Clip-Block: Detail-Button rechtsbuendig in der Badge-Zeile */
+.admin-console .tvsender-clip-block-toggle {
+    margin-left: auto;
+}
+
+/* Detailansicht der Block-Clips im Overlay-Dialog: Zeit, Dauer, Titel je Zeile */
+.tvsender-clip-block-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-bottom: 0.75rem;
+}
+
+.tvsender-clip-block-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.35rem 0.25rem;
+    border-bottom: 1px solid var(--admin-border);
+    font-size: 0.85rem;
+}
+
+.tvsender-clip-block-row:last-child {
+    border-bottom: none;
+}
+
+.tvsender-clip-block-head {
+    color: var(--admin-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom-color: var(--admin-primary);
+}
+
+.tvsender-clip-block-head .tvsender-clip-block-time {
+    color: var(--admin-muted);
+    font-weight: 600;
+}
+
+.tvsender-clip-block-time {
+    color: var(--admin-primary);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 3rem;
+}
+
+.tvsender-clip-block-duration {
+    color: var(--admin-muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 3rem;
+}
+
+.tvsender-clip-block-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ---------- TV-Sender: Probe-Detail-Listen (N13) ---------- */
 .probe-counts {
     display: flex;

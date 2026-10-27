@@ -85,7 +85,8 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         long channelId, DateTime startUtc, DateTime endUtc, long mediaItemId,
         long? movieId = null, long? episodeId = null, long? ruleId = null,
         ProgramRuleType ruleType = ProgramRuleType.MoviePrimeTime,
-        ProgramSlotStatus status = ProgramSlotStatus.Scheduled)
+        ProgramSlotStatus status = ProgramSlotStatus.Scheduled,
+        bool isClipFill = false)
     {
         var slot = new ProgramSlot
         {
@@ -98,6 +99,7 @@ internal sealed class ProgramScheduleTestDb : IDisposable
             ProgramRuleId = ruleId,
             RuleType = ruleType,
             Status = status,
+            IsClipFill = isClipFill,
             CreatedAt = DateTime.UtcNow
         };
         Db.ProgramSlots.Add(slot);

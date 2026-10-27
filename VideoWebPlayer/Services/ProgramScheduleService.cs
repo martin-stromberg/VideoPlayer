@@ -2663,6 +2663,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     TVShowEpisodeId = clip.TVShowEpisodeId,
                     ProgramRuleId = rule.Id,
                     RuleType = rule.RuleType,
+                    IsClipFill = true,
                     CreatedAt = now
                 });
                 pos += clip.Duration;

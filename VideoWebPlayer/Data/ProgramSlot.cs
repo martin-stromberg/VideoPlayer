@@ -81,6 +81,13 @@ namespace VideoWebPlayer.Data
         public ProgramSlotStatus Status { get; set; } = ProgramSlotStatus.Scheduled;
 
         /// <summary>
+        /// Gets or sets whether the slot was produced as clip fill — a denormalized snapshot set
+        /// at creation time (mirroring <see cref="RuleType"/>) so the display can identify clip
+        /// fill slots even after the producing rule or clip group was deleted.
+        /// </summary>
+        public bool IsClipFill { get; set; }
+
+        /// <summary>
         /// Gets or sets the creation timestamp.
         /// </summary>
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

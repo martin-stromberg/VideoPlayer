@@ -1540,6 +1540,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime>("End")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsClipFill")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("MediaItemId")
                         .HasColumnType("INTEGER");
 

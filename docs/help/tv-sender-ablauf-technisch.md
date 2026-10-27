@@ -171,6 +171,52 @@ flowchart TD
 `OptionalRestoreColumns`; der neue Block `OptionalRestoreTimeSpanDefaults` injiziert den
 Default `"00:15:00"` (`TimeSpan.FromMinutes(15)`) in Zeilen eines Alt-Backups ohne die Spalte.
 Ein Regressionstest stellt ein Alt-Backup ohne die neuen Tabellen/Spalte wieder her.
+Zusätzlich steht `ProgramSlots.IsClipFill` in `OptionalRestoreColumns` mit
+`OptionalRestoreBoolDefaults`-Default `false` — Slots aus einem Alt-Backup sind damit
+unmarkiert und erscheinen in der Sendeplan-Anzeige einzeln (Regressionstests in
+`VideoWebPlayerBackupDataTests_ProgramSlotIsClipFill`).
+
+### Sendeplan-Anzeige: Block-Gruppierung der Clip-Füllung
+
+Die kompakte Block-Darstellung ist eine reine Anzeige-Transformation im Admin-Tab
+„Sendeplan" — Einplanung, `ReconcileAsync`, Programmauskunft (`ProgramGuideService`/
+`DtoProgramGuideEntry`/`ProgramGuideController`), die öffentliche Vorschau
+(`LiveTv.razor`) und die Auslieferung (`LiveStreamCoordinator`) bleiben unberührt.
+
+- **Kennzeichnung:** `FillAiringSegments` setzt am erzeugten `ProgramSlot` `IsClipFill = true`
+  (einzige Erzeugungsstelle von Clip-Füll-Slots). Wie `RuleType` ist das Flag ein
+  denormalisierter Snapshot zum Erzeugungszeitpunkt — es überlebt das Löschen der Regel
+  (`ProgramRuleId` → `null`) und spätere Änderungen an den Clip-Gruppen. Es gibt bewusst
+  keinen Daten-Backfill: Clip-Füll-Slots aus der Zeit vor der Migration bleiben `false`
+  und erscheinen einzeln, bis sie aus dem rollierenden Plan herauslaufen.
+- **Gruppierung:** `TVSenderAdmin.BuildScheduleDisplayItems(IReadOnlyList<ProgramSlot>)`
+  (`internal static`, per `InternalsVisibleTo` direkt getestet) bildet je Tagesgruppe eine
+  Sequenz von `ScheduleDisplayItem`: `ScheduleSlotItem` (Einzelkarte) oder
+  `ScheduleClipBlockItem` (Invariante: mindestens 2 Clips). Block-Kandidat ist
+  `IsClipFill && Status == ProgramSlotStatus.Scheduled`; ein Lauf läuft weiter, solange
+  `ProgramRuleId` gleich bleibt und `slot.Start == prev.End` gilt (lückenlos). Regelwechsel,
+  Zeitlücke und jeder Nicht-Kandidat — einschließlich `Displaced`-Clip-Slots — schließen den
+  Lauf ab; der Tageswechsel trennt über die äußere Tagesgruppierung automatisch.
+- **Darstellung:** Der Render-Loop iteriert über die Anzeige-Sequenz; die
+  `tvsender-rule-divider`-Logik vergleicht `item.FirstSlot.ProgramRuleId`. Die Block-Karte
+  `.program-card.tvsender-clip-block` (`data-first-slot-id`, `data-clip-count`) zeigt das
+  neutrale Poster `/images/placeholder.png`, den Chip „Geplant", den Zeitraum
+  `first.Start`–`last.End` (lokal), den Titel „Platzhalter-Clips", die Zeile
+  „N Clips · Gesamtdauer `hh\:mm\:ss`", „Regel: …" (`RuleName`) und die feste Beschreibung
+  „Automatische Restzeit-Auffüllung aus Clip-Gruppen.". Läuft ein enthaltener Clip
+  (`IsBlockRunning`), erscheinen `badge-live` und `progress-track` mit
+  `BlockProgressPercent` (Position in `first.Start`–`last.End`, geklemmt 0–100). Der
+  Header-Chip zählt über `ScheduleDisplayCount` die sichtbaren Einträge
+  (Blöcke + Einzelkarten), nicht die rohen Slots.
+- **Detailansicht:** Der Button `.tvsender-clip-block-toggle`
+  (`aria-label="Platzhalter-Clips anzeigen"`) setzt das Feld `clipBlockDetail` auf die
+  geordnete Clip-Liste des Blocks; ein `admin-dialog-overlay` rendert
+  `#tvsender-clip-block-dialog` mit Kopfzeile „Platzhalter-Clips (N)", Spaltenkopf
+  „Start | Dauer | Titel" und Zeilen `.tvsender-clip-block-row` (`data-slot-id`): Start
+  (`ToLocalTime`, `HH:mm`), Dauer (`End - Start`, `hh\:mm\:ss`) und Titel via
+  `SlotCard(clip)` (Trailer-Clips zeigen den Filmtitel). Schließen über die
+  „Schließen"-Buttons und den Overlay-Klick setzt `clipBlockDetail = null`. Zeilen- und
+  Button-Styles liegen in `app.css` (`.tvsender-clip-block-*`).
 
 ## Standby-Stream des Live-Streams (Warm-up-Phase)
 

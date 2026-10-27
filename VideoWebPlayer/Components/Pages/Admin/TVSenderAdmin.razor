@@ -396,7 +396,7 @@ else
             <div class="admin-card-header">
                 <div class="admin-card-header-left">
                     <h2>Sendeplan</h2>
-                    <span class="admin-chip">@schedule.Count Einträge</span>
+                    <span class="admin-chip">@ScheduleDisplayCount Einträge</span>
                 </div>
                 <div class="admin-actions" style="margin:0;">
                     <button id="tvsender-generate-now" class="btn btn-primary" @onclick="GenerateNowAsync" disabled="@generatePending">Jetzt generieren</button>
@@ -428,18 +428,54 @@ else
                         </div>
                         long? previousRuleId = null;
                         var firstInDay = true;
-                        @foreach (var slot in day)
+                        @foreach (var item in BuildScheduleDisplayItems(day.ToList()))
                         {
-                            if (!firstInDay && slot.ProgramRuleId != previousRuleId)
+                            var firstSlot = item.FirstSlot;
+                            if (!firstInDay && firstSlot.ProgramRuleId != previousRuleId)
                             {
-                                <div class="tvsender-rule-divider" data-rule-id="@slot.ProgramRuleId">
-                                    <span class="tvsender-rule-divider-label">@RuleName(slot)</span>
+                                <div class="tvsender-rule-divider" data-rule-id="@firstSlot.ProgramRuleId">
+                                    <span class="tvsender-rule-divider-label">@RuleName(firstSlot)</span>
                                 </div>
                             }
                             firstInDay = false;
-                            previousRuleId = slot.ProgramRuleId;
-                            var card = SlotCard(slot);
-                            var running = IsRunning(slot);
+                            previousRuleId = firstSlot.ProgramRuleId;
+                            if (item is ScheduleClipBlockItem block)
+                            {
+                                var blockFirst = block.Clips[0];
+                                var blockLast = block.Clips[^1];
+                                var blockRunning = IsBlockRunning(block);
+                        <div class="program-card tvsender-clip-block @(blockRunning ? "slot-now" : "")" data-first-slot-id="@blockFirst.Id" data-clip-count="@block.Clips.Count">
+                            <div class="program-poster">
+                                <img src="/images/placeholder.png" alt="" />
+                            </div>
+                            <div class="program-body">
+                                <div class="program-badges">
+                                    @if (blockRunning)
+                                    {
+                                        <span class="program-badge badge-live">Live</span>
+                                    }
+                                    <span class="admin-chip admin-chip-success">Geplant</span>
+                                    <button class="btn btn-ghost btn-icon tvsender-clip-block-toggle" title="Platzhalter-Clips anzeigen" aria-label="Platzhalter-Clips anzeigen" @onclick="() => clipBlockDetail = block.Clips">
+                                        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+                                    </button>
+                                </div>
+                                <span class="program-time">@blockFirst.Start.ToLocalTime().ToString("dd.MM. HH:mm")&nbsp;–&nbsp;@blockLast.End.ToLocalTime().ToString("HH:mm")</span>
+                                <span class="program-title">Platzhalter-Clips</span>
+                                <span class="program-sub">@block.Clips.Count Clips · Gesamtdauer @((blockLast.End - blockFirst.Start).ToString(@"hh\:mm\:ss"))</span>
+                                <span class="program-sub">Regel: @RuleName(blockFirst)</span>
+                                <p class="program-desc">Automatische Restzeit-Auffüllung aus Clip-Gruppen.</p>
+                                @if (blockRunning)
+                                {
+                                    <div class="progress-track" aria-hidden="true"><div class="progress-fill" style="width:@BlockProgressPercent(block)%"></div></div>
+                                }
+                            </div>
+                        </div>
+                            }
+                            else if (item is ScheduleSlotItem single)
+                            {
+                                var slot = single.Slot;
+                                var card = SlotCard(slot);
+                                var running = IsRunning(slot);
                         <div class="program-card tvsender-slot-row @(slot.Status == ProgramSlotStatus.Displaced ? "tvsender-slot-displaced" : "") @(running ? "slot-now" : "")" data-slot-id="@slot.Id">
                             <div class="program-poster">
                                 <img src="@PosterUrl(card)" alt="" />
@@ -470,6 +506,7 @@ else
                                 }
                             </div>
                         </div>
+                            }
                         }
                     }
                 </div>
@@ -917,6 +954,37 @@ else
                     <div class="admin-actions">
                         <button id="tvsender-download-confirm" class="btn btn-primary" @onclick="StartFfmpegDownloadAsync">Herunterladen</button>
                         <button class="btn btn-ghost" @onclick="() => confirmFfmpegDownload = false">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (clipBlockDetail is not null)
+        {
+            <div class="admin-dialog-overlay" @onclick="() => clipBlockDetail = null">
+                <div class="admin-dialog" id="tvsender-clip-block-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>Platzhalter-Clips (@clipBlockDetail.Count)</h2>
+                        <button class="btn btn-sm btn-outline-light" @onclick="() => clipBlockDetail = null">Schließen</button>
+                    </header>
+                    <div class="tvsender-clip-block-list">
+                        <div class="tvsender-clip-block-row tvsender-clip-block-head">
+                            <span class="tvsender-clip-block-time">Start</span>
+                            <span class="tvsender-clip-block-duration">Dauer</span>
+                            <span class="tvsender-clip-block-title">Titel</span>
+                        </div>
+                        @foreach (var clip in clipBlockDetail)
+                        {
+                            var clipCard = SlotCard(clip);
+                            <div class="tvsender-clip-block-row" data-slot-id="@clip.Id">
+                                <span class="tvsender-clip-block-time">@clip.Start.ToLocalTime().ToString("HH:mm")</span>
+                                <span class="tvsender-clip-block-duration">@((clip.End - clip.Start).ToString(@"hh\:mm\:ss"))</span>
+                                <span class="tvsender-clip-block-title" title="@clipCard.Title">@clipCard.Title</span>
+                            </div>
+                        }
+                    </div>
+                    <div class="admin-actions">
+                        <button class="btn btn-ghost" @onclick="() => clipBlockDetail = null">Schließen</button>
                     </div>
                 </div>
             </div>
@@ -1446,8 +1514,39 @@ else
         string? GenreName = null,
         long? PosterPictureId = null);
 
+    // Anzeige-Sequenz des Sendeplan-Tages: entweder eine Einzelkarte je Slot oder eine
+    // Block-Karte fuer >= 2 zusammenhaengende Clip-Fuell-Slots (siehe BuildScheduleDisplayItems).
+    internal abstract record ScheduleDisplayItem
+    {
+        public abstract ProgramSlot FirstSlot { get; }
+    }
+
+    internal sealed record ScheduleSlotItem(ProgramSlot Slot) : ScheduleDisplayItem
+    {
+        public override ProgramSlot FirstSlot => Slot;
+    }
+
+    internal sealed record ScheduleClipBlockItem : ScheduleDisplayItem
+    {
+        // Invariante: ein Block umfasst immer mindestens 2 Clips — weniger wird als
+        // Einzelkarte gerendert (siehe FlushClipRun).
+        public ScheduleClipBlockItem(IReadOnlyList<ProgramSlot> clips)
+        {
+            ArgumentNullException.ThrowIfNull(clips);
+            if (clips.Count < 2)
+                throw new ArgumentOutOfRangeException(nameof(clips), clips.Count,
+                    "Ein Platzhalter-Clip-Block umfasst mindestens 2 Clips.");
+            Clips = clips;
+        }
+
+        public IReadOnlyList<ProgramSlot> Clips { get; }
+
+        public override ProgramSlot FirstSlot => Clips[0];
+    }
+
     private Dictionary<long, string> slotRuleNames = new();
     private Dictionary<long, ScheduleCardContent> slotCards = new();
+    private IReadOnlyList<ProgramSlot>? clipBlockDetail;
 
     private ScheduleCardContent SlotCard(ProgramSlot slot)
         => slotCards.TryGetValue(slot.Id, out var card) ? card : new ScheduleCardContent("(Inhalt nicht gefunden)");
@@ -1458,10 +1557,68 @@ else
         return slot.Status == ProgramSlotStatus.Scheduled && slot.Start <= now && slot.End > now;
     }
 
-    private static int ProgressPercent(ProgramSlot slot)
+    // Zaehler im Karten-Header: sichtbare Eintraege (Bloecke + Einzelkarten), nicht rohe Slots.
+    private int ScheduleDisplayCount
+        => schedule.GroupBy(s => s.Start.ToLocalTime().Date)
+            .Sum(d => BuildScheduleDisplayItems(d.ToList()).Count);
+
+    // Reine Anzeige-Gruppierung eines Tages: lueckenlose Laeufe von Scheduled-Clip-Fuell-Slots
+    // derselben Programmregel kollabieren ab 2 Clips zu einer Block-Karte. Blockgrenzen sind
+    // der ProgramRuleId-Wechsel, eine Zeitluecke (slot.Start != prev.End) und jeder
+    // Nicht-Clip-Fuell- bzw. nicht-Scheduled-Eintrag (Displaced-Clips bleiben Einzelkarten).
+    internal static IReadOnlyList<ScheduleDisplayItem> BuildScheduleDisplayItems(IReadOnlyList<ProgramSlot> daySlots)
     {
-        var span = slot.End - slot.Start;
-        return span <= TimeSpan.Zero ? 0 : (int)Math.Clamp((DateTime.UtcNow - slot.Start) / span * 100.0, 0, 100);
+        var items = new List<ScheduleDisplayItem>();
+        var run = new List<ProgramSlot>();
+        foreach (var slot in daySlots)
+        {
+            var isClipBlockCandidate = slot.IsClipFill && slot.Status == ProgramSlotStatus.Scheduled;
+            var continuesRun = isClipBlockCandidate && run.Count > 0
+                && slot.ProgramRuleId == run[^1].ProgramRuleId && slot.Start == run[^1].End;
+            if (continuesRun)
+            {
+                run.Add(slot);
+            }
+            else
+            {
+                FlushClipRun(items, run);
+                if (isClipBlockCandidate)
+                    run.Add(slot);
+                else
+                    items.Add(new ScheduleSlotItem(slot));
+            }
+        }
+        FlushClipRun(items, run);
+        return items;
+    }
+
+    private static void FlushClipRun(List<ScheduleDisplayItem> items, List<ProgramSlot> run)
+    {
+        if (run.Count >= 2)
+        {
+            items.Add(new ScheduleClipBlockItem(run.ToList()));
+        }
+        else
+        {
+            foreach (var slot in run)
+                items.Add(new ScheduleSlotItem(slot));
+        }
+        run.Clear();
+    }
+
+    private static bool IsBlockRunning(ScheduleClipBlockItem block)
+        => block.Clips.Any(IsRunning);
+
+    private static int BlockProgressPercent(ScheduleClipBlockItem block)
+        => ProgressPercent(block.Clips[0].Start, block.Clips[^1].End);
+
+    private static int ProgressPercent(ProgramSlot slot)
+        => ProgressPercent(slot.Start, slot.End);
+
+    private static int ProgressPercent(DateTime start, DateTime end)
+    {
+        var span = end - start;
+        return span <= TimeSpan.Zero ? 0 : (int)Math.Clamp((DateTime.UtcNow - start) / span * 100.0, 0, 100);
     }
 
     private string PosterUrl(ScheduleCardContent card)

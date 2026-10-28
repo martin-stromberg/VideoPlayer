@@ -136,6 +136,11 @@ FK-Kaskaden, NOCASE-Unique auf `ProgramClipGroups.Name`), fügt `ProgramRules.Pl
 (`TEXT`, NOT NULL, `DEFAULT '00:15:00'`) hinzu und seedet die Trailer-Gruppe.
 `AddProgramSlotIsClipFill` fügt `ProgramSlots.IsClipFill` (`INTEGER`, NOT NULL,
 `DEFAULT 0`) hinzu — ohne Daten-Backfill.
+`AddProgramRuleValidity` ergänzt `ProgramRules` um `ValidityMode` (`INTEGER`, NOT NULL,
+`DEFAULT 0` = `Unrestricted`) und die acht nullable Fensterspalten (`ValidFrom`/`ValidTo`,
+`ValidFromDay`/`ValidToDay`, `ValidWeekdays`, `ValidHolidayAnchor`,
+`ValidHolidayBeforeDays`/`ValidHolidayAfterDays`) — Bestandsregeln bleiben dadurch
+uneingeschränkt gültig.
 
 ## `Setup` (erweitert)
 

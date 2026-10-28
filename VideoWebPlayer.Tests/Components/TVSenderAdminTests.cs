@@ -250,6 +250,248 @@ public sealed class TVSenderAdminTests
     }
 
     [Fact]
+    public async Task RulePanel_GenreRule_ShowsGenreCount()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-rulepanel-genres", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        var genreA = await fixture.CreateGenreAsync("Abenteuer");
+        var genreB = await fixture.CreateGenreAsync("Komödie");
+        await fixture.CreateRuleAsync(channel.Id, "Genreabend",
+            ProgramRuleType.GenreRotation, ProgramRuleRecurrence.Daily, new TimeOnly(20, 0),
+            ProgramRuleMaterialType.Genre, materialId: 0, genreIds: [genreA.Id, genreB.Id]);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".tvsender-rule-row")), TimeSpan.FromSeconds(10));
+
+        var row = cut.FindAll(".tvsender-rule-row").Single();
+        Assert.Contains("Genre: 2 Genre(n)", row.TextContent);
+        Assert.DoesNotContain("Abenteuer", row.TextContent);
+        Assert.DoesNotContain("Komödie", row.TextContent);
+    }
+
+    [Fact]
+    public async Task RulePanel_GenreRule_LegacyMaterialId_ShowsSingleGenreCount()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-rulepanel-legacy-genre", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        var genre = await fixture.CreateGenreAsync("Western");
+        await fixture.CreateRuleAsync(channel.Id, "Altregel",
+            ProgramRuleType.GenreRotation, ProgramRuleRecurrence.Daily, new TimeOnly(20, 0),
+            ProgramRuleMaterialType.Genre, materialId: genre.Id);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".tvsender-rule-row")), TimeSpan.FromSeconds(10));
+
+        var row = cut.FindAll(".tvsender-rule-row").Single();
+        Assert.Contains("Genre: 1 Genre(n)", row.TextContent);
+        Assert.DoesNotContain("Western", row.TextContent);
+    }
+
+    [Fact]
+    public async Task RulePanel_GenreRule_OrphanedMaterialId_ShowsNotFound()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-rulepanel-orphan-genre", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        await fixture.CreateRuleAsync(channel.Id, "Verwaist",
+            ProgramRuleType.GenreRotation, ProgramRuleRecurrence.Daily, new TimeOnly(20, 0),
+            ProgramRuleMaterialType.Genre, materialId: long.MaxValue);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".tvsender-rule-row")), TimeSpan.FromSeconds(10));
+
+        var row = cut.FindAll(".tvsender-rule-row").Single();
+        Assert.Contains("Genre (nicht gefunden)", row.TextContent);
+    }
+
+    [Fact]
+    public async Task RulePanel_GenreRule_ShowsSourceAndClipGroupCounts()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-rulepanel-counts", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        var source = await fixture.EnsureSourceAsync(1);
+        var group = await fixture.CreateClipGroupAsync("Maskottchen", ct);
+        var genre = await fixture.CreateGenreAsync("Drama");
+        await fixture.CreateRuleAsync(channel.Id, "Genreabend",
+            ProgramRuleType.GenreRotation, ProgramRuleRecurrence.Daily, new TimeOnly(20, 0),
+            ProgramRuleMaterialType.Genre, materialId: 0,
+            genreIds: [genre.Id], mediaSourceIds: [source.Id], clipGroupIds: [group.Id]);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".tvsender-rule-row")), TimeSpan.FromSeconds(10));
+
+        var row = cut.FindAll(".tvsender-rule-row").Single();
+        Assert.Contains("1 Quelle(n)", row.TextContent);
+        Assert.Contains("1 Clip-Gruppe(n)", row.TextContent);
+        Assert.DoesNotContain("Testquelle", row.TextContent);
+        Assert.DoesNotContain("Maskottchen", row.TextContent);
+    }
+
+    [Fact]
+    public async Task RulePanel_PriorityBadge_HiddenWhenZero()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-rulepanel-prio-zero", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
+        await fixture.CreateRuleAsync(channel.Id, "NullPrio",
+            ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily, new TimeOnly(20, 0),
+            ProgramRuleMaterialType.Movie, movie.Id, priority: 0);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".tvsender-rule-row")), TimeSpan.FromSeconds(10));
+
+        var row = cut.FindAll(".tvsender-rule-row").Single();
+        Assert.DoesNotContain(row.QuerySelectorAll(".admin-chip"), c => c.TextContent.Contains("Priorität"));
+    }
+
+    [Fact]
+    public async Task RulePanel_PriorityBadge_ShownWhenSet()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-rulepanel-prio-set", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
+        await fixture.CreateRuleAsync(channel.Id, "HohePrio",
+            ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily, new TimeOnly(22, 0),
+            ProgramRuleMaterialType.Movie, movie.Id, priority: 5);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".tvsender-rule-row")), TimeSpan.FromSeconds(10));
+
+        var row = cut.FindAll(".tvsender-rule-row").Single();
+        Assert.Contains("Priorität 5",
+            row.QuerySelector(".rule-panel-badges")!.TextContent);
+    }
+
+    [Fact]
+    public async Task RulePanel_StatusBadge_BeforeName()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-rulepanel-badgeorder", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
+        await fixture.CreateRuleAsync(channel.Id, "Reihenfolge",
+            ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily, new TimeOnly(20, 0),
+            ProgramRuleMaterialType.Movie, movie.Id);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".tvsender-rule-row")), TimeSpan.FromSeconds(10));
+
+        var headChildren = cut.FindAll(".tvsender-rule-row").Single()
+            .QuerySelector(".rule-panel-head")!.Children.ToList();
+        var badgesIndex = headChildren.FindIndex(c => c.ClassList.Contains("rule-panel-badges"));
+        var nameIndex = headChildren.FindIndex(c => c.ClassList.Contains("rule-panel-name"));
+        Assert.True(badgesIndex >= 0 && nameIndex >= 0,
+            "Der Panel-Kopf muss .rule-panel-badges und .rule-panel-name als Kind-Elemente enthalten.");
+        Assert.True(badgesIndex < nameIndex,
+            $"Status-Badges müssen vor dem Regelnamen stehen (badges={badgesIndex}, name={nameIndex}).");
+        Assert.Contains("Aktiv", headChildren[badgesIndex].TextContent);
+    }
+
+    [Fact]
+    public async Task RulePanel_MetaLine_WithoutDuration_HasNoTrailingSeparator()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-rulepanel-meta", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
+        await fixture.CreateRuleAsync(channel.Id, "Kurzregel",
+            ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily, new TimeOnly(20, 0),
+            ProgramRuleMaterialType.Movie, movie.Id);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".tvsender-rule-row")), TimeSpan.FromSeconds(10));
+
+        var meta = cut.FindAll(".tvsender-rule-row").Single()
+            .QuerySelector(".rule-panel-meta")!.Children[0].TextContent.Trim();
+        Assert.False(meta.EndsWith('·'),
+            $"Die Meta-Zeile endet mit einem hängenden Trenner: „{meta}“");
+    }
+
+    [Fact]
+    public async Task RulePanel_IconButtons_HaveAriaLabels()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-rulepanel-icons", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
+        await fixture.CreateRuleAsync(channel.Id, "Aktivregel",
+            ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily, new TimeOnly(20, 0),
+            ProgramRuleMaterialType.Movie, movie.Id, isActive: true);
+        await fixture.CreateRuleAsync(channel.Id, "Ruheregel",
+            ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily, new TimeOnly(22, 0),
+            ProgramRuleMaterialType.Movie, movie.Id, isActive: false);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".tvsender-rule-row").Count), TimeSpan.FromSeconds(10));
+
+        var activeRow = cut.FindAll(".tvsender-rule-row").Single(r => r.TextContent.Contains("Aktivregel"));
+        var inactiveRow = cut.FindAll(".tvsender-rule-row").Single(r => r.TextContent.Contains("Ruheregel"));
+        foreach (var button in activeRow.QuerySelectorAll(".tvsender-rule-edit, .tvsender-rule-toggle, .tvsender-rule-delete"))
+        {
+            Assert.Contains("btn-icon", button.ClassList);
+            Assert.False(string.IsNullOrWhiteSpace(button.GetAttribute("aria-label")));
+            Assert.False(string.IsNullOrWhiteSpace(button.GetAttribute("title")));
+        }
+        Assert.Equal("Bearbeiten", activeRow.QuerySelector(".tvsender-rule-edit")!.GetAttribute("aria-label"));
+        Assert.Equal("Löschen", activeRow.QuerySelector(".tvsender-rule-delete")!.GetAttribute("aria-label"));
+        Assert.Equal("Deaktivieren", activeRow.QuerySelector(".tvsender-rule-toggle")!.GetAttribute("aria-label"));
+        Assert.Equal("Aktivieren", inactiveRow.QuerySelector(".tvsender-rule-toggle")!.GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public async Task RulePanel_RendersDataRuleId()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-rulepanel-ruleid", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Regel",
+            ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily, new TimeOnly(20, 0),
+            ProgramRuleMaterialType.Movie, movie.Id);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".tvsender-rule-row")), TimeSpan.FromSeconds(10));
+
+        var row = cut.FindAll(".tvsender-rule-row").Single();
+        Assert.Equal(rule.Id.ToString(), row.GetAttribute("data-rule-id"));
+    }
+
+    [Fact]
     public async Task Sendeplan_RendersProgramCards_WithBadgesPosterAndProgress()
     {
         var ct = Xunit.TestContext.Current.CancellationToken;

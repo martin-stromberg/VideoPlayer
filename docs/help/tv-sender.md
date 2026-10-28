@@ -30,8 +30,8 @@ ist fest gesetzt). Ohne Auswahl sehen nur Administratoren den Sender. Das Lösch
 Benutzerkontos entfernt dessen Freigabezeile automatisch.
 
 Die Seite ist in fünf Bereiche gegliedert, die über die Reiter (Tabs) oben erreichbar sind:
-**Regeln** (Programmregeln-Tabelle; der Regel-Editor öffnet sich als Overlay-Panel über der
-Liste), **Sendeplan** (kommende
+**Regeln** (Programmregeln als Panels untereinander; der Regel-Editor öffnet sich als
+Overlay-Panel über der Liste), **Sendeplan** (kommende
 Sendeplätze und manueller Generierungsanstoß), **Einstellungen** (Sender, Planung und
 Segmentierung), **Laufzeitermittlung** (Fortschritt der automatischen
 Videolaufzeit-Ermittlung) und **Clip-Gruppen** (Verwaltung benannter Platzhalter-Clip-Gruppen
@@ -122,6 +122,18 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
 - **Priorität** — ganzzahlig; bei sich überschneidenden Regeln gewinnt der höhere Wert.
 - **Status** — aktive Regeln gehen in die Sendeplan-Erzeugung ein, inaktive bleiben erhalten,
   werden aber ignoriert.
+
+In der Übersicht steht jede Regel als eigenes Panel untereinander. Der Kopf des Panels führt
+vor dem Regelnamen den Status als Chip („Aktiv" bzw. „Inaktiv") sowie — nur bei einer
+Priorität ungleich 0 — den Chip „Priorität {n}"; rechts liegen drei Symbolschaltflächen für
+„Bearbeiten", „Aktivieren" bzw. „Deaktivieren" (je nach Status) und „Löschen". Darunter
+stehen in gedämpften Zeilen Regelart, Wiederholung, Sendezeit und Umfang, das
+Programmmaterial sowie die Planbar-Diagnose (siehe Abschnitt
+[„Planungsdiagnose und manueller Anstoß"](#planungsdiagnose-und-manueller-anstoß)). Das
+Material zeigt die Übersicht kompakt: Bei Genre-Regeln fasst sie Genres, eingeschränkte
+Medienquellen und Clip-Gruppen zu Anzahlen zusammen („Genre: {n} Genre(n)",
+„— {m} Quelle(n)", „— {k} Clip-Gruppe(n)"); die vollständigen Namen bleiben im Regel-Editor
+sichtbar. Bei den übrigen Materialarten steht die Kurzform „Art: Name".
 
 Regeln lassen sich anlegen, bearbeiten, (de)aktivieren und löschen; das Löschen muss bestätigt
 werden. Die Seite ist ausschließlich Administratoren zugänglich; die Berechtigung wird
@@ -310,8 +322,8 @@ Gruppe wäre die Eingabe wirkungslos, ein Hinweis weist darauf hin. Ein Hinweist
 erklärt die Wirkung: die Restzeit vor dem Sendeplatz-Ende, ab der kein weiterer Titel mehr
 gestartet, sondern mit Clips der gewählten Gruppen aufgefüllt wird (Standard: 15 Minuten;
 sie muss größer als 0 und kleiner als die Sendeplatz-Länge sein — das wird beim Speichern
-geprüft). In der Regel-Tabelle zeigt der Material-Eintrag zugeordnete Gruppen als Suffix
-„— Clips: …".
+geprüft). Im Regel-Panel zeigt der Material-Eintrag zugeordnete Gruppen als Anzahl
+„— {n} Clip-Gruppe(n)".
 
 ##### Wirkung im Sendeplan
 
@@ -409,15 +421,15 @@ Im Tab „Sendeplan" räumen zwei Schaltflächen (nur für Administratoren) den 
 
 ### Planungsdiagnose und manueller Anstoß
 
-Die Spalte **„Planbar"** in der Programmregeln-Tabelle zeigt pro Regel, wie viele Inhalte des
-gewählten Materials aktuell planbar sind — gerechnet mit derselben Logik wie die
-Sendeplan-Erzeugung (Genre-Vereinigung, Quell-Filter, Freigabe für das gesamte Publikum,
-bekannte Laufzeit). Ist nichts planbar, nennt die Zelle den Grund: „Material nicht gefunden
-(verwaist)", „ohne Mediendatei", „ohne Laufzeit (Ermittlung läuft)" bzw. „ohne Laufzeit
-(gescheitert)" — sobald die Versuchsgrenze der Laufzeitermittlung erreicht ist —, „nicht
-für alle freigegeben" oder „{n} nicht altersgerecht im Sendefenster" (bzw. „kein
-altersgerechtes Material im Fenster", wenn sämtliche planbaren Kandidaten zur nächsten
-Sendezeit der Regel gesperrt wären). Steht das Inhaltsspektrum auf „Alle Inhalte", treten
+Die Diagnose-Zeile im Regel-Panel zeigt pro Regel, wie viele Inhalte des
+gewählten Materials aktuell planbar sind („{n} planbar" — gerechnet mit derselben Logik wie
+die Sendeplan-Erzeugung: Genre-Vereinigung, Quell-Filter, Freigabe für das gesamte Publikum,
+bekannte Laufzeit). Ist nichts planbar, steht dort „Nicht planbar: …" mit dem Grund:
+„Material nicht gefunden (verwaist)", „ohne Mediendatei", „ohne Laufzeit (Ermittlung läuft)"
+bzw. „ohne Laufzeit (gescheitert)" — sobald die Versuchsgrenze der Laufzeitermittlung
+erreicht ist —, „nicht für alle freigegeben" oder „{n} nicht altersgerecht im Sendefenster"
+(bzw. „kein altersgerechtes Material im Fenster", wenn sämtliche planbaren Kandidaten zur
+nächsten Sendezeit der Regel gesperrt wären). Steht das Inhaltsspektrum auf „Alle Inhalte", treten
 Zugriffs-Ausschlüsse nicht mehr auf — die Diagnose spiegelt das wirksame Verhalten. Die
 Diagnose wird bei jedem Laden der Seite und nach jeder Regel-
 Änderung neu berechnet; sie verändert den Sendeplan selbst nicht.

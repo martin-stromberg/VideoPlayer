@@ -71,7 +71,9 @@ Beteiligte Komponenten:
   Links über `ReplaceClipGroupLinksAsync` (Muster `ReplaceGenreLinksAsync`, aber
   materialart-unabhängig).
 - `GetRulesAsync` — `Include(r => r.ClipGroups).ThenInclude(c => c.ClipGroup)`;
-  `TVSenderAdmin.MaterialLabel` hängt den Suffix „— Clips: {Namen}" an.
+  `TVSenderAdmin.MaterialLabel` (Editor-Chip `MaterialDisplayName`) hängt den Suffix
+  „— Clips: {Namen}" an; die Regel-Übersicht rendert über `MaterialSummaryLabel`
+  stattdessen die Anzahl „— {k} Clip-Gruppe(n)".
 
 #### 3. Plangenerierung (`EnsureCoverageAsync`)
 

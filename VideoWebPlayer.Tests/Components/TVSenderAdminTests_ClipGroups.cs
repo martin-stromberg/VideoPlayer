@@ -177,8 +177,16 @@ public sealed class TVSenderAdminTests_ClipGroups
         var (ctx, cut) = await RenderAsync(fixture);
         using var _ = ctx;
 
-        // MaterialLabel-Suffix in der Regel-Tabelle.
-        Assert.Contains("Clips: Maskottchen", cut.Markup);
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".tvsender-rule-row")), TimeSpan.FromSeconds(10));
+        var row = cut.FindAll(".tvsender-rule-row").Single(r => r.TextContent.Contains("Primetime"));
+        Assert.Contains("1 Clip-Gruppe(n)", row.TextContent);
+        Assert.DoesNotContain("Clips: Maskottchen", row.TextContent);
+
+        row.QuerySelector(".tvsender-rule-edit")!.Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rule-editor")), TimeSpan.FromSeconds(10));
+        Assert.Contains("Clips: Maskottchen", cut.Find("#rule-material-selected").TextContent);
+        cut.FindAll("#rule-editor button").Single(b => b.TextContent.Contains("Schließen")).Click();
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("#rule-editor")), TimeSpan.FromSeconds(10));
 
         cut.Find("#tvsender-new-rule").Click();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rule-editor")), TimeSpan.FromSeconds(10));

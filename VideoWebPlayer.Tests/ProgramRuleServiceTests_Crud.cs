@@ -71,6 +71,115 @@ public sealed class ProgramRuleServiceTests_Crud
     }
 
     [Fact]
+    public async Task CreateAndUpdateRule_ValidityFieldsPersist()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("programrule-crud-validity", ct);
+        var admin = await fixture.CreateUserAsync("admin@test.com", isAdmin: true);
+        var service = CreateService(fixture.Db);
+        var channel = await service.GetOrCreateChannelAsync(ct);
+        var show = new TVShow { Name = "Serie", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
+        fixture.Db.TVShows.Add(show);
+        await fixture.Db.SaveChangesAsync(ct);
+        var baseInput = ProgramRuleServiceTests_Channel.RuleInput(materialId: show.Id);
+
+        var oneTime = await service.CreateRuleAsync(admin.Id, channel.Id, baseInput with
+        {
+            Name = "Einmalig",
+            Validity = new ProgramRuleValidityInput(ProgramRuleValidityMode.OneTime,
+                From: new DateOnly(2026, 3, 1), To: new DateOnly(2026, 6, 30))
+        }, ct);
+        Assert.Equal(ProgramRuleValidityMode.OneTime, oneTime.ValidityMode);
+        Assert.Equal(new DateOnly(2026, 3, 1), oneTime.ValidFrom);
+        Assert.Equal(new DateOnly(2026, 6, 30), oneTime.ValidTo);
+
+        var annual = await service.CreateRuleAsync(admin.Id, channel.Id, baseInput with
+        {
+            Name = "Jaehrlich",
+            Validity = new ProgramRuleValidityInput(ProgramRuleValidityMode.AnnualWindow,
+                From: new DateOnly(2000, 12, 20), To: new DateOnly(2000, 1, 6))
+        }, ct);
+        Assert.Equal(ProgramRuleValidityMode.AnnualWindow, annual.ValidityMode);
+        Assert.Equal(new DateOnly(2000, 12, 20), annual.ValidFrom);
+        Assert.Equal(new DateOnly(2000, 1, 6), annual.ValidTo);
+
+        var monthly = await service.CreateRuleAsync(admin.Id, channel.Id, baseInput with
+        {
+            Name = "Monatlich",
+            Validity = new ProgramRuleValidityInput(ProgramRuleValidityMode.MonthlyWindow, FromDay: 25, ToDay: 5)
+        }, ct);
+        Assert.Equal(ProgramRuleValidityMode.MonthlyWindow, monthly.ValidityMode);
+        Assert.Equal(25, monthly.ValidFromDay);
+        Assert.Equal(5, monthly.ValidToDay);
+
+        var weekly = await service.CreateRuleAsync(admin.Id, channel.Id, baseInput with
+        {
+            Name = "Woechentlich",
+            Validity = new ProgramRuleValidityInput(ProgramRuleValidityMode.WeeklyWindow,
+                Weekdays: (1 << (int)DayOfWeek.Monday) | (1 << (int)DayOfWeek.Friday))
+        }, ct);
+        Assert.Equal(ProgramRuleValidityMode.WeeklyWindow, weekly.ValidityMode);
+        Assert.Equal((1 << (int)DayOfWeek.Monday) | (1 << (int)DayOfWeek.Friday), weekly.ValidWeekdays);
+
+        var holiday = await service.CreateRuleAsync(admin.Id, channel.Id, baseInput with
+        {
+            Name = "Feiertag",
+            Validity = new ProgramRuleValidityInput(ProgramRuleValidityMode.HolidayWindow,
+                HolidayAnchor: ProgramRuleHolidayAnchor.EasterSunday, HolidayBeforeDays: 3, HolidayAfterDays: 0)
+        }, ct);
+        Assert.Equal(ProgramRuleValidityMode.HolidayWindow, holiday.ValidityMode);
+        Assert.Equal(ProgramRuleHolidayAnchor.EasterSunday, holiday.ValidHolidayAnchor);
+        Assert.Equal(3, holiday.ValidHolidayBeforeDays);
+        Assert.Equal(0, holiday.ValidHolidayAfterDays);
+
+        // Update schaltet den Modus um und verwirft die alten Fensterfelder.
+        var updated = await service.UpdateRuleAsync(admin.Id, oneTime.Id, baseInput with
+        {
+            Name = "Einmalig",
+            Validity = new ProgramRuleValidityInput(ProgramRuleValidityMode.MonthlyWindow, FromDay: 1, ToDay: 15)
+        }, ct);
+        Assert.Equal(ProgramRuleValidityMode.MonthlyWindow, updated.ValidityMode);
+        Assert.Equal(1, updated.ValidFromDay);
+        Assert.Equal(15, updated.ValidToDay);
+        Assert.Null(updated.ValidFrom);
+        Assert.Null(updated.ValidTo);
+    }
+
+    [Fact]
+    public async Task GetRulesAsync_InvalidRule_SortsLast()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("programrule-crud-sort", ct);
+        var admin = await fixture.CreateUserAsync("admin@test.com", isAdmin: true);
+        var service = CreateService(fixture.Db);
+        var channel = await service.GetOrCreateChannelAsync(ct);
+        var show = new TVShow { Name = "Serie", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
+        fixture.Db.TVShows.Add(show);
+        await fixture.Db.SaveChangesAsync(ct);
+        var baseInput = ProgramRuleServiceTests_Channel.RuleInput(materialId: show.Id);
+
+        // Ungültig: Jahresfenster nur am Monat-Tag des lokalen morgigen Tages — heute außerhalb.
+        var tomorrow = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.UtcNow, TimeZoneInfo.Local).AddDays(1));
+        var tomorrowMonthDay = new DateOnly(2000, tomorrow.Month, tomorrow.Day);
+        await service.CreateRuleAsync(admin.Id, channel.Id, baseInput with
+        {
+            Name = "A-Ungueltig",
+            Validity = new ProgramRuleValidityInput(ProgramRuleValidityMode.AnnualWindow,
+                From: tomorrowMonthDay, To: tomorrowMonthDay)
+        }, ct);
+        await service.CreateRuleAsync(admin.Id, channel.Id, baseInput with { Name = "B-Gueltig" }, ct);
+        await service.CreateRuleAsync(admin.Id, channel.Id, baseInput with
+        {
+            Name = "C-Gueltig",
+            Validity = new ProgramRuleValidityInput(ProgramRuleValidityMode.MonthlyWindow, FromDay: 1, ToDay: 31)
+        }, ct);
+
+        var rules = await service.GetRulesAsync(admin.Id, channel.Id, ct);
+
+        Assert.Equal(new[] { "B-Gueltig", "C-Gueltig", "A-Ungueltig" }, rules.Select(r => r.Name));
+    }
+
+    [Fact]
     public async Task UpdateRule_ChangesFields()
     {
         var ct = TestContext.Current.CancellationToken;

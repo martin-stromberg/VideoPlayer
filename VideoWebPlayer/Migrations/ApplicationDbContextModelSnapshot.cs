@@ -1454,6 +1454,35 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateOnly?>("ValidFrom")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ValidFromDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ValidHolidayAfterDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ValidHolidayAnchor")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ValidHolidayBeforeDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("ValidTo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ValidToDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ValidWeekdays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ValidityMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
                     b.HasKey("Id");
 
                     b.HasIndex("TVChannelId");

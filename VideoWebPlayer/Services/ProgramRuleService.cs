@@ -79,7 +79,7 @@ public sealed class ProgramRuleService : IProgramRuleService
     {
         await RequireAdminAsync(userId, cancellationToken);
 
-        return await _db.ProgramRules
+        var rules = await _db.ProgramRules
             .AsNoTracking()
             .Include(r => r.Genres)
                 .ThenInclude(g => g.Genre)
@@ -90,6 +90,12 @@ public sealed class ProgramRuleService : IProgramRuleService
             .Where(r => r.TVChannelId == channelId)
             .OrderBy(r => r.Name)
             .ToListAsync(cancellationToken);
+
+        // Stable in-memory grouping on the local day: currently invalid rules (outside their
+        // recurring window, not yet started or expired one-off ranges) sort to the end; within
+        // both groups the name order produced by the query survives (OrderBy is stable).
+        var localToday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.UtcNow, TimeZoneInfo.Local));
+        return rules.OrderBy(r => ProgramRuleValidity.IsValidOn(r, localToday) ? 0 : 1).ToList();
     }
 
     /// <inheritdoc />
@@ -135,6 +141,7 @@ public sealed class ProgramRuleService : IProgramRuleService
             CreatedAt = now,
             UpdatedAt = now
         };
+        ApplyValidity(rule, input.Validity);
 
         _db.ProgramRules.Add(rule);
         await _db.SaveChangesAsync(cancellationToken);
@@ -166,6 +173,7 @@ public sealed class ProgramRuleService : IProgramRuleService
         rule.Priority = input.Priority;
         rule.IsActive = input.IsActive;
         rule.PlaceholderGrace = input.PlaceholderGrace ?? ProgramRule.DefaultPlaceholderGrace;
+        ApplyValidity(rule, input.Validity);
         rule.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -173,6 +181,22 @@ public sealed class ProgramRuleService : IProgramRuleService
         await ReplaceClipGroupLinksAsync(rule.Id, input, cancellationToken);
         _scheduleSignal?.NotifyScheduleChanged();
         return rule;
+    }
+
+    // Persists the validity mode plus only the window fields matching it — every field that does
+    // not belong to the mode is normalized to null (same practice as DayOfWeek/SingleDate).
+    private static void ApplyValidity(ProgramRule rule, ProgramRuleValidityInput? validity)
+    {
+        var mode = validity?.Mode ?? ProgramRuleValidityMode.Unrestricted;
+        rule.ValidityMode = mode;
+        rule.ValidFrom = mode is ProgramRuleValidityMode.OneTime or ProgramRuleValidityMode.AnnualWindow ? validity?.From : null;
+        rule.ValidTo = mode is ProgramRuleValidityMode.OneTime or ProgramRuleValidityMode.AnnualWindow ? validity?.To : null;
+        rule.ValidFromDay = mode == ProgramRuleValidityMode.MonthlyWindow ? validity?.FromDay : null;
+        rule.ValidToDay = mode == ProgramRuleValidityMode.MonthlyWindow ? validity?.ToDay : null;
+        rule.ValidWeekdays = mode == ProgramRuleValidityMode.WeeklyWindow ? validity?.Weekdays : null;
+        rule.ValidHolidayAnchor = mode == ProgramRuleValidityMode.HolidayWindow ? validity?.HolidayAnchor : null;
+        rule.ValidHolidayBeforeDays = mode == ProgramRuleValidityMode.HolidayWindow ? validity?.HolidayBeforeDays : null;
+        rule.ValidHolidayAfterDays = mode == ProgramRuleValidityMode.HolidayWindow ? validity?.HolidayAfterDays : null;
     }
 
     // For genre material the first selected genre keeps MaterialId populated (the column stays
@@ -278,6 +302,8 @@ public sealed class ProgramRuleService : IProgramRuleService
         if (input.SlotDuration is not null && input.SlotDuration <= TimeSpan.Zero)
             throw new ArgumentException("Die Länge muss größer als 0 sein.");
 
+        ValidateValidityInput(input);
+
         if (!GetAllowedMaterialTypes(input.RuleType).Contains(input.MaterialType))
             throw new ArgumentException($"Die Materialart {input.MaterialType} ist für die Regelart {input.RuleType} nicht zulässig.");
 
@@ -306,6 +332,55 @@ public sealed class ProgramRuleService : IProgramRuleService
 
         if (!exists)
             throw new KeyNotFoundException("Das gewählte Programmmaterial wurde nicht gefunden.");
+    }
+
+    // The validity window is a dimension independent of the recurrence pattern: only the fields
+    // matching the mode are required and range-checked — fields of other modes are ignored and
+    // normalized to null on save (ApplyValidity), never an error.
+    private static void ValidateValidityInput(ProgramRuleInput input)
+    {
+        var validity = input.Validity;
+        if (validity is null)
+            return;
+        if (!Enum.IsDefined(validity.Mode))
+            throw new ArgumentException($"Unbekannte Gültigkeitsart: {validity.Mode}");
+
+        switch (validity.Mode)
+        {
+            case ProgramRuleValidityMode.OneTime:
+                if (validity.From is null && validity.To is null)
+                    throw new ArgumentException("Beim einmaligen Gültigkeitszeitraum muss mindestens eine Grenze (Von oder Bis) angegeben werden.");
+                if (validity.From is { } from && validity.To is { } to && from > to)
+                    throw new ArgumentException("Das Bis-Datum des Gültigkeitszeitraums darf nicht vor dem Von-Datum liegen.");
+                break;
+
+            case ProgramRuleValidityMode.AnnualWindow:
+                if (validity.From is null || validity.To is null)
+                    throw new ArgumentException("Beim jährlichen Gültigkeitsfenster müssen Von- und Bis-Tag angegeben werden.");
+                break;
+
+            case ProgramRuleValidityMode.MonthlyWindow:
+                if (validity.FromDay is null || validity.ToDay is null)
+                    throw new ArgumentException("Beim monatlichen Gültigkeitsfenster müssen Von- und Bis-Tag angegeben werden.");
+                if (validity.FromDay is < 1 or > 31 || validity.ToDay is < 1 or > 31)
+                    throw new ArgumentException("Die Tage des monatlichen Gültigkeitsfensters müssen zwischen 1 und 31 liegen.");
+                break;
+
+            case ProgramRuleValidityMode.WeeklyWindow:
+                if (validity.Weekdays is not (>= 1 and <= 127))
+                    throw new ArgumentException("Beim wöchentlichen Gültigkeitsfenster muss mindestens ein Wochentag gewählt werden.");
+                break;
+
+            case ProgramRuleValidityMode.HolidayWindow:
+                if (validity.HolidayAnchor is null || !Enum.IsDefined(validity.HolidayAnchor.Value))
+                    throw new ArgumentException("Beim feiertagsbezogenen Gültigkeitsfenster muss ein Feiertags-Anker gewählt werden.");
+                if (validity.HolidayBeforeDays is null || validity.HolidayAfterDays is null)
+                    throw new ArgumentException("Beim feiertagsbezogenen Gültigkeitsfenster müssen die Tage davor und danach angegeben werden.");
+                if (validity.HolidayBeforeDays is < 0 or > ProgramRuleValidity.MaxHolidayWindowDays
+                    || validity.HolidayAfterDays is < 0 or > ProgramRuleValidity.MaxHolidayWindowDays)
+                    throw new ArgumentException($"Die Tage um den Feiertags-Anker müssen zwischen 0 und {ProgramRuleValidity.MaxHolidayWindowDays} liegen.");
+                break;
+        }
     }
 
     // Clip groups only make sense on non-filler rules with a slot duration (the grace period

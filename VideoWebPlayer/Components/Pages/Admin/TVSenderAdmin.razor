@@ -136,6 +136,10 @@ else
                                     {
                                         <span class="admin-chip">Priorität @rule.Priority</span>
                                     }
+                                    @if (!ProgramRuleValidity.IsValidOn(rule, LocalToday))
+                                    {
+                                        <span class="admin-chip admin-chip-warning">Derzeit ungültig</span>
+                                    }
                                 </div>
                                 <span class="rule-panel-name">@rule.Name</span>
                                 <div class="rule-panel-actions">
@@ -161,6 +165,7 @@ else
                             </div>
                             <div class="rule-panel-meta">
                                 <div>@RuleMetaLabel(rule)</div>
+                                <div class="rule-panel-validity">@ValidityLabel(rule)</div>
                                 <div class="rule-panel-material">@MaterialSummaryLabel(rule)</div>
                                 <div class="tvsender-rule-diagnosis">@DiagnosisLabel(rule)</div>
                             </div>
@@ -254,6 +259,107 @@ else
                     <InputCheckbox class="form-check-input" @bind-Value="editRule.IsActive" />
                     <span>Regel ist aktiv</span>
                 </label>
+
+                <label class="form-label" for="rule-validity">Gültigkeit</label>
+                <select id="rule-validity" class="form-control" value="@editRule.ValidityMode" @onchange="OnValidityModeChanged">
+                    <option value="@ProgramRuleValidityMode.Unrestricted">Uneingeschränkt</option>
+                    <option value="@ProgramRuleValidityMode.OneTime">Einmaliger Zeitraum</option>
+                    <option value="@ProgramRuleValidityMode.AnnualWindow">Jährlich wiederkehrend</option>
+                    <option value="@ProgramRuleValidityMode.MonthlyWindow">Monatlich wiederkehrend</option>
+                    <option value="@ProgramRuleValidityMode.WeeklyWindow">Wöchentlich (Wochentage)</option>
+                    <option value="@ProgramRuleValidityMode.HolidayWindow">Feiertagsfenster</option>
+                </select>
+
+                @if (editRule.ValidityMode == ProgramRuleValidityMode.OneTime)
+                {
+                    <div class="admin-settings-grid">
+                        <div>
+                            <label class="form-label" for="rule-valid-from">Gültig von</label>
+                            <InputDate id="rule-valid-from" class="form-control" @bind-Value="editRule.ValidFrom" />
+                        </div>
+                        <div>
+                            <label class="form-label" for="rule-valid-to">Gültig bis (inklusive)</label>
+                            <InputDate id="rule-valid-to" class="form-control" @bind-Value="editRule.ValidTo" />
+                        </div>
+                    </div>
+                    <span class="form-text">Mindestens eine Grenze ist erforderlich; eine freie Grenze bleibt offen. Nach Überschreiten des Bis-Datums wird die Regel automatisch gelöscht.</span>
+                }
+                @if (editRule.ValidityMode == ProgramRuleValidityMode.AnnualWindow)
+                {
+                    <div class="admin-settings-grid">
+                        <div>
+                            <label class="form-label" for="rule-valid-from-month">Gültig von (Monat / Tag)</label>
+                            <select id="rule-valid-from-month" class="form-control" @bind="editRule.ValidFromMonth">
+                                @for (var m = 1; m <= 12; m++)
+                                {
+                                    <option value="@m">@MonthLabel(m)</option>
+                                }
+                            </select>
+                            <input id="rule-valid-from-day" type="number" min="1" max="31" class="form-control" @bind="editRule.ValidFromDay" />
+                        </div>
+                        <div>
+                            <label class="form-label" for="rule-valid-to-month">Gültig bis (Monat / Tag, inklusive)</label>
+                            <select id="rule-valid-to-month" class="form-control" @bind="editRule.ValidToMonth">
+                                @for (var m = 1; m <= 12; m++)
+                                {
+                                    <option value="@m">@MonthLabel(m)</option>
+                                }
+                            </select>
+                            <input id="rule-valid-to-day" type="number" min="1" max="31" class="form-control" @bind="editRule.ValidToDay" />
+                        </div>
+                    </div>
+                    <span class="form-text">Das Fenster darf über den Jahreswechsel laufen (z. B. 20.12.–06.01.).</span>
+                }
+                @if (editRule.ValidityMode == ProgramRuleValidityMode.MonthlyWindow)
+                {
+                    <div class="admin-settings-grid">
+                        <div>
+                            <label class="form-label" for="rule-valid-monthly-from">Gültig ab Tag im Monat</label>
+                            <input id="rule-valid-monthly-from" type="number" min="1" max="31" class="form-control" @bind="editRule.ValidMonthlyFromDay" />
+                        </div>
+                        <div>
+                            <label class="form-label" for="rule-valid-monthly-to">Gültig bis Tag im Monat (inklusive)</label>
+                            <input id="rule-valid-monthly-to" type="number" min="1" max="31" class="form-control" @bind="editRule.ValidMonthlyToDay" />
+                        </div>
+                    </div>
+                    <span class="form-text">Das Fenster darf über den Monatswechsel laufen (z. B. 25.–5.); ein Tag, den es im Monat nicht gibt, entfällt.</span>
+                }
+                @if (editRule.ValidityMode == ProgramRuleValidityMode.WeeklyWindow)
+                {
+                    <div class="rule-multi-select" id="rule-valid-weekdays">
+                        @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
+                        {
+                            <label class="form-check rule-weekday-option" for="rule-valid-weekday-@((int)d)">
+                                <input type="checkbox" class="form-check-input" id="rule-valid-weekday-@((int)d)"
+                                       checked="@editRule.SelectedWeekdays.Contains(d)"
+                                       @onchange="e => OnWeekdayToggled(d, e.Value is bool b && b)" />
+                                @WeekdayLabel(d)
+                            </label>
+                        }
+                    </div>
+                    <span class="form-text">Mindestens ein Wochentag ist auszuwählen.</span>
+                }
+                @if (editRule.ValidityMode == ProgramRuleValidityMode.HolidayWindow)
+                {
+                    <div class="admin-settings-grid">
+                        <div>
+                            <label class="form-label" for="rule-valid-holiday-anchor">Feiertags-Anker</label>
+                            <select id="rule-valid-holiday-anchor" class="form-control" @bind="editRule.ValidHolidayAnchor">
+                                @foreach (ProgramRuleHolidayAnchor a in Enum.GetValues<ProgramRuleHolidayAnchor>())
+                                {
+                                    <option value="@a">@HolidayAnchorLabel(a)</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label" for="rule-valid-holiday-before">Tage davor</label>
+                            <input id="rule-valid-holiday-before" type="number" min="0" max="62" class="form-control" @bind="editRule.ValidHolidayBeforeDays" />
+                            <label class="form-label" for="rule-valid-holiday-after">Tage danach</label>
+                            <input id="rule-valid-holiday-after" type="number" min="0" max="62" class="form-control" @bind="editRule.ValidHolidayAfterDays" />
+                        </div>
+                    </div>
+                    <span class="form-text">Die Regel gilt im Fenster von „Tage davor" vor bis „Tage danach" nach dem Feiertag (jeweils 0–62).</span>
+                }
 
                 <label class="form-label">Programmmaterial</label>
                 @if (!string.IsNullOrWhiteSpace(editRule.MaterialDisplayName))
@@ -1884,7 +1990,7 @@ else
     private async Task StartCreate()
     {
         editError = null;
-        editRule = new RuleEditModel { RuleType = ProgramRuleType.SeriesFixedTime, Recurrence = ProgramRuleRecurrence.Daily, TimeOfDay = new TimeOnly(20, 0), IsActive = true, EpisodeCount = 1 };
+        editRule = new RuleEditModel { RuleType = ProgramRuleType.SeriesFixedTime, Recurrence = ProgramRuleRecurrence.Daily, TimeOfDay = new TimeOnly(20, 0), IsActive = true, EpisodeCount = 1, ValidityMode = ProgramRuleValidityMode.Unrestricted };
         await ReloadGenreOptionsAsync();
     }
 
@@ -1915,7 +2021,24 @@ else
             SelectedClipGroupIds = rule.ClipGroups.Select(c => c.ProgramClipGroupId).ToHashSet(),
             GraceMinutes = (int)rule.PlaceholderGrace.TotalMinutes,
             Priority = rule.Priority,
-            IsActive = rule.IsActive
+            IsActive = rule.IsActive,
+            ValidityMode = rule.ValidityMode,
+            // OneTime nutzt die Datumswerte direkt; beim Jahresfenster werden Monat und Tag des
+            // Konventionsjahrs 2000 auf die getrennten Eingabefelder verteilt.
+            ValidFrom = rule.ValidityMode == ProgramRuleValidityMode.OneTime ? rule.ValidFrom?.ToDateTime(TimeOnly.MinValue) : null,
+            ValidTo = rule.ValidityMode == ProgramRuleValidityMode.OneTime ? rule.ValidTo?.ToDateTime(TimeOnly.MinValue) : null,
+            ValidFromMonth = rule.ValidityMode == ProgramRuleValidityMode.AnnualWindow ? rule.ValidFrom?.Month ?? 1 : 1,
+            ValidFromDay = rule.ValidityMode == ProgramRuleValidityMode.AnnualWindow ? rule.ValidFrom?.Day ?? 1 : 1,
+            ValidToMonth = rule.ValidityMode == ProgramRuleValidityMode.AnnualWindow ? rule.ValidTo?.Month ?? 12 : 12,
+            ValidToDay = rule.ValidityMode == ProgramRuleValidityMode.AnnualWindow ? rule.ValidTo?.Day ?? 31 : 31,
+            ValidMonthlyFromDay = rule.ValidityMode == ProgramRuleValidityMode.MonthlyWindow ? rule.ValidFromDay ?? 1 : 1,
+            ValidMonthlyToDay = rule.ValidityMode == ProgramRuleValidityMode.MonthlyWindow ? rule.ValidToDay ?? 31 : 31,
+            SelectedWeekdays = rule.ValidityMode == ProgramRuleValidityMode.WeeklyWindow && rule.ValidWeekdays is { } mask
+                ? Enum.GetValues<DayOfWeek>().Where(d => (mask & (1 << (int)d)) != 0).ToHashSet()
+                : [],
+            ValidHolidayAnchor = rule.ValidityMode == ProgramRuleValidityMode.HolidayWindow ? rule.ValidHolidayAnchor ?? ProgramRuleHolidayAnchor.EasterSunday : ProgramRuleHolidayAnchor.EasterSunday,
+            ValidHolidayBeforeDays = rule.ValidityMode == ProgramRuleValidityMode.HolidayWindow ? rule.ValidHolidayBeforeDays ?? 0 : 0,
+            ValidHolidayAfterDays = rule.ValidityMode == ProgramRuleValidityMode.HolidayWindow ? rule.ValidHolidayAfterDays ?? 0 : 0
         };
         await ReloadGenreOptionsAsync();
     }
@@ -1936,6 +2059,22 @@ else
     {
         if (editRule is not null && Enum.TryParse<ProgramRuleRecurrence>(e.Value?.ToString(), out var r))
             editRule.Recurrence = r;
+    }
+
+    private void OnValidityModeChanged(ChangeEventArgs e)
+    {
+        if (editRule is not null && Enum.TryParse<ProgramRuleValidityMode>(e.Value?.ToString(), out var m))
+            editRule.ValidityMode = m;
+    }
+
+    private void OnWeekdayToggled(DayOfWeek day, bool selected)
+    {
+        if (editRule is null)
+            return;
+        if (selected)
+            editRule.SelectedWeekdays.Add(day);
+        else
+            editRule.SelectedWeekdays.Remove(day);
     }
 
     private void ClearMaterial()
@@ -2056,6 +2195,10 @@ else
             return;
 
         editError = null;
+        var validity = BuildValidityInput();
+        if (editError is not null)
+            return;
+
         var input = new ProgramRuleInput(
             editRule.Name,
             editRule.RuleType,
@@ -2082,7 +2225,8 @@ else
                 : null,
             editRule.RuleType != ProgramRuleType.Filler && editRule.DurationMinutes is > 0 && editRule.GraceMinutes is > 0
                 ? TimeSpan.FromMinutes(editRule.GraceMinutes.Value)
-                : null);
+                : null,
+            validity);
 
         try
         {
@@ -2098,6 +2242,100 @@ else
         catch (Exception ex)
         {
             editError = ex.Message;
+        }
+    }
+
+    // Übersetzt die modusabhängigen EditModel-Felder in das gebündelte Gültigkeits-Input;
+    // Verletzungen der fachlichen Grenzen werden bereits hier als editError gemeldet
+    // (derselbe Prüfpfad läuft serverseitig in ValidateRuleInputAsync noch einmal).
+    private ProgramRuleValidityInput? BuildValidityInput()
+    {
+        if (editRule is null)
+            return null;
+
+        switch (editRule.ValidityMode)
+        {
+            case ProgramRuleValidityMode.Unrestricted:
+                return new ProgramRuleValidityInput(ProgramRuleValidityMode.Unrestricted);
+
+            case ProgramRuleValidityMode.OneTime:
+            {
+                if (editRule.ValidFrom is null && editRule.ValidTo is null)
+                {
+                    editError = "Beim einmaligen Gültigkeitszeitraum muss mindestens eine Grenze (Von oder Bis) angegeben werden.";
+                    return null;
+                }
+                if (editRule.ValidFrom is { } from && editRule.ValidTo is { } to && from.Date > to.Date)
+                {
+                    editError = "Das Bis-Datum des Gültigkeitszeitraums darf nicht vor dem Von-Datum liegen.";
+                    return null;
+                }
+                return new ProgramRuleValidityInput(
+                    ProgramRuleValidityMode.OneTime,
+                    From: editRule.ValidFrom is { } f ? DateOnly.FromDateTime(f) : null,
+                    To: editRule.ValidTo is { } t ? DateOnly.FromDateTime(t) : null);
+            }
+
+            case ProgramRuleValidityMode.AnnualWindow:
+            {
+                // Konventions-Schaltjahr 2000 — nur damit bleibt der 29.02. als Fenstergrenze
+                // darstellbar (IsValidOn wertet ohnehin nur Monat und Tag aus).
+                if (editRule.ValidFromDay < 1 || editRule.ValidFromDay > DateTime.DaysInMonth(2000, editRule.ValidFromMonth)
+                    || editRule.ValidToDay < 1 || editRule.ValidToDay > DateTime.DaysInMonth(2000, editRule.ValidToMonth))
+                {
+                    editError = "Der Tag liegt außerhalb des gewählten Monats.";
+                    return null;
+                }
+                return new ProgramRuleValidityInput(
+                    ProgramRuleValidityMode.AnnualWindow,
+                    From: new DateOnly(2000, editRule.ValidFromMonth, editRule.ValidFromDay),
+                    To: new DateOnly(2000, editRule.ValidToMonth, editRule.ValidToDay));
+            }
+
+            case ProgramRuleValidityMode.MonthlyWindow:
+            {
+                if (editRule.ValidMonthlyFromDay < 1 || editRule.ValidMonthlyFromDay > 31
+                    || editRule.ValidMonthlyToDay < 1 || editRule.ValidMonthlyToDay > 31)
+                {
+                    editError = "Die Tage des monatlichen Gültigkeitsfensters müssen zwischen 1 und 31 liegen.";
+                    return null;
+                }
+                return new ProgramRuleValidityInput(
+                    ProgramRuleValidityMode.MonthlyWindow,
+                    FromDay: editRule.ValidMonthlyFromDay,
+                    ToDay: editRule.ValidMonthlyToDay);
+            }
+
+            case ProgramRuleValidityMode.WeeklyWindow:
+            {
+                if (editRule.SelectedWeekdays.Count == 0)
+                {
+                    editError = "Beim wöchentlichen Gültigkeitsfenster muss mindestens ein Wochentag gewählt werden.";
+                    return null;
+                }
+                return new ProgramRuleValidityInput(
+                    ProgramRuleValidityMode.WeeklyWindow,
+                    Weekdays: editRule.SelectedWeekdays.Sum(d => 1 << (int)d));
+            }
+
+            case ProgramRuleValidityMode.HolidayWindow:
+            {
+                if (editRule.ValidHolidayBeforeDays < 0 || editRule.ValidHolidayBeforeDays > ProgramRuleValidity.MaxHolidayWindowDays
+                    || editRule.ValidHolidayAfterDays < 0 || editRule.ValidHolidayAfterDays > ProgramRuleValidity.MaxHolidayWindowDays)
+                {
+                    editError = $"Die Tage um den Feiertags-Anker müssen zwischen 0 und {ProgramRuleValidity.MaxHolidayWindowDays} liegen.";
+                    return null;
+                }
+                return new ProgramRuleValidityInput(
+                    ProgramRuleValidityMode.HolidayWindow,
+                    HolidayAnchor: editRule.ValidHolidayAnchor,
+                    HolidayBeforeDays: editRule.ValidHolidayBeforeDays,
+                    HolidayAfterDays: editRule.ValidHolidayAfterDays);
+            }
+
+            default:
+                editError = $"Unbekannte Gültigkeitsart: {editRule.ValidityMode}";
+                return null;
         }
     }
 
@@ -2289,6 +2527,81 @@ else
         _ => d.ToString()
     };
 
+    private static string WeekdayShortLabel(DayOfWeek d) => d switch
+    {
+        DayOfWeek.Monday => "Mo",
+        DayOfWeek.Tuesday => "Di",
+        DayOfWeek.Wednesday => "Mi",
+        DayOfWeek.Thursday => "Do",
+        DayOfWeek.Friday => "Fr",
+        DayOfWeek.Saturday => "Sa",
+        DayOfWeek.Sunday => "So",
+        _ => d.ToString()
+    };
+
+    private static string MonthLabel(int m) => m switch
+    {
+        1 => "Januar",
+        2 => "Februar",
+        3 => "März",
+        4 => "April",
+        5 => "Mai",
+        6 => "Juni",
+        7 => "Juli",
+        8 => "August",
+        9 => "September",
+        10 => "Oktober",
+        11 => "November",
+        12 => "Dezember",
+        _ => m.ToString()
+    };
+
+    private static string HolidayAnchorLabel(ProgramRuleHolidayAnchor a) => a switch
+    {
+        ProgramRuleHolidayAnchor.NewYear => "Neujahr",
+        ProgramRuleHolidayAnchor.GoodFriday => "Karfreitag",
+        ProgramRuleHolidayAnchor.EasterSunday => "Ostersonntag",
+        ProgramRuleHolidayAnchor.EasterMonday => "Ostermontag",
+        ProgramRuleHolidayAnchor.AscensionDay => "Christi Himmelfahrt",
+        ProgramRuleHolidayAnchor.PentecostSunday => "Pfingstsonntag",
+        ProgramRuleHolidayAnchor.PentecostMonday => "Pfingstmontag",
+        ProgramRuleHolidayAnchor.FirstAdvent => "1. Advent",
+        ProgramRuleHolidayAnchor.ChristmasEve => "Heiligabend",
+        ProgramRuleHolidayAnchor.ChristmasDay => "1. Weihnachtstag",
+        ProgramRuleHolidayAnchor.SecondChristmasDay => "2. Weihnachtstag",
+        ProgramRuleHolidayAnchor.NewYearsEve => "Silvester",
+        _ => a.ToString()
+    };
+
+    private static string WeekdayMaskLabel(int mask)
+        => string.Join(", ", Enum.GetValues<DayOfWeek>()
+            .Where(d => (mask & (1 << (int)d)) != 0)
+            .OrderBy(d => ((int)d + 6) % 7) // Mo zuerst
+            .Select(WeekdayShortLabel));
+
+    // Meta-Zeile mit dem Fenstertext des Gültigkeitsmodus — uneingeschränkte Regeln brauchen
+    // keinen eigenen Hinweis (entspricht dem bisherigen Verhalten).
+    private static string ValidityLabel(ProgramRule r) => r.ValidityMode switch
+    {
+        ProgramRuleValidityMode.Unrestricted => "Uneingeschränkt gültig",
+        ProgramRuleValidityMode.OneTime => (r.ValidFrom, r.ValidTo) switch
+        {
+            ({ } f, { } t) => $"Gültig im Zeitraum {f:dd.MM.yyyy}–{t:dd.MM.yyyy}",
+            ({ } f, null) => $"Gültig ab {f:dd.MM.yyyy}",
+            (null, { } t) => $"Gültig bis {t:dd.MM.yyyy}",
+            _ => "Einmaliger Zeitraum"
+        },
+        ProgramRuleValidityMode.AnnualWindow => $"Jährlich {r.ValidFrom?.ToString("dd.MM.")}–{r.ValidTo?.ToString("dd.MM.")}",
+        ProgramRuleValidityMode.MonthlyWindow => $"Monatlich {r.ValidFromDay}.–{r.ValidToDay}.",
+        ProgramRuleValidityMode.WeeklyWindow => $"Wöchentlich {(r.ValidWeekdays is > 0 ? WeekdayMaskLabel(r.ValidWeekdays.Value) : "–")}",
+        ProgramRuleValidityMode.HolidayWindow => $"{HolidayAnchorLabel(r.ValidHolidayAnchor ?? ProgramRuleHolidayAnchor.EasterSunday)} −{r.ValidHolidayBeforeDays ?? 0} bis +{r.ValidHolidayAfterDays ?? 0} Tage",
+        _ => r.ValidityMode.ToString()
+    };
+
+    // Lokaler Tag des Servers — dieselbe Zeitbasis, mit der der Sendeplan die Gültigkeit prüft.
+    private static DateOnly LocalToday
+        => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.UtcNow, TimeZoneInfo.Local));
+
     private async Task ResetProbeItemAsync(MediaDurationProbeDetailItem item)
     {
         try
@@ -2342,5 +2655,18 @@ else
         public int? GraceMinutes { get; set; } = (int)ProgramRule.DefaultPlaceholderGrace.TotalMinutes;
         public int Priority { get; set; }
         public bool IsActive { get; set; } = true;
+        public ProgramRuleValidityMode ValidityMode { get; set; } = ProgramRuleValidityMode.Unrestricted;
+        public DateTime? ValidFrom { get; set; }
+        public DateTime? ValidTo { get; set; }
+        public int ValidFromMonth { get; set; } = 1;
+        public int ValidFromDay { get; set; } = 1;
+        public int ValidToMonth { get; set; } = 12;
+        public int ValidToDay { get; set; } = 31;
+        public int ValidMonthlyFromDay { get; set; } = 1;
+        public int ValidMonthlyToDay { get; set; } = 31;
+        public HashSet<DayOfWeek> SelectedWeekdays { get; set; } = new();
+        public ProgramRuleHolidayAnchor ValidHolidayAnchor { get; set; } = ProgramRuleHolidayAnchor.EasterSunday;
+        public int ValidHolidayBeforeDays { get; set; }
+        public int ValidHolidayAfterDays { get; set; }
     }
 }

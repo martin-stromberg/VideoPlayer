@@ -1,3 +1,4 @@
+using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using Xunit;
 
@@ -58,6 +59,29 @@ public sealed class GermanHolidayCalendarTests
         var bw = GermanHolidayCalendar.GetHolidays(2026, "DE-BW");
         Assert.Contains(new DateOnly(2026, 1, 6), bw);   // Hl. Drei Könige
         Assert.DoesNotContain(new DateOnly(2026, 10, 31), bw); // kein Reformationstag
+    }
+
+    [Fact]
+    public void GetAnchorDate_ReturnsExpectedDates()
+    {
+        // Oster-Anker (2026: Ostersonntag = 05.04.).
+        Assert.Equal(new DateOnly(2026, 4, 3), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.GoodFriday, 2026));
+        Assert.Equal(new DateOnly(2026, 4, 5), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.EasterSunday, 2026));
+        Assert.Equal(new DateOnly(2026, 4, 6), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.EasterMonday, 2026));
+        Assert.Equal(new DateOnly(2026, 5, 14), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.AscensionDay, 2026));
+        Assert.Equal(new DateOnly(2026, 5, 24), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.PentecostSunday, 2026));
+        Assert.Equal(new DateOnly(2026, 5, 25), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.PentecostMonday, 2026));
+
+        // 1. Advent: der Sonntag zwischen 27.11. und 03.12. (2026: 29.11., 2025: 30.11.).
+        Assert.Equal(new DateOnly(2026, 11, 29), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.FirstAdvent, 2026));
+        Assert.Equal(new DateOnly(2025, 11, 30), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.FirstAdvent, 2025));
+
+        // Feste Anker.
+        Assert.Equal(new DateOnly(2026, 1, 1), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.NewYear, 2026));
+        Assert.Equal(new DateOnly(2026, 12, 24), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.ChristmasEve, 2026));
+        Assert.Equal(new DateOnly(2026, 12, 25), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.ChristmasDay, 2026));
+        Assert.Equal(new DateOnly(2026, 12, 26), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.SecondChristmasDay, 2026));
+        Assert.Equal(new DateOnly(2026, 12, 31), GermanHolidayCalendar.GetAnchorDate(ProgramRuleHolidayAnchor.NewYearsEve, 2026));
     }
 
     [Fact]

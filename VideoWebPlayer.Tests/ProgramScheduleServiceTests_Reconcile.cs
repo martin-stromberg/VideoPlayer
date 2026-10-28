@@ -122,6 +122,47 @@ public sealed class ProgramScheduleServiceTests_Reconcile
     }
 
     [Fact]
+    public async Task Reconcile_RuleLeftWindow_DisplacesFutureAirings()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-leftwindow", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
+        var filler = await fixture.CreateMovieAsync("Füller", duration: TimeSpan.FromMinutes(15));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        // Gültigkeitszeitraum 25.–26.10.: Occurrences auf beiden Tagen, dann Fenster verengt.
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Primetime", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id,
+            validity: new ProgramRuleValidityInput(ProgramRuleValidityMode.OneTime,
+                From: new DateOnly(2026, 10, 25), To: new DateOnly(2026, 10, 26)));
+        await fixture.CreateRuleAsync(channel.Id, "Füller", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, filler.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+        var ruleSlots = (await fixture.SlotsAsync(ct))
+            .Where(s => s.ProgramRuleId == rule.Id && s.RuleType == ProgramRuleType.MoviePrimeTime).ToList();
+        Assert.Equal(2, ruleSlots.Count);
+
+        // Fenster endet jetzt schon am 25.10. — die Ausstrahlung am 26.10. verliert ihren Anker.
+        rule.ValidTo = new DateOnly(2026, 10, 25);
+        await fixture.SaveDiagAsync();
+        var summary = await service.ReconcileAsync(now.AddMinutes(30), ct);
+
+        Assert.True(summary.SlotsDisplaced > 0);
+        var displaced = await DisplacedAsync(fixture, ct);
+        Assert.All(displaced, s => Assert.Equal(rule.Id, s.ProgramRuleId));
+        Assert.Contains(displaced, s =>
+            DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(s.Start, DateTimeKind.Utc), Tz))
+                == new DateOnly(2026, 10, 26));
+        var scheduled = await ScheduledAsync(fixture, ct);
+        Assert.DoesNotContain(scheduled, s => s.ProgramRuleId == rule.Id && s.RuleType == ProgramRuleType.MoviePrimeTime
+            && DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(s.Start, DateTimeKind.Utc), Tz))
+                == new DateOnly(2026, 10, 26));
+    }
+
+    [Fact]
     public async Task Reconcile_ChangedTimeOfDay_ReplansAtNewTime()
     {
         var ct = TestContext.Current.CancellationToken;

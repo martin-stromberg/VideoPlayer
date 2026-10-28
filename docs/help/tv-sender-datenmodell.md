@@ -48,6 +48,17 @@ Join Gruppe ↔ Regel — Zusatz-Zuordnung unabhängig von der Materialart der R
 |-------------|-----|--------------|
 | `PlaceholderGrace` | `TimeSpan` (NOT NULL) | Je-Regel-Karenzzeit für die Clip-Füllung; DB-Default `'00:15:00'`, Konstante `DefaultPlaceholderGrace = TimeSpan.FromMinutes(15)`. Wirkt nur mit gesetztem `SlotDuration` und mindestens einer zugeordneten Gruppe. |
 | `ClipGroups` | `ICollection<ProgramRuleClipGroup>` | Navigations-Collection der Gruppenzuordnung. |
+| `ValidityMode` | `ProgramRuleValidityMode` (NOT NULL, Default `Unrestricted = 0`) | Gültigkeitsmodus der Regel (unabhängig von `Recurrence`): `Unrestricted`, `OneTime`, `AnnualWindow`, `MonthlyWindow`, `WeeklyWindow`, `HolidayWindow`. |
+| `ValidFrom` / `ValidTo` | `DateOnly?` | `OneTime`: Von-/Bis-Datum (jeweils optional, inklusive); `AnnualWindow`: Fenster als Monat-Tag im Konventions-Schaltjahr 2000. |
+| `ValidFromDay` / `ValidToDay` | `int?` | `MonthlyWindow`: Start-/Endtag im Monat (1–31, Wrap erlaubt). |
+| `ValidWeekdays` | `int?` | `WeeklyWindow`: Bitmaske über `DayOfWeek` (So = 0 … Sa = 6). |
+| `ValidHolidayAnchor` | `ProgramRuleHolidayAnchor?` | `HolidayWindow`: benannter, bundeslandunabhängiger Feiertags-Anker. |
+| `ValidHolidayBeforeDays` / `ValidHolidayAfterDays` | `int?` | `HolidayWindow`: Fenster 0–62 Tage vor bzw. nach dem Anker. |
+
+Nicht moduspassende Gültigkeitsfelder werden beim Speichern auf `null` normalisiert. Alle
+neun Spalten stehen in `VideoWebPlayerBackupData.OptionalRestoreColumns`; `ValidityMode`
+hat einen `OptionalRestoreIntDefaults`-Eintrag (`Unrestricted`), sodass Alt-Backups ohne
+die Spalten uneingeschränkt gültige Regeln restaurieren.
 
 ### `ProgramRuleCursor` (wiederverwendet)
 

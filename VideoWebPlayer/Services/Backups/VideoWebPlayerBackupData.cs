@@ -113,7 +113,16 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindow16Local)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindow18Local)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindowNightEndLocal)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleUnknownRatingMode)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleUnknownRatingMode)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidityMode)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidFrom)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidTo)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidFromDay)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidToDay)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidWeekdays)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidHolidayAnchor)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidHolidayBeforeDays)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidHolidayAfterDays)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -161,7 +170,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentRetentionMinutes), 30),
         (nameof(ApplicationDbContext.MediaItems), nameof(MediaItem.DurationProbeAttempts), 0),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleContentScope), (int)ProgramScheduleContentScope.SharedOnly),
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleUnknownRatingMode), (int)ProgramScheduleUnknownRatingMode.RestrictToNightWindow)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleUnknownRatingMode), (int)ProgramScheduleUnknownRatingMode.RestrictToNightWindow),
+        (nameof(ApplicationDbContext.ProgramRules), nameof(ProgramRule.ValidityMode), (int)ProgramRuleValidityMode.Unrestricted)
     };
 
     private static readonly (string Table, string Column, TimeSpan DefaultValue)[] OptionalRestoreTimeSpanDefaults =

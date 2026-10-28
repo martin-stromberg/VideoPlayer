@@ -259,15 +259,19 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         await SaveDiagAsync();
     }
 
-    /// <summary>Creates a program rule directly in the database (service-level validation bypassed).</summary>
+    /// <summary>Creates a program rule directly in the database (service-level validation bypassed).
+    /// <paramref name="validity"/> seeds the validity window the same way the service persists it
+    /// (mode-matching fields only).</summary>
     public async Task<ProgramRule> CreateRuleAsync(
         long channelId, string name, ProgramRuleType type, ProgramRuleRecurrence recurrence,
         TimeOnly timeOfDay, ProgramRuleMaterialType materialType, long materialId,
         int priority = 0, int? episodeCount = null, TimeSpan? slotDuration = null,
         DayOfWeek? dayOfWeek = null, DateOnly? singleDate = null, bool isActive = true,
         IEnumerable<long>? genreIds = null, IEnumerable<long>? mediaSourceIds = null,
-        IEnumerable<long>? clipGroupIds = null, TimeSpan? placeholderGrace = null)
+        IEnumerable<long>? clipGroupIds = null, TimeSpan? placeholderGrace = null,
+        ProgramRuleValidityInput? validity = null)
     {
+        var validityMode = validity?.Mode ?? ProgramRuleValidityMode.Unrestricted;
         var rule = new ProgramRule
         {
             TVChannelId = channelId,
@@ -284,6 +288,15 @@ internal sealed class ProgramScheduleTestDb : IDisposable
             Priority = priority,
             IsActive = isActive,
             PlaceholderGrace = placeholderGrace ?? ProgramRule.DefaultPlaceholderGrace,
+            ValidityMode = validityMode,
+            ValidFrom = validityMode is ProgramRuleValidityMode.OneTime or ProgramRuleValidityMode.AnnualWindow ? validity?.From : null,
+            ValidTo = validityMode is ProgramRuleValidityMode.OneTime or ProgramRuleValidityMode.AnnualWindow ? validity?.To : null,
+            ValidFromDay = validityMode == ProgramRuleValidityMode.MonthlyWindow ? validity?.FromDay : null,
+            ValidToDay = validityMode == ProgramRuleValidityMode.MonthlyWindow ? validity?.ToDay : null,
+            ValidWeekdays = validityMode == ProgramRuleValidityMode.WeeklyWindow ? validity?.Weekdays : null,
+            ValidHolidayAnchor = validityMode == ProgramRuleValidityMode.HolidayWindow ? validity?.HolidayAnchor : null,
+            ValidHolidayBeforeDays = validityMode == ProgramRuleValidityMode.HolidayWindow ? validity?.HolidayBeforeDays : null,
+            ValidHolidayAfterDays = validityMode == ProgramRuleValidityMode.HolidayWindow ? validity?.HolidayAfterDays : null,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

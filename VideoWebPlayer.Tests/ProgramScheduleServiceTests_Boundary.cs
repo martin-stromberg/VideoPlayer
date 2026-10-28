@@ -131,6 +131,58 @@ public sealed class ProgramScheduleServiceTests_Boundary
         }
     }
 
+    // Issue #290 diagnosis: a shifted airing must stay provable after its invader is displaced
+    // by a real change — the displaced row still carries the occupancy the shift was built on.
+    // If the invader evidence (built from Scheduled slots only) loses it, the shifted airing is
+    // displaced too and re-materialized at its nominal start — an avoidable extra wave.
+    [Fact]
+    public async Task Reconcile_ShiftedAiring_InvaderDisplaced_StableAcrossRuns()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("boundary-invader-displaced", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Vormittagsfilm", duration: TimeSpan.FromMinutes(90));
+        var (show, _, _) = await fixture.CreateShowAsync("Serie", 40, duration: TimeSpan.FromMinutes(45));
+        var filler = await fixture.CreateMovieAsync("Füller", duration: TimeSpan.FromMinutes(20));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        // 15:30 movie overshoots the 16:00 occurrence — the series window shifts to 17:00.
+        var invader = await fixture.CreateRuleAsync(channel.Id, "Vormittag", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(15, 30), ProgramRuleMaterialType.Movie, movie.Id);
+        var shifted = await fixture.CreateRuleAsync(channel.Id, "Vorbendserien", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(16, 0), ProgramRuleMaterialType.TVShow, show.Id, slotDuration: TimeSpan.FromHours(4));
+        await fixture.CreateRuleAsync(channel.Id, "Füller", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, filler.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+        var shiftedBefore = (await ScheduledAsync(fixture, ct))
+            .Where(s => s.ProgramRuleId == shifted.Id).ToList();
+        Assert.NotEmpty(shiftedBefore);
+        // Today's 16:00 airing really starts at 17:00 — behind the invader's end.
+        Assert.Equal(LocalUtc(2026, 10, 24, 17, 0), shiftedBefore[0].Start);
+
+        // Real change: the invader rule is deactivated — its future slots are displaced, the
+        // displaced row remains as history. The shifted series airing must stay provable.
+        var invaderSlotCount = (await ScheduledAsync(fixture, ct)).Count(s => s.ProgramRuleId == invader.Id);
+        invader.IsActive = false;
+        await fixture.SaveDiagAsync();
+        var summary = await service.ReconcileAsync(now, ct);
+
+        // Only the deactivated rule's slots may be displaced — never the shifted airing.
+        Assert.Equal(invaderSlotCount, summary.SlotsDisplaced);
+        Assert.All(await fixture.Db.ProgramSlots.Where(s => s.Status == ProgramSlotStatus.Displaced).ToListAsync(ct),
+            s => Assert.Equal(invader.Id, s.ProgramRuleId));
+        var shiftedAfter = (await ScheduledAsync(fixture, ct))
+            .Where(s => s.ProgramRuleId == shifted.Id).ToList();
+        Assert.Equal(shiftedBefore.Select(s => (s.Start, s.End)).ToList(),
+            shiftedAfter.Select(s => (s.Start, s.End)).ToList());
+
+        // Follow-up runs must not re-displace it either — no oscillation.
+        var second = await service.ReconcileAsync(now.AddMinutes(10), ct);
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, second, ct, "2. Lauf");
+    }
+
     // A head item larger than the remaining window is no longer consumed or skipped — it airs
     // completely and overshoots; the successor's airing starts behind its end.
     [Fact]

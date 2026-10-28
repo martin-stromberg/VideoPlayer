@@ -343,7 +343,9 @@ Der Sendeplan wird nicht nur periodisch fortgeschrieben, sondern nach jeder plan
 Änderung neu bewertet: Beim Anlegen, Bearbeiten, (De)Aktivieren oder Löschen einer Programmregel,
 bei jeder Änderung an Clip-Gruppen oder deren Clip-Mitgliedschaften,
 beim Eintritt neuer Episoden oder Filme in eine Sammlung, beim Löschen einer Medienquelle und am
-Ende jedes Medien-Scans wacht der Hintergrundlauf sofort auf; das Generierungsintervall dient als
+Ende jedes Medien-Scans wacht der Hintergrundlauf sofort auf; ebenso meldet die
+Laufzeitermittlung neu ermittelte Laufzeiten — gebündelt zu einer Neu-Bewertung je
+Ermittlungsdurchlauf statt je gemessener Datei. Das Generierungsintervall dient als
 Sicherheitsnetz für Änderungen ohne Auslöser (z. B. direkte Datenbank-Löschungen).
 
 Dabei gilt:
@@ -352,6 +354,13 @@ Dabei gilt:
   Sendeplätze werden grundsätzlich nie verändert oder gelöscht. Eine Sendung, die beim
   Fortschreiben des Plans bereits lief und deshalb nur mit ihrem Rest im Plan steht, gilt
   ebenfalls weiter als gültig — sie wird nicht erneut verdrängt und neu geplant.
+- **Ohne sachliche Änderung bleibt der Plan stehen**: Ein erneuter Bewertungslauf bei
+  unveränderten Regeln, Medien und Zeitfenstern erzeugt weder verdrängte Einträge noch neue
+  Sendeplätze. Eine Sendung bleibt dabei auch dann gültig, wenn der Plan inzwischen eine
+  andere Datei desselben Inhalts bevorzugen würde — etwa nachdem die Laufzeitermittlung eine
+  zweite, demselben Film oder derselben Episode zugeordnete Datei vermessen hat. Als Änderung
+  zählt erst, wenn die am Sendeplatz hinterlegte Datei dem Inhalt nicht mehr zugeordnet ist
+  oder ihre Laufzeit nicht zur Sendeplatz-Länge passt.
 - **Lange Sendungen (über 24 Stunden) bleiben gültig**: Der Plan-Lauf schaut für die
   Gültigkeitsprüfung regulär 24 Stunden zurück. Beginnt eine noch laufende oder künftige
   Ausstrahlung weiter in der Vergangenheit — z. B. ein mehrtägiger Marathon-Block oder eine
@@ -387,7 +396,12 @@ Im Tab „Sendeplan" räumen zwei Schaltflächen (nur für Administratoren) den 
 
 - **„Verdrängte bereinigen"** löscht nach einer Bestätigung alle Sendeplätze mit dem Status
   „Verdrängt" — also die Historie der Nachführung — und zeigt die Anzahl der entfernten
-  Einträge an. Der wirksame Plan bleibt unverändert.
+  Einträge an. Der wirksame Plan bleibt unverändert — mit einer Einschränkung: Die Historie
+  dient der Neu-Bewertung zugleich als Beleg dafür, dass eine Sendung ihrerzeit berechtigt
+  hinter einer anderen eingereiht wurde. War diese Belegung nur noch in einer verdrängten
+  Zeile nachweisbar, kann die betroffene Sendung beim nächsten Planlauf einmalig als nicht
+  mehr nachvollziehbar gelten; sie wird dann einmalig verdrängt und an ihrem eigentlichen
+  Sendezeitpunkt neu eingeplant — danach ist der Plan wieder stabil.
 - **„Plan zurücksetzen"** löscht nach einer Bestätigung mit Warnhinweis den **gesamten**
   Sendeplan — alle geplanten und verdrängten Sendeplätze sowie die Fortsetzungsstände aller
   Regeln (d. h. Serien beginnen wieder am Anfang ihrer Rotation). Der Plan wird beim nächsten

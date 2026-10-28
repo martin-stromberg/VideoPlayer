@@ -252,4 +252,19 @@ public sealed class ProgramScheduleServiceTests_Interleaving
 
         await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
     }
+
+    // Issue #290 baseline, interleaved path: two reconcile runs with an identical time anchor
+    // and unchanged inputs — the second run must be a complete no-op.
+    [Fact]
+    public async Task Reconcile_GenreInterleaved_IdenticalUtcNow_SecondRunIsNoOp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (fixture, service, _, _, _, _) = await SeedGenreWindowAsync("schedule-interleave-idempotent", ct);
+        using var _ = fixture;
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 9, 0));
+        await service.ReconcileAsync(now, ct);
+        var second = await service.ReconcileAsync(now, ct);
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, second, ct, "2. Lauf");
+    }
 }

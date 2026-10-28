@@ -242,6 +242,50 @@ public sealed class ProgramScheduleServiceTests_Genres
         Assert.All(slots, s => Assert.Contains(s.TVShowEpisodeId, episodes.Select(e => (long?)e.Id)));
     }
 
+    // Issue #290: the expansion's time basis is the run's utcNow, not the wall clock — a genre
+    // whose one-day seasonal window covers exactly the run's date expands (while the wall clock
+    // is out of season), reconciles as a no-op and flips deterministically the day after.
+    [Fact]
+    public async Task Reconcile_SeasonalGenre_UtcNowBasis_DeterministicExpansion()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-seasonal-utcnow", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+
+        // One-day yearly recurring window exactly on the run day — in season at the run's
+        // utcNow, out of season at the wall clock (three days later) and the day after.
+        var runNow = DateTime.UtcNow.Date.AddDays(-3);
+        var seasonal = await fixture.CreateGenreAsync("Saisonal", startDate: runNow, endDate: runNow);
+        var movie = await fixture.CreateMovieAsync("Saisonfilm", duration: TimeSpan.FromMinutes(90));
+        await fixture.LinkMovieGenreAsync(movie.Id, seasonal.Id);
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Saison", ProgramRuleType.GenreRotation, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Genre, seasonal.Id, episodeCount: 1, genreIds: [seasonal.Id]);
+        var filler = await fixture.CreateMovieAsync("Füller", duration: TimeSpan.FromMinutes(20));
+        await fixture.CreateRuleAsync(channel.Id, "Füller", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, filler.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        var now = new DateTimeOffset(runNow);
+        await service.EnsureCoverageAsync(now, ct);
+
+        // In season at the run's utcNow — the genre materializes although the wall clock is
+        // already three days past the window.
+        Assert.NotEmpty(await GenreSlotsAsync(fixture, ct));
+        var first = await service.ReconcileAsync(now, ct);
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, first, ct, "In Saison");
+        var second = await service.ReconcileAsync(now, ct);
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, second, ct, "In Saison, 2. Lauf");
+
+        // A day later the genre is out of season at the run's basis too — the remaining slots
+        // are displaced exactly once (legitimate change) and the plan stays stable afterwards.
+        var flip = await service.ReconcileAsync(now.AddDays(1), ct);
+        Assert.True(flip.SlotsDisplaced > 0);
+        Assert.All((await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Displaced),
+            s => Assert.Equal(rule.Id, s.ProgramRuleId));
+        var afterFlip = await service.ReconcileAsync(now.AddDays(1), ct);
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, afterFlip, ct, "Nach Saison-Flip");
+    }
+
     [Fact]
     public async Task RuleLinks_CascadeOnRuleAndGenreDelete()
     {

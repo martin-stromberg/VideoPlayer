@@ -572,4 +572,62 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
         }
         return false;
     }
+
+    /// <summary>
+    /// Issue #290 regression: two consecutive "Jetzt generieren" runs with unchanged inputs —
+    /// the schedule overview must not pile up "Verdrängt" copies of the same title.
+    /// </summary>
+    [Fact]
+    public async Task TVSenderAdmin_RepeatGenerate_ProducesNoDisplacedSeries()
+    {
+        if (SkipBrowser) return;
+        await EnableTvSenderAsync();
+
+        var movieId = await SeedMovieWithItemAsync("E2E Wiederhol-Film", TimeSpan.FromMinutes(45),
+            minAge: 0); // nur die Planbarkeit relevant — nicht das Jugendschutzfenster
+        await SeedMovieRuleAsync("Wiederhol-Filmabend", 20, 0, movieId);
+
+        await OpenAdminPageAsAdminAsync();
+        await SwitchTabAsync("#tvsender-tab-sendeplan", "#tab-sendeplan");
+
+        // The page's 4-second wait is not a guarantee the worker finished (same reasoning as
+        // Admin_ContentScope_AllContent_SchedulesUnreleased): the first run's completion is
+        // proven by the persisted plan itself, not by the status text.
+        await Page.ClickAsync("#tvsender-generate-now");
+        await Expect(Page.Locator("#tvsender-schedule-status")).ToContainTextAsync("aktualisiert",
+            new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
+        Assert.True(await WaitForScheduledMovieSlotAsync(movieId, TimeSpan.FromSeconds(60)),
+            "Der Sendeplan enthält den Film nach dem ersten Generierungslauf nicht.");
+
+        // Second generate with unchanged inputs: the second run must leave the plan untouched —
+        // no displaced copies, no rewritten slots. The displaced count is polled briefly so a
+        // lagging run still lands inside the observation window.
+        await Page.ClickAsync("#tvsender-generate-now");
+        await Expect(Page.Locator("#tvsender-schedule-status")).ToContainTextAsync("angestoßen",
+            new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await Expect(Page.Locator("#tvsender-schedule-status")).ToContainTextAsync("aktualisiert",
+            new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
+
+        var ct = TestContext.Current.CancellationToken;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        var displaced = -1;
+        while (DateTime.UtcNow < deadline)
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            displaced = await db.ProgramSlots.CountAsync(
+                s => s.Status == VideoWebPlayer.Data.ProgramSlotStatus.Displaced, ct);
+            if (displaced > 0)
+                break;
+            await Task.Delay(1000, ct);
+        }
+        Assert.Equal(0, displaced);
+
+        // Fresh page load renders the (untouched) schedule — no "Verdrängt" chips.
+        await Page.GotoAsync($"{ServerUrl}/admin/tv-sender");
+        await Page.WaitForSelectorAsync("#tvsender-tab-sendeplan");
+        await SwitchTabAsync("#tvsender-tab-sendeplan", "#tab-sendeplan");
+        Assert.True(await Page.Locator(".tvsender-slot-row").CountAsync() > 0);
+        Assert.Equal(0, await Page.Locator(".tvsender-slot-row.tvsender-slot-displaced").CountAsync());
+    }
 }

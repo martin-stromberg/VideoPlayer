@@ -346,6 +346,40 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         Assert.Fail((context is null ? "Displaced: " : context + " — Displaced: ") + string.Join(" | ", dumped));
     }
 
+    /// <summary>Asserts a reconcile run was a full no-op: nothing displaced AND nothing created
+    /// (<see cref="AssertNoDisplacedAsync"/> covers only the displaced side — a repeated run
+    /// that silently re-materializes stays invisible there).</summary>
+    public static async Task AssertReconcileNoOpAsync(ProgramScheduleTestDb fixture, ProgramScheduleReconcileSummary summary, CancellationToken ct, string? context = null)
+    {
+        if (summary.SlotsDisplaced == 0 && summary.SlotsCreated == 0)
+            return;
+        var dumped = (await fixture.SlotsAsync(ct))
+            .Select(s => $"{(s.Status == ProgramSlotStatus.Displaced ? "X" : "S")} {s.Start:dd.HH:mm}-{s.End:dd.HH:mm} rule={s.ProgramRuleId} type={s.RuleType} ep={s.TVShowEpisodeId} item={s.MediaItemId}")
+            .ToList();
+        Assert.Fail($"{(context is null ? "" : context + " — ")}No-Op erwartet (Displaced={summary.SlotsDisplaced}, Created={summary.SlotsCreated}): " + string.Join(" | ", dumped));
+    }
+
+    /// <summary>Links an additional media item to an existing movie — reproduces a
+    /// representative switch when the new link changes the probe picture
+    /// (e.g. a second file that gets its duration probed later).</summary>
+    public async Task<MovieMediaItem> LinkMovieMediaItemAsync(long movieId, long mediaItemId)
+    {
+        var link = new MovieMediaItem { MovieId = movieId, MediaItemId = mediaItemId };
+        Db.MovieMediaItems.Add(link);
+        await SaveDiagAsync();
+        return link;
+    }
+
+    /// <summary>Links an additional media item to an existing episode (same purpose as
+    /// <see cref="LinkMovieMediaItemAsync"/>).</summary>
+    public async Task<TVShowEpisodeMediaItem> LinkEpisodeMediaItemAsync(long episodeId, long mediaItemId)
+    {
+        var link = new TVShowEpisodeMediaItem { TVShowEpisodeId = episodeId, MediaItemId = mediaItemId };
+        Db.TVShowEpisodeMediaItems.Add(link);
+        await SaveDiagAsync();
+        return link;
+    }
+
     /// <summary>Asserts the slot chain covers [from, to] without gaps or overlaps.</summary>
     public static void AssertGapless(IReadOnlyList<ProgramSlot> slots, DateTime from, DateTime to)
     {

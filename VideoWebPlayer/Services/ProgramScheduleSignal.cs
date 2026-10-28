@@ -20,7 +20,8 @@ public interface IProgramScheduleSignal
     /// <summary>
     /// Announces a scan/classification run. While at least one scan scope is open, notifications do
     /// not wake the worker (a large scan would otherwise wake it hundreds of times); disposing the
-    /// last open scope wakes it once.
+    /// last open scope wakes it once — but only when the scan actually suppressed at least one
+    /// notification, so a scan without relevant changes does not wake anybody.
     /// </summary>
     /// <returns>The scope to dispose when the scan (including its classification) is over.</returns>
     IDisposable BeginScan();
@@ -36,8 +37,11 @@ public interface IProgramScheduleSignal
 
 /// <summary>
 /// Default, thread-safe <see cref="IProgramScheduleSignal"/> (registered as a singleton): a
-/// one-slot channel that coalesces signals, plus a counter of currently running scans.
-/// Mirrors <see cref="PlaylistBackfillSignal"/>.
+/// one-slot channel that coalesces signals, a counter of currently running scans and a counter
+/// of the notifications they suppressed — the last scan's end only wakes when it suppressed at
+/// least one. Structurally mirrors <see cref="PlaylistBackfillSignal"/>, but diverges in the
+/// wake condition: there the scan's end wakes unconditionally, here only after a suppressed
+/// notification.
 /// </summary>
 public sealed class ProgramScheduleSignal : IProgramScheduleSignal
 {
@@ -48,12 +52,21 @@ public sealed class ProgramScheduleSignal : IProgramScheduleSignal
     });
 
     private int _activeScans;
+    private int _suppressedNotifications;
 
     /// <inheritdoc />
     public void NotifyScheduleChanged()
     {
         if (Volatile.Read(ref _activeScans) > 0)
-            return; // The end of the running scan wakes the worker.
+        {
+            Interlocked.Increment(ref _suppressedNotifications);
+            // The last scan ending between the check and the increment would have drained the
+            // counter without seeing this notification — deliver it directly then.
+            if (Volatile.Read(ref _activeScans) == 0
+                && Interlocked.Exchange(ref _suppressedNotifications, 0) > 0)
+                _channel.Writer.TryWrite(true);
+            return;
+        }
 
         _channel.Writer.TryWrite(true);
     }
@@ -71,7 +84,8 @@ public sealed class ProgramScheduleSignal : IProgramScheduleSignal
 
     private void EndScan()
     {
-        if (Interlocked.Decrement(ref _activeScans) == 0)
+        if (Interlocked.Decrement(ref _activeScans) == 0
+            && Interlocked.Exchange(ref _suppressedNotifications, 0) > 0)
             _channel.Writer.TryWrite(true);
     }
 

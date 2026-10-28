@@ -198,6 +198,11 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
         await Expect(row).ToContainTextAsync("Serien-Sendezeit");
         await Expect(row).ToContainTextAsync("Serie: E2E Serie");
 
+        // Die Regel-Aktionen sind Symbolbuttons mit aria-label/title.
+        await Expect(row.Locator(".tvsender-rule-edit")).ToHaveAttributeAsync("aria-label", "Bearbeiten");
+        await Expect(row.Locator(".tvsender-rule-toggle")).ToHaveAttributeAsync("aria-label", "Deaktivieren");
+        await Expect(row.Locator(".tvsender-rule-delete")).ToHaveAttributeAsync("aria-label", "Löschen");
+
         // Edit: rename via the edit dialog.
         await row.Locator(".tvsender-rule-edit").ClickAsync();
         await Page.Locator("#rule-name").WaitForAsync();
@@ -402,8 +407,11 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
         var row = Page.Locator(".tvsender-rule-row", new PageLocatorOptions { HasText = "Genreabend" });
         await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(row).ToContainTextAsync("Genre-/Formatrotation");
-        await Expect(row).ToContainTextAsync("Genre: E2E Action, E2E Komödie");
-        await Expect(row).ToContainTextAsync($"Quellen: {sourceName}");
+        await Expect(row).ToContainTextAsync("Genre: 2 Genre(n)");
+        await Expect(row).ToContainTextAsync("1 Quelle(n)");
+        await Expect(row).Not.ToContainTextAsync("E2E Action");
+        await Expect(row).Not.ToContainTextAsync("E2E Komödie");
+        await Expect(row).Not.ToContainTextAsync(sourceName);
 
         // Join rows persisted server-side.
         {
@@ -418,6 +426,7 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
         // Edit: the stored multi-selection is shown checked again.
         await row.Locator(".tvsender-rule-edit").ClickAsync();
         await Page.Locator("#rule-name").WaitForAsync();
+        await Expect(Page.Locator("#rule-material-selected")).ToContainTextAsync("E2E Action");
         Assert.True(await Page.Locator($"#rule-genre-{genreAId}").IsCheckedAsync());
         Assert.True(await Page.Locator($"#rule-genre-{genreBId}").IsCheckedAsync());
         Assert.True(await Page.Locator($"#rule-source-{sourceId}").IsCheckedAsync());

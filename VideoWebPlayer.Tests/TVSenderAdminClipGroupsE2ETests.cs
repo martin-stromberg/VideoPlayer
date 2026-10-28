@@ -216,8 +216,8 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
 
         var row = Page.Locator(".tvsender-rule-row", new PageLocatorOptions { HasText = "Primetime-Clips" });
         await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await Expect(row).ToContainTextAsync("Clips: Maskottchen");
-        await Expect(row).ToContainTextAsync("Trailer");
+        await Expect(row).ToContainTextAsync("2 Clip-Gruppe(n)");
+        await Expect(row).Not.ToContainTextAsync("Clips: Maskottchen");
 
         using (var scope = Services.CreateScope())
         {

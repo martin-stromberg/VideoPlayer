@@ -915,6 +915,61 @@ input[type="text"]:focus {
     white-space: nowrap;
 }
 
+/* Regel-Uebersicht: ein Panel je Programmregel — Status-/Prioritaets-Chips vor dem
+   Namen, Symbolbuttons rechts, gedaempfte Meta-Zeilen darunter. Vertikaler Stack
+   uebernimmt .program-grid; Form nach Vorbild .program-card/.backup-list-item. */
+.admin-console .rule-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    background: var(--admin-surface-low);
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+}
+
+.admin-console .rule-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.admin-console .rule-panel-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.admin-console .rule-panel-name {
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-console .rule-panel-meta {
+    color: var(--admin-muted);
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+.admin-console .rule-panel-material {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-console .rule-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
 /* ---------- TV-Sender: Probe-Detail-Listen (N13) ---------- */
 .probe-counts {
     display: flex;

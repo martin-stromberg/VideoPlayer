@@ -111,7 +111,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             // set depends on the freshly computed movie airings of this very run.
             var items = rule.MaterialType == ProgramRuleMaterialType.Trailer
                 ? new List<SchedulableItem>()
-                : await ExpandMaterialAsync(rule, access, summary, cancellationToken);
+                : await ExpandMaterialAsync(rule, access, summary, null, coverageStart, cancellationToken);
             var state = new RuleState(rule, items, cursors.GetValueOrDefault(rule.Id) ?? []);
             // Trailer clip groups expand late (after materialization) — their candidate set
             // depends on the freshly computed movie airings of this run.
@@ -208,11 +208,24 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // the configured maximum lookback: airings whose real start lies more than a day back
         // (marathon blocks, multi-day broadcasts) need their head slots and invader evidence
         // loaded for the reproducibility check.
-        Task<List<ProgramSlot>> LoadScheduledAsync(DateTime from)
-            => _db.ProgramSlots
-                .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled && s.End > from)
+        // Displaced rows ride along in the same query — invader evidence only: their occupancy
+        // at the materialization time is what legitimately shifted an airing, and it stays
+        // provable after the invader itself is displaced (Reload keeps them out of
+        // Airings/Scheduled).
+        async Task<(List<ProgramSlot> Scheduled, List<ProgramSlot> DisplacedEvidence)> LoadWindowAsync(DateTime from)
+        {
+            // The split keys off the projected database status, not the entity property: a
+            // tracked instance keeps a stale Status after a bulk ExecuteUpdate (e.g. the admin
+            // cleanup of displaced rows) and would otherwise be sorted into the wrong list.
+            var rows = await _db.ProgramSlots
+                .Where(s => s.TVChannelId == channel.Id && s.End > from
+                    && (s.Status == ProgramSlotStatus.Scheduled || s.Status == ProgramSlotStatus.Displaced))
                 .OrderBy(s => s.Start)
+                .Select(s => new { Slot = s, s.Status })
                 .ToListAsync(cancellationToken);
+            return (rows.Where(r => r.Status == ProgramSlotStatus.Scheduled).Select(r => r.Slot).ToList(),
+                rows.Where(r => r.Status == ProgramSlotStatus.Displaced).Select(r => r.Slot).ToList());
+        }
 
         // Everything derived from the loaded slot window lives in the ReconcileWindow — Reload()
         // re-derives and re-validates it atomically on every (re-)load, so no structure of a
@@ -225,14 +238,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // partially materialized head leaves no slot row at the edge, or a Scheduled gap covers
         // it), the validation-driven widening below decides instead.
         var loadFrom = coverageStart - OccurrenceLookback;
-        var scheduled = await LoadScheduledAsync(loadFrom);
+        var (scheduled, displacedEvidence) = await LoadWindowAsync(loadFrom);
         var widened = scheduled.Any(s => s.Start <= loadFrom);
         if (widened)
         {
             loadFrom = coverageStart - _maxOccurrenceLookback;
-            scheduled = await LoadScheduledAsync(loadFrom);
+            (scheduled, displacedEvidence) = await LoadWindowAsync(loadFrom);
         }
-        window.Reload(loadFrom, scheduled);
+        window.Reload(loadFrom, scheduled, displacedEvidence);
 
         // Validation-driven widening (only when the trigger did not already widen): an invalid
         // airing of an active rule reaching into the coverage may merely miss pre-window context
@@ -240,7 +253,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // invalid either way (the second pass costs a bounded reload, nothing more).
         if (!widened && window.HasRescuableInvalid)
         {
-            window.Reload(coverageStart - _maxOccurrenceLookback, await LoadScheduledAsync(coverageStart - _maxOccurrenceLookback));
+            var widenedFrom = coverageStart - _maxOccurrenceLookback;
+            var (widenedScheduled, widenedDisplaced) = await LoadWindowAsync(widenedFrom);
+            window.Reload(widenedFrom, widenedScheduled, widenedDisplaced);
         }
 
         var displaced = new List<ProgramSlot>();
@@ -727,7 +742,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 {
                     var slot = airing[offset + i];
                     var item = expected.Taken[headPick + i];
-                    if (slot.MediaItemId != item.MediaItemId || slot.Start != start || slot.End != start + item.Duration)
+                    if (!SlotMatchesItem(slot, item, start))
                     {
                         matches = false;
                         break;
@@ -929,13 +944,17 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         if (pos >= p)
                         {
                             var slot = airing[offset + pos - p];
-                            if (slot.MediaItemId != pk.Item.MediaItemId || slot.Start != start || slot.End != start + pk.Item.Duration)
+                            if (!SlotMatchesItem(slot, pk.Item, start))
                             {
                                 matches = false;
                                 break;
                             }
+                            start = slot.End;
                         }
-                        start += pk.Item.Duration;
+                        else
+                        {
+                            start += pk.Item.Duration;
+                        }
                         pos++;
                     }
                     if (matches && pos == picks.Picks.Count
@@ -1045,21 +1064,25 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         // Sets the load-window edge together with the freshly loaded slots and atomically
         // re-derives (Rebuild) and re-validates (Validate) — a reload can never leave stale
-        // derived state or validation results behind.
-        public void Reload(DateTime loadFrom, List<ProgramSlot> scheduled)
+        // derived state or validation results behind. Displaced rows join solely as invader
+        // evidence: the historical occupancy that legitimately shifted an airing stays provable
+        // after the invader itself is displaced — it never counts as coverage.
+        public void Reload(DateTime loadFrom, List<ProgramSlot> scheduled, List<ProgramSlot> displacedEvidence)
         {
             Scheduled = scheduled;
-            Rebuild(loadFrom);
+            Rebuild(loadFrom, displacedEvidence);
             Validate();
         }
 
-        private void Rebuild(DateTime loadFrom)
+        private void Rebuild(DateTime loadFrom, List<ProgramSlot> displacedEvidence)
         {
             // Invader evidence for the reproducibility check: an airing that starts later than
             // its nominal occurrence start is only plausible when an occupied slot covered that
             // start — grouped by the invader's exact end (the shifted airing starts there
-            // contiguously).
+            // contiguously). Displaced rows contribute the same evidence: the shift was proven
+            // at materialization time and stays provable after the invader is displaced.
             _invaderStarts = Scheduled
+                .Concat(displacedEvidence)
                 .GroupBy(s => s.End)
                 .ToDictionary(g => g.Key, g => g.Min(s => s.Start));
 
@@ -1198,7 +1221,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         long? TVShowEpisodeId,
         TimeSpan Duration,
         string StrandKey = "",
-        int? AgeRatingMinAge = null);
+        int? AgeRatingMinAge = null)
+    {
+        // Every probed media file linked to the same content — the slot comparison accepts any
+        // of them: a representative switch alone changes nothing about the airing.
+        public IReadOnlyList<MediaItemVariant> MediaItemAlternates { get; init; } = [];
+    }
 
     // Strand key of the shared strand holding all non-episode content of a genre expansion
     // (movies rotate through it like a series of their own — sequential, not looping daily).
@@ -2107,9 +2135,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
     // ---- material expansion ----
 
-    private async Task<List<SchedulableItem>> ExpandMaterialAsync(ProgramRule rule, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
-        => await ExpandMaterialAsync(rule, access, summary, null, DateTime.UtcNow, cancellationToken);
-
     private async Task<List<SchedulableItem>> ExpandMaterialAsync(ProgramRule rule, AccessContext access, SummaryCounters summary,
         IReadOnlyDictionary<long, List<DateTime>>? airingsByMovie, DateTime coverageStart, CancellationToken cancellationToken)
     {
@@ -2118,7 +2143,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             ProgramRuleMaterialType.TVShow => await ExpandShowAsync(rule.MaterialId, access, summary, cancellationToken),
             ProgramRuleMaterialType.Movie => await ExpandMovieAsync(rule.MaterialId, access, summary, cancellationToken),
             ProgramRuleMaterialType.MovieCollection => await ExpandMovieCollectionAsync(rule.MaterialId, access, summary, cancellationToken),
-            ProgramRuleMaterialType.Genre => await ExpandGenreAsync(rule, access, summary, cancellationToken),
+            ProgramRuleMaterialType.Genre => await ExpandGenreAsync(rule, access, summary, coverageStart, cancellationToken),
             ProgramRuleMaterialType.Playlist => await ExpandPlaylistAsync(rule.MaterialId, access, summary, cancellationToken),
             ProgramRuleMaterialType.Trailer => await ExpandTrailersAsync(access, airingsByMovie ?? new Dictionary<long, List<DateTime>>(), coverageStart, summary, cancellationToken),
             ProgramRuleMaterialType.MediaSourceClips => await ExpandMediaSourceClipsAsync(rule.MaterialId, access, summary, cancellationToken),
@@ -2141,31 +2166,48 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // a probed duration are preferred — ties keep the historical lowest-MediaItemId choice.
     private sealed record MediaItemRef(long MediaItemId, TimeSpan? Duration, DateTime? DurationProbedAt, int DurationProbeAttempts);
 
-    private async Task<Dictionary<long, MediaItemRef>> MovieMediaItemsAsync(IReadOnlyCollection<long> movieIds, CancellationToken cancellationToken)
+    // One probed alternative file of a content — the slot comparison checks the stored file's
+    // own runtime, so the variant carries (id, duration) only.
+    private sealed record MediaItemVariant(long MediaItemId, TimeSpan Duration);
+
+    // Result of the per-content representative pick: the chosen link plus every probed
+    // alternative file linked to the same content.
+    private sealed record MediaItemChoice(MediaItemRef Representative, IReadOnlyList<MediaItemVariant> Alternates);
+
+    // Shared projection shape of the per-content link queries below — the content id differs
+    // (MovieId vs. TVShowEpisodeId), everything else feeds the identical choice grouping.
+    private sealed record MediaItemLink(long ContentId, long MediaItemId, TimeSpan? Duration, DateTime? DurationProbedAt, int DurationProbeAttempts);
+
+    private async Task<Dictionary<long, MediaItemChoice>> MovieMediaItemsAsync(IReadOnlyCollection<long> movieIds, CancellationToken cancellationToken)
     {
         var links = await _db.MovieMediaItems
             .Where(l => movieIds.Contains(l.MovieId) && !l.IsTrailer)
-            .Select(l => new { l.MovieId, l.MediaItemId, l.MediaItem.Duration, l.MediaItem.DurationProbedAt, l.MediaItem.DurationProbeAttempts })
+            .Select(l => new MediaItemLink(l.MovieId, l.MediaItemId, l.MediaItem.Duration, l.MediaItem.DurationProbedAt, l.MediaItem.DurationProbeAttempts))
             .ToListAsync(cancellationToken);
-        return links.GroupBy(l => l.MovieId).ToDictionary(
-            g => g.Key,
-            g => g.OrderBy(l => l.Duration is null ? 1 : 0).ThenBy(l => l.MediaItemId)
-                .Select(l => new MediaItemRef(l.MediaItemId, l.Duration, l.DurationProbedAt, l.DurationProbeAttempts))
-                .First());
+        return ToMediaItemChoices(links);
     }
 
-    private async Task<Dictionary<long, MediaItemRef>> EpisodeMediaItemsAsync(IReadOnlyCollection<long> episodeIds, CancellationToken cancellationToken)
+    private async Task<Dictionary<long, MediaItemChoice>> EpisodeMediaItemsAsync(IReadOnlyCollection<long> episodeIds, CancellationToken cancellationToken)
     {
         var links = await _db.TVShowEpisodeMediaItems
             .Where(l => episodeIds.Contains(l.TVShowEpisodeId))
-            .Select(l => new { l.TVShowEpisodeId, l.MediaItemId, l.MediaItem.Duration, l.MediaItem.DurationProbedAt, l.MediaItem.DurationProbeAttempts })
+            .Select(l => new MediaItemLink(l.TVShowEpisodeId, l.MediaItemId, l.MediaItem.Duration, l.MediaItem.DurationProbedAt, l.MediaItem.DurationProbeAttempts))
             .ToListAsync(cancellationToken);
-        return links.GroupBy(l => l.TVShowEpisodeId).ToDictionary(
-            g => g.Key,
-            g => g.OrderBy(l => l.Duration is null ? 1 : 0).ThenBy(l => l.MediaItemId)
-                .Select(l => new MediaItemRef(l.MediaItemId, l.Duration, l.DurationProbedAt, l.DurationProbeAttempts))
-                .First());
+        return ToMediaItemChoices(links);
     }
+
+    // Groups the links per content into the representative pick (probed duration first, ties by
+    // lowest MediaItemId) plus the alternates list of every probed link.
+    private static Dictionary<long, MediaItemChoice> ToMediaItemChoices(List<MediaItemLink> links)
+        => links.GroupBy(l => l.ContentId).ToDictionary(
+            g => g.Key,
+            g => new MediaItemChoice(
+                g.OrderBy(l => l.Duration is null ? 1 : 0).ThenBy(l => l.MediaItemId)
+                    .Select(l => new MediaItemRef(l.MediaItemId, l.Duration, l.DurationProbedAt, l.DurationProbeAttempts))
+                    .First(),
+                g.Where(l => l.Duration is not null)
+                    .Select(l => new MediaItemVariant(l.MediaItemId, l.Duration!.Value))
+                    .ToList()));
 
     // Shared skip-reason bookkeeping for a candidate whose media item is missing or unprobed.
     // All three cases still count as SkippedNoDuration for the public run summary; the diagnosis
@@ -2187,10 +2229,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
     }
 
-    private SchedulableItem? TryMovieItem(Movie movie, Dictionary<long, MediaItemRef> mediaItems, AccessContext access, SummaryCounters summary)
+    private SchedulableItem? TryMovieItem(Movie movie, Dictionary<long, MediaItemChoice> mediaItems, AccessContext access, SummaryCounters summary)
     {
         summary.Candidates++;
-        mediaItems.TryGetValue(movie.Id, out var media);
+        mediaItems.TryGetValue(movie.Id, out var choice);
+        var media = choice?.Representative;
         if (media?.Duration is null)
         {
             CountNoDuration(media, summary);
@@ -2201,7 +2244,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             summary.SkippedNoAccess++;
             return null;
         }
-        return new SchedulableItem(ProgramCursorContentType.Movie, movie.Id, media.MediaItemId, movie.Id, null, media.Duration.Value, AgeRatingMinAge: movie.AgeRatingMinAge);
+        return new SchedulableItem(ProgramCursorContentType.Movie, movie.Id, media.MediaItemId, movie.Id, null, media.Duration.Value, AgeRatingMinAge: movie.AgeRatingMinAge)
+        {
+            MediaItemAlternates = choice!.Alternates
+        };
     }
 
     private async Task<List<SchedulableItem>> ExpandShowAsync(long showId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
@@ -2235,10 +2281,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // Minimal carrier for episode fields needed by ToItem (id + source).
     private sealed record ProxyEpisode(long Id, long MediaSourceId);
 
-    private SchedulableItem? ToItem(ProxyEpisode episode, long showId, Dictionary<long, MediaItemRef> mediaItems, AccessContext access, SummaryCounters summary, int? ageRatingMinAge)
+    private SchedulableItem? ToItem(ProxyEpisode episode, long showId, Dictionary<long, MediaItemChoice> mediaItems, AccessContext access, SummaryCounters summary, int? ageRatingMinAge)
     {
         summary.Candidates++;
-        mediaItems.TryGetValue(episode.Id, out var media);
+        mediaItems.TryGetValue(episode.Id, out var choice);
+        var media = choice?.Representative;
         if (media?.Duration is null)
         {
             CountNoDuration(media, summary);
@@ -2249,7 +2296,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             summary.SkippedNoAccess++;
             return null;
         }
-        return new SchedulableItem(ProgramCursorContentType.TVShowEpisode, episode.Id, media.MediaItemId, null, episode.Id, media.Duration.Value, AgeRatingMinAge: ageRatingMinAge);
+        return new SchedulableItem(ProgramCursorContentType.TVShowEpisode, episode.Id, media.MediaItemId, null, episode.Id, media.Duration.Value, AgeRatingMinAge: ageRatingMinAge)
+        {
+            MediaItemAlternates = choice!.Alternates
+        };
     }
 
     private async Task<List<SchedulableItem>> ExpandMovieAsync(long movieId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
@@ -2297,7 +2347,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // the genre rows and the resulting content; empty filter = all sources. Rules without
     // ProgramRuleGenre rows (legacy data, old backups) fall back to MaterialId as the single
     // genre.
-    private async Task<List<SchedulableItem>> ExpandGenreAsync(ProgramRule rule, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
+    private async Task<List<SchedulableItem>> ExpandGenreAsync(ProgramRule rule, AccessContext access, SummaryCounters summary, DateTime coverageStart, CancellationToken cancellationToken)
     {
         var sourceFilter = rule.MediaSourceFilters.Select(s => s.MediaSourceId).ToHashSet();
         var storedIds = rule.Genres.Count > 0
@@ -2324,7 +2374,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var allRows = scopedGenres
             .Concat(storedGenres.Where(s => scopedGenres.All(g => g.Id != s.Id)))
             .ToList();
-        var canonicalNames = GenreCanonicalResolver.ResolveCanonicalNames(allRows, DateTime.UtcNow);
+        var canonicalNames = GenreCanonicalResolver.ResolveCanonicalNames(allRows, coverageStart);
 
         var selectedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var stored in storedGenres)
@@ -3012,5 +3062,20 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         for (var j = airingStartIndex; j < rebuilt.Count; j++)
             blocked.Add(new Interval(rebuilt[j].Start, rebuilt[j].End));
+    }
+
+    // Slot-vs-item match of the reproducibility checks: the slot's stored media item may be the
+    // content's current representative or any of its still-linked probed alternates — a
+    // representative switch alone changes nothing about the airing. The slot's length must
+    // match the stored item's own runtime (a re-linked file with a different runtime is a real
+    // change); an unlinked/deleted stored item matches nothing and the airing is displaced.
+    private static bool SlotMatchesItem(ProgramSlot slot, SchedulableItem item, DateTime expectedStart)
+    {
+        if (slot.Start != expectedStart)
+            return false;
+        var duration = item.MediaItemId == slot.MediaItemId
+            ? item.Duration
+            : item.MediaItemAlternates.FirstOrDefault(a => a.MediaItemId == slot.MediaItemId)?.Duration;
+        return duration is not null && slot.End == expectedStart + duration.Value;
     }
 }

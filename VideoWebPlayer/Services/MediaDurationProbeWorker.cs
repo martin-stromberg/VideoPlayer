@@ -19,6 +19,7 @@ public sealed class MediaDurationProbeWorker : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<MediaProbeOptions> _options;
     private readonly ILogger<MediaDurationProbeWorker> _logger;
+    private readonly IProgramScheduleSignal? _signal;
     private readonly TimeSpan _initialDelay;
     private readonly TimeProvider _timeProvider;
 
@@ -30,18 +31,23 @@ public sealed class MediaDurationProbeWorker : BackgroundService
     /// <param name="logger">Logger instance.</param>
     /// <param name="initialDelay">Optional delay before the first probe pass (default 10 seconds).</param>
     /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
+    /// <param name="signal">Optional wake-up line whose scan scope bundles the per-batch probe
+    /// signals into a single wake per probe pass; when <see langword="null"/> the signal is
+    /// resolved from the DI scope.</param>
     public MediaDurationProbeWorker(
         IServiceScopeFactory scopeFactory,
         IOptions<MediaProbeOptions> options,
         ILogger<MediaDurationProbeWorker> logger,
         TimeSpan? initialDelay = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IProgramScheduleSignal? signal = null)
     {
         _scopeFactory = scopeFactory;
         _options = options;
         _logger = logger;
         _initialDelay = initialDelay ?? TimeSpan.FromSeconds(10);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _signal = signal;
     }
 
     /// <inheritdoc />
@@ -72,6 +78,11 @@ public sealed class MediaDurationProbeWorker : BackgroundService
                             : await gate.EnterOperationAsync("Laufzeitermittlung", stoppingToken);
 
                         var batchSize = _options.Value.EffectiveBatchSize;
+                        // The backlog loop fires NotifyScheduleChanged once per batch — the scan
+                        // scope suppresses the per-batch wake-ups and the schedule worker wakes
+                        // exactly once when the whole pass is done.
+                        var signal = _signal ?? scope.ServiceProvider.GetService<IProgramScheduleSignal>();
+                        using var scan = signal?.BeginScan();
                         int processed;
                         do
                         {

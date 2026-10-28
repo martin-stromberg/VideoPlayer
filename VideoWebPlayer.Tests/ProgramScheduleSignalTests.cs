@@ -41,5 +41,20 @@ public sealed class ProgramScheduleSignalTests
             Assert.False(await Task.WhenAny(wait, Task.Delay(200, TestContext.Current.CancellationToken)) == wait, "Notification during a scan must be suppressed.");
         }
         Assert.True(await Task.WhenAny(wait, Task.Delay(2000, TestContext.Current.CancellationToken)) == wait, "End of scan must wake the pending waiter.");
+        var second = signal.WaitAsync(TestContext.Current.CancellationToken).AsTask();
+        Assert.False(await Task.WhenAny(second, Task.Delay(200, TestContext.Current.CancellationToken)) == second, "Suppressed notifications of one scan must coalesce into a single wake.");
+    }
+
+    [Fact]
+    public async Task ScanEnd_WithoutSuppressedNotification_DoesNotWake()
+    {
+        var signal = new ProgramScheduleSignal();
+        using (signal.BeginScan())
+        {
+        }
+
+        var wait = signal.WaitAsync(TestContext.Current.CancellationToken).AsTask();
+        Assert.False(await Task.WhenAny(wait, Task.Delay(300, TestContext.Current.CancellationToken)) == wait,
+            "A scan that suppressed no notification must not wake the worker on dispose.");
     }
 }

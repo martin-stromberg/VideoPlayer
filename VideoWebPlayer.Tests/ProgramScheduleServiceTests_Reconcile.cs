@@ -673,4 +673,167 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         Assert.Contains(await DisplacedAsync(fixture, ct), s => s.ProgramRuleId == rule.Id);
         Assert.Contains(await ScheduledAsync(fixture, ct), s => s.ProgramRuleId == rule.Id);
     }
+
+    // Issue #290 reproduction: the movie's lower-id file is unprobed, so the second (higher-id)
+    // link is the representative file the plan is written with. Once the probe completes on the
+    // first file the representative flips — the airing itself is unchanged (same content, same
+    // positions) and must stay scheduled; today the strict MediaItemId check displaces it.
+    [Fact]
+    public async Task Reconcile_MovieSecondMediaItemProbed_SlotStaysScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-probe-flip-movie", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
+        var seededItemId = (await fixture.Db.MovieMediaItems.Where(l => l.MovieId == movie.Id).Select(l => l.MediaItemId).ToListAsync(ct)).Single();
+        // Second, higher-id link — probed; the seeded item loses its duration (probe pending).
+        var secondItem = await fixture.CreateMediaItemAsync(duration: TimeSpan.FromMinutes(90));
+        await fixture.LinkMovieMediaItemAsync(movie.Id, secondItem.Id);
+        await fixture.Db.MediaItems.Where(m => m.Id == seededItemId)
+            .ExecuteUpdateAsync(u => u.SetProperty(m => m.Duration, (TimeSpan?)null), ct);
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Primetime", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id);
+        var filler = await fixture.CreateMovieAsync("Füller", duration: TimeSpan.FromMinutes(20));
+        await fixture.CreateRuleAsync(channel.Id, "Füller", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, filler.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+        var movieSlots = (await ScheduledAsync(fixture, ct)).Where(s => s.MovieId == movie.Id).ToList();
+        Assert.NotEmpty(movieSlots);
+        Assert.All(movieSlots, s => Assert.Equal(secondItem.Id, s.MediaItemId));
+
+        // The probe completes on the seeded (lower-id) file — the representative flips while
+        // the written airing stays the same content at the same positions.
+        await fixture.Db.MediaItems.Where(m => m.Id == seededItemId)
+            .ExecuteUpdateAsync(u => u.SetProperty(m => m.Duration, (TimeSpan?)TimeSpan.FromMinutes(120)), ct);
+
+        var summary = await service.ReconcileAsync(now, ct);
+
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+        var after = (await ScheduledAsync(fixture, ct)).Where(s => s.MovieId == movie.Id).ToList();
+        Assert.Equal(movieSlots.Select(s => (s.Start, s.End, s.MediaItemId)).ToList(),
+            after.Select(s => (s.Start, s.End, s.MediaItemId)).ToList());
+        var second = await service.ReconcileAsync(now, ct);
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, second, ct, "2. Lauf");
+    }
+
+    // Episode counterpart of the representative flip: the seeded item of each episode is
+    // unprobed until after the coverage run — the second link carries the slot's MediaItemId.
+    [Fact]
+    public async Task Reconcile_EpisodeSecondMediaItemProbed_SlotStaysScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-probe-flip-episode", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var (show, _, episodes) = await fixture.CreateShowAsync("Serie", 4, duration: TimeSpan.FromMinutes(45));
+
+        var seededItemIds = await fixture.Db.TVShowEpisodeMediaItems
+            .Where(l => l.TVShowEpisode.TVShowSeason.TVShowId == show.Id)
+            .Select(l => l.MediaItemId).ToListAsync(ct);
+        foreach (var ep in episodes)
+        {
+            var secondItem = await fixture.CreateMediaItemAsync(duration: TimeSpan.FromMinutes(45));
+            await fixture.LinkEpisodeMediaItemAsync(ep.Id, secondItem.Id);
+        }
+        await fixture.Db.MediaItems.Where(m => seededItemIds.Contains(m.Id))
+            .ExecuteUpdateAsync(u => u.SetProperty(m => m.Duration, (TimeSpan?)null), ct);
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Abendserie", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.TVShow, show.Id, episodeCount: 2);
+        var filler = await fixture.CreateMovieAsync("Füller", duration: TimeSpan.FromMinutes(20));
+        await fixture.CreateRuleAsync(channel.Id, "Füller", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, filler.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+        var episodeSlots = (await ScheduledAsync(fixture, ct)).Where(s => s.TVShowEpisodeId is not null).ToList();
+        Assert.NotEmpty(episodeSlots);
+        Assert.All(episodeSlots, s => Assert.DoesNotContain(s.MediaItemId, seededItemIds));
+
+        await fixture.Db.MediaItems.Where(m => seededItemIds.Contains(m.Id))
+            .ExecuteUpdateAsync(u => u.SetProperty(m => m.Duration, (TimeSpan?)TimeSpan.FromMinutes(50)), ct);
+
+        var summary = await service.ReconcileAsync(now, ct);
+
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+        var after = (await ScheduledAsync(fixture, ct)).Where(s => s.TVShowEpisodeId is not null).ToList();
+        Assert.Equal(episodeSlots.Select(s => (s.Start, s.End, s.MediaItemId)).ToList(),
+            after.Select(s => (s.Start, s.End, s.MediaItemId)).ToList());
+        var second = await service.ReconcileAsync(now, ct);
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, second, ct, "2. Lauf");
+    }
+
+    // Guard for the tolerant slot check: unlinking the stored file is a real change — the
+    // airing is displaced exactly once and re-materialized with the remaining link; the
+    // follow-up run is stable.
+    [Fact]
+    public async Task Reconcile_UnlinkedMediaItem_StillDisplacesOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-unlinked-item", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
+        var seededItemId = (await fixture.Db.MovieMediaItems.Where(l => l.MovieId == movie.Id).Select(l => l.MediaItemId).ToListAsync(ct)).Single();
+        var secondItem = await fixture.CreateMediaItemAsync(duration: TimeSpan.FromMinutes(90));
+        await fixture.LinkMovieMediaItemAsync(movie.Id, secondItem.Id);
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Primetime", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id);
+        var filler = await fixture.CreateMovieAsync("Füller", duration: TimeSpan.FromMinutes(20));
+        await fixture.CreateRuleAsync(channel.Id, "Füller", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, filler.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+        var movieSlotCount = (await ScheduledAsync(fixture, ct)).Count(s => s.MovieId == movie.Id);
+        Assert.True(movieSlotCount > 0);
+
+        // Real change: the stored file leaves the movie — the slots must be replaced once.
+        await fixture.Db.MovieMediaItems.Where(l => l.MovieId == movie.Id && l.MediaItemId == seededItemId)
+            .ExecuteDeleteAsync(ct);
+
+        var summary = await service.ReconcileAsync(now, ct);
+
+        var displaced = (await DisplacedAsync(fixture, ct)).Where(s => s.MovieId == movie.Id).ToList();
+        Assert.Equal(movieSlotCount, displaced.Count);
+        Assert.All(displaced, s => Assert.Equal(seededItemId, s.MediaItemId));
+        var rescheduled = (await ScheduledAsync(fixture, ct)).Where(s => s.MovieId == movie.Id).ToList();
+        Assert.Equal(movieSlotCount, rescheduled.Count);
+        Assert.All(rescheduled, s => Assert.Equal(secondItem.Id, s.MediaItemId));
+
+        var second = await service.ReconcileAsync(now, ct);
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, second, ct, "2. Lauf");
+    }
+
+    // Issue #290 baseline: two reconcile runs with an identical time anchor and unchanged
+    // inputs — the second run must be a complete no-op (no displaced copies, no re-created
+    // slots). A failure here means the reconcile check is not idempotent even without any
+    // input change.
+    [Fact]
+    public async Task Reconcile_IdenticalUtcNow_SecondRunIsNoOp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-identical-now", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
+        var filler = await fixture.CreateMovieAsync("Füller", duration: TimeSpan.FromMinutes(20));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Primetime", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id);
+        await fixture.CreateRuleAsync(channel.Id, "Füller", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, filler.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+
+        await service.ReconcileAsync(now, ct);
+        var second = await service.ReconcileAsync(now, ct);
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, second, ct, "2. Lauf");
+    }
 }

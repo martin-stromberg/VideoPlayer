@@ -1,9 +1,10 @@
 # TV-Sender — Technischer Ablauf
 
-Technische Abläufe des automatischen TV-Senders in zwei Teilen: „Clip-Gruppen und
+Technische Abläufe des automatischen TV-Senders in vier Teilen: „Clip-Gruppen und
 Restzeit-Auffüllung" beschreibt die Sendeplan-Generierung mit Platzhalter-Clips,
 „Standby-Stream des Live-Streams" die Auslieferung der Warm-up-Phase und aller Zustände
-ohne produzierte Segmente.
+ohne produzierte Segmente, „Jugendschutzfenster" die altersgerechten Sendezeiten und
+„Stabile Neu-Bewertung des Sendeplans" die Lauf-zu-Lauf-Idempotenz der Re-Bewertung.
 
 ## Clip-Gruppen und Restzeit-Auffüllung
 
@@ -412,3 +413,90 @@ Die fünf `Setups`-Spalten stehen in `OptionalRestoreColumns`; Restore-Defaults:
 = 0), die vier Fensterzeiten via `OptionalRestoreTimeOnlyDefaults` (20:00/22:00/23:00/06:00).
 Der Regressionstest `VideoWebPlayerBackupDataTests_AgeWindows` stellt ein Alt-Backup ohne
 die Spalten wieder her.
+
+## Stabile Neu-Bewertung des Sendeplans (Idempotenz)
+
+### Übersicht
+
+`ReconcileAsync` gleicht die gespeicherten `Scheduled`-Sendeplätze gegen die aktuelle
+Regel-, Medien- und Zeitlage ab; ein Lauf ohne sachliche Eingabeänderung muss ein No-Op
+sein (`SlotsDisplaced == 0`, `SlotsCreated == 0`). Vier Mechanismen sichern das ab:
+der tolerante Sendeplatz-Vergleich über die Alternativ-Dateien eines Inhalts, eine
+durchgängig einheitliche Zeitbasis der Materialexpansion, `Displaced`-Zeilen als
+Verschiebungs-Evidenz und die Bündelung der Auslöse-Signale.
+
+### Repräsentantenwahl und toleranter Sendeplatz-Vergleich
+
+Zu einem Inhalt (Film/Episode) können mehrere `MediaItem`s verlinkt sein;
+`MovieMediaItemsAsync`/`EpisodeMediaItemsAsync` liefern je Inhalt eine `MediaItemChoice` —
+den Repräsentanten (unverändert: `Duration != null` bevorzugt, Tie-Break kleinste
+`MediaItemId`) plus `Alternates`, die Liste aller verlinkten Items mit `Duration != null`
+(`MediaItemVariant(MediaItemId, Duration)`; gemeinsame Projektion `MediaItemLink`,
+Gruppierung `ToMediaItemChoices`). `TryMovieItem`/`ToItem` übertragen die Liste auf
+`SchedulableItem.MediaItemAlternates` (Default leer).
+
+Schreibt `MediaDurationProbeService` einem bisher unbemessenen Item eine `Duration`, kann
+der bevorzugte Repräsentant wechseln, ohne dass sich die Ausstrahlung fachlich ändert.
+Der Slot-für-Slot-Vergleich der Reproduzierbarkeitsprüfung läuft deshalb über
+`SlotMatchesItem(slot, item, expectedStart)` (eingesetzt in `FlatAiringTailReproducible`
+und `InterleavedAiringTailReproducible`): Der Sendeplatz passt, wenn
+`slot.Start == expectedStart` gilt und `slot.MediaItemId` dem Repräsentanten entspricht
+**oder** unter `item.MediaItemAlternates` steht; geprüft wird `slot.End` gegen
+`expectedStart` plus der Laufzeit **der am Sendeplatz hinterlegten Datei**. In
+`InterleavedAiringTailReproducible` wandert die Positionskette über `start = slot.End`
+weiter (statt `start += item.Duration`), damit eine Alternativ-Datei mit abweichender
+Laufzeit konsistent bleibt. Ein entlinktes oder gelöschtes Item steht nicht unter den
+Alternativen — das ist eine echte Änderung und verdrängt genau einmal.
+
+### Einheitliche Zeitbasis der Expansion
+
+`ExpandMaterialAsync` verlangt `coverageStart` als Pflichtparameter — der frühere
+`DateTime.UtcNow`-Fallback entfällt: `ReconcileAsync` und `EnsureCoverageAsync`
+übergeben ihr `coverageStart` (bei `EnsureCoverageAsync` das Maximum aus Jetzt und dem
+letzten bekannten Sendeplatz-Ende), `GetRuleDiagnosesAsync` übergibt `nowUtc`.
+`ExpandGenreAsync` reicht den Parameter an
+`GenreCanonicalResolver.ResolveCanonicalNames` weiter (zuvor `DateTime.UtcNow`), sodass
+die Auflösung saisonaler/versteckter Genres auf demselben Zeitanker läuft wie der Rest
+des Laufs — ein Saison-Flip am Tages- oder Fensterwechsel bleibt eine legitime
+einmalige Verdrängung.
+
+### Verschiebungs-Evidenz aus der Verdrängt-Historie
+
+`ReconcileAsync` lädt das Slot-Fenster über `LoadWindowAsync`: eine Abfrage für
+`Scheduled`- **und** `Displaced`-Zeilen, getrennt über den projizierten Datenbank-Status —
+nicht über die Entity-Eigenschaft, weil ein getracktes `ProgramSlot` nach einem
+Bulk-`ExecuteUpdate` (z. B. „Verdrängte bereinigen" in derselben `DbContext`-Instanz)
+einen veralteten Status tragen kann. `ReconcileWindow.Reload(loadFrom, scheduled,
+displacedEvidence)` reicht die Verdrängt-Zeilen an `Rebuild`, das `_invaderStarts` aus
+`Scheduled.Concat(displacedEvidence)` gruppiert — ausschließlich als Evidenz:
+`Airings`/`FillerSlots`/`Scheduled` bleiben Scheduled-only. Damit bleibt eine berechtigt
+hinter einen anderen Sendeplatz gerückte Ausstrahlung beweisbar, nachdem der belegende
+Sendeplatz selbst verdrängt wurde — sonst pendelte die Ausstrahlung Lauf für Lauf
+zwischen Verschiebung und erneuter Verdrängung. Umgekehrt gilt: „Verdrängte bereinigen"
+entfernt diesen Beleg; eine Sendung, deren Verschiebung nur noch in einer verdrängten
+Zeile nachweisbar war, kann danach einmalig verdrängt und an ihrem Nominalstart neu
+eingeplant werden (Anwendersicht: `docs/help/tv-sender.md`).
+
+### Gebündelte Auslöse-Signale
+
+`MediaDurationProbeWorker.ExecuteAsync` öffnet um die
+`do … while (processed > 0)`-Backlog-Schleife einen `IProgramScheduleSignal.BeginScan()`-
+Scope (optionaler Konstruktorparameter `signal`, sonst Auflösung aus dem DI-Scope).
+`ProbePendingAsync` feuert weiterhin `NotifyScheduleChanged` je geschriebenem Batch —
+unter dem Scope unterdrückt; der Sendeplan-Worker wacht genau einmal je Probe-Durchlauf
+statt ⌈Backlog/BatchSize⌉-mal. `ProgramScheduleSignal` zählt dazu die unterdrückten
+Benachrichtigungen (`_suppressedNotifications`): `EndScan` weckt nur noch, wenn der Scope
+mindestens eine Meldung unterdrückt hat — ein scan-artiger Lauf ohne relevante Änderung
+löst keine leere Neu-Bewertung aus. Den Rennfall (letztes Scope-Ende zwischen
+Statusprüfung und Zähler-Erhöhung) fängt `NotifyScheduleChanged` ab, indem es die Meldung
+dann direkt zustellt.
+
+### Grenzen
+
+- **Weiche Referenzen:** Ein am Sendeplatz hinterlegtes Item, das inzwischen gelöscht oder
+  entlinkt wurde, steht nicht unter `MediaItemAlternates` — Verdrängung und Neuplanung
+  genau einmal, wie bisher.
+- **`SlotDuration`-Ausstrahlungen mit abweichender Alternativ-Laufzeit:** Die
+  Neusimulation zählt Picks über die Repräsentanten-Laufzeit; weicht die hinterlegte
+  Datei ab, kann die Take-Anzahl nicht reproduziert werden — einmalige Verdrängung
+  (echte Änderung, bewusst konservativ).

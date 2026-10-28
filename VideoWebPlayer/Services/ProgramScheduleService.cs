@@ -500,13 +500,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // Nur einmalige Zeiträume laufen ab — einseitig offene Regeln ohne Bis-Datum und alle
         // wiederkehrenden Fenster bleiben bestehen. Die FK-Kaskade entfernt Fortsetzungsstände
         // und Join-Zeilen mit; die Sendeplätze bleiben als weiche Referenz (Historie) erhalten
-        // und werden vom folgenden Reconcile-Lauf verdrängt.
-        var expired = await _db.ProgramRules
+        // und werden vom folgenden Reconcile-Lauf verdrängt. Das Ablauf-Prädikat selbst liegt
+        // in ProgramRuleValidity.IsExpired — die EF-Abfrage grenzt nur grob ein.
+        var candidates = await _db.ProgramRules
             .Where(r => r.TVChannelId == channel.Id
                 && r.ValidityMode == ProgramRuleValidityMode.OneTime
-                && r.ValidTo != null
-                && r.ValidTo < localDay)
+                && r.ValidTo != null)
             .ToListAsync(cancellationToken);
+        var expired = candidates.Where(r => ProgramRuleValidity.IsExpired(r, localDay)).ToList();
         if (expired.Count == 0)
             return 0;
 
@@ -2037,13 +2038,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             while (fillAt < gap.End && progressed)
             {
                 progressed = false;
-                var fillDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(fillAt, TimeZoneInfo.Local));
                 foreach (var filler in fillerStates)
                 {
                     if (fillAt >= gap.End)
                         break;
                     // Filler rules have no occurrences — their validity window is checked per
-                    // gap position: a filler outside its window does not fill.
+                    // gap position: a filler outside its window does not fill. The day is taken
+                    // from the current position — fillAt may cross local midnight within a round.
+                    var fillDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(fillAt, TimeZoneInfo.Local));
                     if (!ProgramRuleValidity.IsValidOn(filler.Rule, fillDay))
                         continue;
                     var take = 1;
@@ -2114,13 +2116,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 // aufgegeben, sondern zum nächsten Tageswechsel gesprungen — ein wiederkehrendes
                 // Fenster kann am Folgetag wieder offen sein. Der übersprungene Abschnitt bleibt
                 // eine echte Lücke und fließt in die Restzeit-Summe.
-                if (!progressed && fillAt < gap.End
-                    && fillerStates.All(f => !ProgramRuleValidity.IsValidOn(f.Rule, fillDay)))
+                if (!progressed && fillAt < gap.End)
                 {
-                    var dayEnd = TimeZoneInfo.ConvertTimeToUtc(fillDay.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeZoneInfo.Local);
-                    summary.RemainingGapSeconds += (long)(Math.Min(dayEnd.Ticks, gap.End.Ticks) - fillAt.Ticks) / TimeSpan.TicksPerSecond;
-                    fillAt = dayEnd;
-                    progressed = fillAt < gap.End;
+                    var restDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(fillAt, TimeZoneInfo.Local));
+                    if (fillerStates.All(f => !ProgramRuleValidity.IsValidOn(f.Rule, restDay)))
+                    {
+                        var dayEnd = TimeZoneInfo.ConvertTimeToUtc(restDay.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeZoneInfo.Local);
+                        summary.RemainingGapSeconds += (long)(Math.Min(dayEnd.Ticks, gap.End.Ticks) - fillAt.Ticks) / TimeSpan.TicksPerSecond;
+                        fillAt = dayEnd;
+                        progressed = fillAt < gap.End;
+                    }
                 }
             }
 

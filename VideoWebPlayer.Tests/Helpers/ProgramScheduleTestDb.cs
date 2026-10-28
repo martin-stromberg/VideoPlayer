@@ -271,7 +271,6 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         IEnumerable<long>? clipGroupIds = null, TimeSpan? placeholderGrace = null,
         ProgramRuleValidityInput? validity = null)
     {
-        var validityMode = validity?.Mode ?? ProgramRuleValidityMode.Unrestricted;
         var rule = new ProgramRule
         {
             TVChannelId = channelId,
@@ -288,18 +287,11 @@ internal sealed class ProgramScheduleTestDb : IDisposable
             Priority = priority,
             IsActive = isActive,
             PlaceholderGrace = placeholderGrace ?? ProgramRule.DefaultPlaceholderGrace,
-            ValidityMode = validityMode,
-            ValidFrom = validityMode is ProgramRuleValidityMode.OneTime or ProgramRuleValidityMode.AnnualWindow ? validity?.From : null,
-            ValidTo = validityMode is ProgramRuleValidityMode.OneTime or ProgramRuleValidityMode.AnnualWindow ? validity?.To : null,
-            ValidFromDay = validityMode == ProgramRuleValidityMode.MonthlyWindow ? validity?.FromDay : null,
-            ValidToDay = validityMode == ProgramRuleValidityMode.MonthlyWindow ? validity?.ToDay : null,
-            ValidWeekdays = validityMode == ProgramRuleValidityMode.WeeklyWindow ? validity?.Weekdays : null,
-            ValidHolidayAnchor = validityMode == ProgramRuleValidityMode.HolidayWindow ? validity?.HolidayAnchor : null,
-            ValidHolidayBeforeDays = validityMode == ProgramRuleValidityMode.HolidayWindow ? validity?.HolidayBeforeDays : null,
-            ValidHolidayAfterDays = validityMode == ProgramRuleValidityMode.HolidayWindow ? validity?.HolidayAfterDays : null,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
+        // Same mode-to-field normalization the service persists with — not a local copy.
+        ProgramRuleService.ApplyValidity(rule, validity);
         Db.ProgramRules.Add(rule);
         await SaveDiagAsync();
         if (genreIds is not null)

@@ -132,6 +132,10 @@ public sealed class ProgramScheduleServiceTests_Reconcile
 
         var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
         // Gültigkeitszeitraum 25.–26.10.: Occurrences auf beiden Tagen, dann Fenster verengt.
+        // Der Horizont muss über die Occurrence am 26.10. 20:00 (~56 h) hinausreichen.
+        var setup = await fixture.Db.Setups.FirstAsync(ct);
+        setup.ProgramScheduleHorizonHours = 96;
+        await fixture.Db.SaveChangesAsync(ct);
         var rule = await fixture.CreateRuleAsync(channel.Id, "Primetime", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
             new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id,
             validity: new ProgramRuleValidityInput(ProgramRuleValidityMode.OneTime,

@@ -243,8 +243,11 @@ public sealed class ProgramScheduleServiceTests_Generation
         var channel = await fixture.GetChannelAsync(ct);
         var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(90));
 
-        // Monatsfenster Tag 25–31: innerhalb des Horizonts nur der 25. und 26.10.
+        // Monatsfenster Tag 25–31: im 96-h-Horizont (bis 28.10. 12:00) nur der 25.–27.10.
         var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        var setup = await fixture.Db.Setups.FirstAsync(ct);
+        setup.ProgramScheduleHorizonHours = 96;
+        await fixture.Db.SaveChangesAsync(ct);
         await fixture.CreateRuleAsync(channel.Id, "Monatsfenster", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
             new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id,
             validity: new ProgramRuleValidityInput(ProgramRuleValidityMode.MonthlyWindow, FromDay: 25, ToDay: 31));
@@ -252,7 +255,7 @@ public sealed class ProgramScheduleServiceTests_Generation
         await fixture.CreateService().EnsureCoverageAsync(now, ct);
 
         var ruleSlots = (await fixture.SlotsAsync(ct)).Where(s => s.RuleType == ProgramRuleType.MoviePrimeTime).ToList();
-        Assert.Equal(2, ruleSlots.Count);
+        Assert.Equal(3, ruleSlots.Count);
         Assert.All(ruleSlots, s =>
         {
             var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(s.Start, DateTimeKind.Utc), Tz);
@@ -359,6 +362,35 @@ public sealed class ProgramScheduleServiceTests_Generation
             var local = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(s.Start, DateTimeKind.Utc), Tz));
             Assert.Equal(new DateOnly(2026, 10, 25), local);
         });
+    }
+
+    [Fact]
+    public async Task EnsureCoverage_FillerExpiringAtMidnight_DoesNotFillNextDay()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("schedule-validity-filler-midnight", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var dayFiller = await fixture.CreateMovieAsync("Tagesfüller", duration: TimeSpan.FromMinutes(120));
+        var todayFiller = await fixture.CreateMovieAsync("Nur-Heute-Füller", duration: TimeSpan.FromMinutes(30));
+
+        // Der 120-Minuten-Füller schiebt die Lückenposition über die lokale Mitternacht
+        // (22:00 → 00:00); die zweite Regel ist nur am 24.10. gültig und darf den Slot um
+        // 00:00 auf dem Folgetag nicht füllen — die Gültigkeit gilt pro Lückenposition,
+        // nicht pro Füller-Runde.
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 22, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Tagesfüller", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, dayFiller.Id, priority: 5, episodeCount: 1);
+        var todayRule = await fixture.CreateRuleAsync(channel.Id, "Nur heute", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, todayFiller.Id, priority: 1, episodeCount: 1,
+            validity: new ProgramRuleValidityInput(ProgramRuleValidityMode.OneTime,
+                From: new DateOnly(2026, 10, 24), To: new DateOnly(2026, 10, 24)));
+
+        await fixture.CreateService().EnsureCoverageAsync(now, ct);
+
+        var slots = await fixture.SlotsAsync(ct);
+        Assert.NotEmpty(slots);
+        Assert.DoesNotContain(slots, s => s.ProgramRuleId == todayRule.Id);
+        ProgramScheduleTestDb.AssertGapless(slots, now.UtcDateTime, now.UtcDateTime.AddHours(48));
     }
 
     [Fact]

@@ -185,7 +185,9 @@ public sealed class ProgramRuleService : IProgramRuleService
 
     // Persists the validity mode plus only the window fields matching it — every field that does
     // not belong to the mode is normalized to null (same practice as DayOfWeek/SingleDate).
-    private static void ApplyValidity(ProgramRule rule, ProgramRuleValidityInput? validity)
+    // internal: the single normalization rule is shared with the test seed helper
+    // (ProgramScheduleTestDb.CreateRuleAsync) via InternalsVisibleTo.
+    internal static void ApplyValidity(ProgramRule rule, ProgramRuleValidityInput? validity)
     {
         var mode = validity?.Mode ?? ProgramRuleValidityMode.Unrestricted;
         rule.ValidityMode = mode;

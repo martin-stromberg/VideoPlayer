@@ -1,9 +1,11 @@
 # TV-Sender — Technischer Ablauf
 
-Technische Abläufe des automatischen TV-Senders in vier Teilen: „Clip-Gruppen und
+Technische Abläufe des automatischen TV-Senders in fünf Teilen: „Clip-Gruppen und
 Restzeit-Auffüllung" beschreibt die Sendeplan-Generierung mit Platzhalter-Clips,
 „Standby-Stream des Live-Streams" die Auslieferung der Warm-up-Phase und aller Zustände
-ohne produzierte Segmente, „Jugendschutzfenster" die altersgerechten Sendezeiten und
+ohne produzierte Segmente, „Geordneter Stop der Live-Stream-Segmentierung" das
+zeitgebundene Einholen der Eingabe-Pumpe beim Sendeplatz-Wechsel,
+„Jugendschutzfenster" die altersgerechten Sendezeiten und
 „Stabile Neu-Bewertung des Sendeplans" die Lauf-zu-Lauf-Idempotenz der Re-Bewertung.
 
 ## Clip-Gruppen und Restzeit-Auffüllung
@@ -351,6 +353,102 @@ schlägt dann fehl und der Default-Satz greift (in der UI als Hinweis-Chip sicht
 `Setups.LiveStreamStandbyMediaItemId` steht in
 `VideoWebPlayerBackupData.OptionalRestoreColumns`; ein Regressionstest stellt ein
 Alt-Backup ohne die Spalte wieder her.
+
+## Geordneter Stop der Live-Stream-Segmentierung (Eingabe-Pumpe)
+
+### Übersicht
+
+Beim geplanten Stop des ffmpeg-Live-Stream-Segmentierers (Sendeplatz-Wechsel über den
+`LiveStreamCoordinator` oder explizites `StopAsync`) beendet `StopCoreAsync` den
+ffmpeg-Prozess per `Kill()` — damit bricht die stdin-Pipe und die Eingabe-Pumpe der
+`pipe:0`-Eingaben (`LiveStreamInput.IsPipe`, der einzige Pfad mit Pumpe) endet
+erwartbar mit `IOException` („Broken pipe"). `SegmenterProcessSupport.PumpInputAsync`
+behandelt das schon immer als `SegmenterPumpOutcome.Completed`, protokollierte die
+Ausnahme aber mit vollem Stacktrace und wirkte so wie ein Ausnahmefehler. Jetzt steht
+dort eine kompakte `Debug`-Meldung ohne Ausnahmeobjekt, und
+`FfmpegLiveStreamSegmenter` hält den Pump-`Task` fest und holt ihn beim Stop
+zeitgebunden ein: Die „Eingabe-Pump beendet"-Meldung erscheint geordnet vor
+„Segmentierung … beendet" statt als verwaister Task erst nach dem Start des nächsten
+Sendeplatzes.
+
+### Ablauf
+
+#### 1. Start mit Pipe-Eingabe
+
+`StartAsync` startet den Pump bei `job.Input.IsPipe` weiterhin per `Task.Run`, legt
+die Referenz aber neu im Feld `_pumpTask` ab — bei Datei-/HTTP-Eingaben
+(`LiveStreamInput.ForFile`/`ForHttp`) steht dort `Task.CompletedTask`, weil keine
+Pumpe läuft. `_pumpTask` wird ausschließlich unter `_gate` gelesen und geschrieben.
+
+Beteiligte Komponenten:
+
+- `FfmpegLiveStreamSegmenter.StartAsync` — setzt `_pumpTask` nach dem Prozessstart.
+- `FfmpegLiveStreamSegmenter._pumpTask` / `_pumpDrainTimeout` — Task-Referenz und
+  Einhol-Schranke (`TimeSpan?`-Parameter `pumpDrainTimeout` am internen Konstruktor;
+  Default `SegmenterProcessSupport.PumpDrainTimeout`, Produktiv-Ctor unverändert).
+
+#### 2. Geplanter Stop
+
+`StopCoreAsync` liest `_process`, `_job` und `_pumpTask` und setzt alle drei auf
+`null` bzw. `Task.CompletedTask` (Markierung „geplanter Stop" — `ReportProcessExit`
+erkennt daran den gewollten Exit). Nach `process.Kill()`,
+`WaitForExitAsync` (`StopTimeout`, 10 s) und `Dispose()` holt `StopCoreAsync` den
+Pump über den geteilten Helfer
+`SegmenterProcessSupport.AwaitDrainObservingFaultsAsync` ein, begrenzt durch
+`_pumpDrainTimeout` (10 s). Erst danach folgt die `Information`-Meldung
+„Segmentierung fuer Sendeplatz {SlotId} beendet." — Log-Reihenfolge damit: Pump-Ende
+vor Segmentierungs-Ende, noch vor dem `StartAsync` des nächsten Jobs (der
+Sendeplatz-Wechsel ruft `StopCoreAsync` aus `StartAsync` heraus unter demselben
+`_gate`).
+
+#### 3. Geteilter Drain-Helfer
+
+`SegmenterProcessSupport.AwaitDrainObservingFaultsAsync(drainTask, timeout, logger,
+drainDescription)` (plus generische Variante für Tasks mit Ergebnis) wartet per
+`WaitAsync(timeout)`:
+
+- Abschluss in der Schranke → `true` bzw. das Task-Ergebnis.
+- `TimeoutException` → eine `OnlyOnFaulted`-Fortsetzung beobachtet die spätere
+  Faultierung des verwaisten Tasks (keine unbehandelte Task-Ausnahme), dazu die
+  `Warning` „{Drain} nach {TimeoutSeconds}s nicht eingeholt — laeuft verwaist
+  weiter."; Rückgabe `false`/`default`.
+- Sonstige Task-Ausnahme → `Warning` mit Ausnahme „{Drain} endete fehlerhaft.";
+  Rückgabe `false`/`default`.
+
+Beide Segmentierer nutzen den Helfer: `FfmpegLiveStreamSegmenter.StopCoreAsync` für
+die Eingabe-Pumpe und `LiveStreamStandbySegmenter.TranscodeAsync` für stderr-Drain
+(`_stderrDrainTimeout`, Ergebnis = stderr-Tail für die Exit-Diagnose) und
+Eingabe-Pumpe. Die früher private `PumpDrainTimeout`-Konstante des
+`LiveStreamStandbySegmenter` wanderte dafür nach `SegmenterProcessSupport`
+(10 s). Nebenwirkung im `LiveStreamStandbySegmenter`: Ein fehlerhafter
+stderr-Drain- oder Pump-Task propagiert nicht mehr als Ausnahme aus `TranscodeAsync`,
+sondern wird als Warnung protokolliert und toleriert (der stderr-Tail entfällt dann).
+
+### Fehlerbehandlung und Log-Semantik
+
+- **Erwarteter Pipe-Bruch beim Stop** (`IOException`/`ObjectDisposedException`/
+  `OperationCanceledException`): kompakter `Debug`-Eintrag
+  „[{Caller}] Eingabe-Pump beendet ({ExceptionType}: {Reason})." mit
+  `ex.GetType().Name` und `ex.Message` — ohne Ausnahmeobjekt, also ohne Stacktrace.
+  Rückgabe `SegmenterPumpOutcome.Completed`; `finally` schließt
+  `process.StandardInput` wie bisher. Gilt in beiden Segmentierern, da beide denselben
+  Helper aufrufen.
+- **Unerwarteter Pump-Fehler:** unverändert `Warning` mit Ausnahme („Fehler beim
+  Pumpen der Eingabe.") → `SegmenterPumpOutcome.Failed`; die Diagnosefähigkeit für
+  echte Fehler bleibt erhalten.
+- **Quelle nicht öffenbar** (`SourceUnavailable`): `FfmpegLiveStreamSegmenter`
+  protokolliert „Eingabe-Stream fuer Sendeplatz {SlotId} nicht verfuegbar.";
+  `LiveStreamStandbySegmenter` tötet den Prozess, weil ffmpeg sonst endlos auf stdin
+  wartete.
+- **Stallende Quelle** (`source.ReadAsync` kehrt trotz Pipe-Bruch nicht zurück;
+  `CopyToAsync` läuft ohne `CancellationToken`): `StopAsync` kehrt spätestens nach
+  `_pumpDrainTimeout` zurück; der verwaiste Pump bleibt fachlich harmlos, weil er nur
+  noch den stdin-Handle des toten Prozesses berührt, und eine spätere Faultierung ist
+  über die Fortsetzung beobachtet.
+- **Unerwartetes Prozessende:** unverändert über `DrainStandardErrorAsync` →
+  `ReportProcessExit` (`Warning` samt `LastUnexpectedExit` für den Input-Fallback des
+  `LiveStreamCoordinator`). Der stderr-Drain bleibt bewusst Fire-and-forget — seine
+  „wurde angehalten"-Meldung kann weiterhin nach „beendet" erscheinen.
 
 ## Jugendschutzfenster (altersgerechte Sendezeiten)
 

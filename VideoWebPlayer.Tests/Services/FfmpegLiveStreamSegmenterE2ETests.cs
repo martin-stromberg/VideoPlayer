@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
@@ -137,6 +139,109 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
             SegmentSeconds: 2,
             SegmentDirectory: segDir,
             FfmpegPath: ffmpeg);
+    }
+
+    /// <summary>
+    /// The scenario from the production log: a real ffmpeg process fed through
+    /// <c>pipe:0</c> is stopped deliberately while its stdin pump is still blocked by the
+    /// <c>-re</c> backpressure. The kill breaks the pipe — the pump's end must surface as a
+    /// compact debug entry without an exception stack trace (the previously logged
+    /// „System.IO.IOException: Broken pipe" with full trace looked like an exception error).
+    /// </summary>
+    [Fact]
+    public async Task RealFfmpeg_PipeInputStop_LogsNoExceptionStacktrace()
+    {
+        var ffmpeg = E2EBinaryLocator.Find("ffmpeg");
+        if (ffmpeg is null)
+            return; // kein ffmpeg auf diesem System
+
+        var dir = Path.Combine(Path.GetTempPath(), $"vwp-e2e-pipestop-{Guid.NewGuid():N}");
+        // MPEG-TS ist aus einer nicht-seekbaren Pipe lesbar (MP4 scheiterte hier am
+        // moov-Atom am Dateiende — ffmpeg beendet sich dann vor dem Stop).
+        var video = Path.Combine(dir, "input.ts");
+        var segDir = Path.Combine(dir, "live");
+        Directory.CreateDirectory(segDir);
+
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await GenerateVideoAsync(ffmpeg, video, ct);
+            if (!File.Exists(video))
+                return; // Videogenerierung nicht moeglich — kein verwertbarer Lauf
+
+            var logger = new ListLogger<FfmpegLiveStreamSegmenter>(new ConcurrentQueue<string>());
+            var segmenter = new FfmpegLiveStreamSegmenter(logger);
+            var job = new LiveStreamJob(
+                SlotId: 77,
+                Input: LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(
+                    new ThrottledReadStream(
+                        new FileStream(video, FileMode.Open, FileAccess.Read, FileShare.Read)))),
+                PositionSeconds: 0,
+                RemainingSeconds: 60,
+                SegmentSeconds: 2,
+                SegmentDirectory: segDir,
+                FfmpegPath: ffmpeg);
+
+            await segmenter.StartAsync(job, ct);
+            // ~1s laufen lassen: die gedrosselte Quelle ist beim Stop noch am Pumpen;
+            // der Kill bricht die Pipe zwingend.
+            await Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None);
+            await segmenter.StopAsync(CancellationToken.None);
+
+            var entries = logger.Entries.ToArray();
+            var pumpEntry = Assert.Single(entries, e =>
+                e.Level == LogLevel.Debug && e.Message.Contains("Slot 77")
+                && e.Message.Contains("Eingabe-Pump beendet"));
+            Assert.DoesNotContain("System.IO.IOException", pumpEntry.Message);
+            Assert.Null(pumpEntry.Exception); // kein Ausnahmeobjekt → kein angehängter Stacktrace
+            Assert.DoesNotContain(entries, e => e.Exception is not null); // nirgends ein Stacktrace
+            Assert.DoesNotContain(entries, e =>
+                e.Level >= LogLevel.Warning && e.Message.Contains("Pump"));
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// FileStream-Hülle, die Lesezugriffe drosselt (~33 KB/s), damit die Eingabe-Pumpe
+    /// beim geplanten Stop noch aktiv ist — ffmpeg entleert die Pipe sonst schneller,
+    /// als die kurze Testdatei gepumpt werden kann, und der Pipe-Bruch fiele nie an.
+    /// </summary>
+    private sealed class ThrottledReadStream : Stream
+    {
+        private readonly Stream _inner;
+
+        public ThrottledReadStream(Stream inner) => _inner = inner;
+
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => throw new NotSupportedException(); }
+
+        public override void Flush() { }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var read = await _inner.ReadAsync(buffer[..Math.Min(buffer.Length, 1024)], cancellationToken);
+            if (read > 0)
+                await Task.Delay(30, CancellationToken.None);
+            return read;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                _inner.Dispose();
+            base.Dispose(disposing);
+        }
     }
 
     /// <summary>Waits until the playlist lists a media URI containing <paramref name="marker"/>.</summary>

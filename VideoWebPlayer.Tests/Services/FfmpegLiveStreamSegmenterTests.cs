@@ -74,16 +74,115 @@ public sealed class FfmpegLiveStreamSegmenterTests
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// stdin-Ersatz, der nach <see cref="FakeSegmenterProcess.Kill"/> beim Schreiben eine
+    /// <see cref="IOException"/> wirft — modelliert den Pipe-Bruch beim geplanten Stop.
+    /// </summary>
+    private sealed class BrokenPipeInputStream : Stream
+    {
+        private readonly FakeSegmenterProcess _process;
+        private readonly MemoryStream _inner = new();
+
+        public BrokenPipeInputStream(FakeSegmenterProcess process) => _process = process;
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => _inner.Position = value; }
+
+        public override void Flush() { }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            if (_process.Killed)
+                throw new IOException("Broken pipe (simulierter Pipe-Bruch nach Kill).");
+            _inner.Write(buffer, offset, count);
+        }
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_process.Killed)
+                throw new IOException("Broken pipe (simulierter Pipe-Bruch nach Kill).");
+            return _inner.WriteAsync(buffer, cancellationToken);
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+    }
+
+    /// <summary>Quell-Stream, der unbegrenzt Daten liefert — die Eingabe-Pumpe schreibt
+    /// dadurch weiter, bis die Pipe beim Prozessende bricht.</summary>
+    private sealed class EndlessReadStream : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => 0;
+        public override long Position { get => 0; set { } }
+
+        public override void Flush() { }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var n = Math.Min(count, 1024);
+            Array.Fill(buffer, (byte)0xAA, offset, n);
+            return n;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => Task.FromResult(Read(buffer, offset, count));
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var n = Math.Min(buffer.Length, 1024);
+            buffer.Span[..n].Fill(0xAA);
+            return new(n);
+        }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>Quell-Stream, dessen Leseaufruf nie abschliesst — modelliert eine stallende
+    /// Quelle, in der die Eingabe-Pumpe trotz Pipe-Bruch nicht aufwacht.</summary>
+    private sealed class NeverEndingReadStream : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => 0;
+        public override long Position { get => 0; set { } }
+
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => new TaskCompletionSource<int>().Task;
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            => new(new TaskCompletionSource<int>().Task);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     private sealed class FakeSegmenterProcess : ISegmenterProcess
     {
         private int? _exitCode;
 
         public bool HasExited { get; set; }
         public int ExitCode { get => _exitCode ?? (HasExited ? 0 : -1); set => _exitCode = value; }
-        public Stream StandardInput { get; } = new MemoryStream();
+        public Stream StandardInput { get; private set; } = new MemoryStream();
         public ControlledPipeStream StderrPipe { get; } = new();
         public Stream StandardError => StderrPipe;
         public bool Killed { get; private set; }
+
+        /// <summary>Ersetzt stdin durch einen Stream, der nach <see cref="Kill"/> beim
+        /// Schreiben einen Pipe-Bruch wirft.</summary>
+        public void UseBrokenPipeStandardInput() => StandardInput = new BrokenPipeInputStream(this);
 
         /// <summary>Simulates the process dying on its own: exit state plus stderr EOF.</summary>
         public void SimulateExit(int exitCode = 1)
@@ -107,14 +206,17 @@ public sealed class FfmpegLiveStreamSegmenterTests
     private readonly List<FakeSegmenterProcess> _processes = [];
     private readonly ListLogger<FfmpegLiveStreamSegmenter> _logger = new(new());
 
-    private FfmpegLiveStreamSegmenter CreateSegmenter()
+    private FfmpegLiveStreamSegmenter CreateSegmenter(
+        Action<FakeSegmenterProcess>? configure = null,
+        TimeSpan? pumpDrainTimeout = null)
         => new(_logger, startInfo =>
         {
             _started.Add(startInfo);
             var process = new FakeSegmenterProcess();
+            configure?.Invoke(process);
             _processes.Add(process);
             return process;
-        }, TimeProvider.System);
+        }, TimeProvider.System, pumpDrainTimeout);
 
     private static LiveStreamJob FileJob(long slotId = 42)
         => new(slotId, LiveStreamInput.ForFile("/media/movie.mkv"), 125.5, 240.25, 6,
@@ -357,5 +459,88 @@ public sealed class FfmpegLiveStreamSegmenterTests
     {
         var segmenter = CreateSegmenter();
         Assert.Null(segmenter.ExpectedPositionSeconds);
+    }
+
+    [Fact]
+    public async Task StopAsync_PipeInputPumpBreak_LogsCompactDebugBeforeStopReturns()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var segmenter = CreateSegmenter(p => p.UseBrokenPipeStandardInput());
+        await segmenter.StartAsync(FileJob(slotId: 5) with
+        {
+            Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new EndlessReadStream()))
+        }, ct);
+
+        await segmenter.StopAsync(ct);
+
+        // Durch das Einholen des Pump-Tasks ist die kompakte Meldung bei Rückkehr von
+        // StopAsync bereits geschrieben — deterministisch, ohne Polling.
+        var entries = _logger.Entries.ToArray();
+        var pumpIndex = Array.FindIndex(entries, e =>
+            e.Level == LogLevel.Debug && e.Message.Contains("Slot 5")
+            && e.Message.Contains("Eingabe-Pump beendet"));
+        Assert.True(pumpIndex >= 0, "Der kompakte Pump-Ende-Debug-Eintrag fehlt nach StopAsync.");
+        var pumpEntry = entries[pumpIndex];
+        Assert.Contains("IOException", pumpEntry.Message);
+        Assert.DoesNotContain("System.IO.IOException", pumpEntry.Message); // kein Ausnahme-ToString()
+        Assert.Null(pumpEntry.Exception); // kein Ausnahmeobjekt → kein angehängter Stacktrace
+        var stopIndex = Array.FindIndex(entries, e =>
+            e.Level == LogLevel.Information && e.Message.Contains("Sendeplatz 5 beendet"));
+        Assert.True(stopIndex > pumpIndex,
+            "Der Pump-Ende-Eintrag muss vor der 'beendet'-Meldung liegen.");
+    }
+
+    [Fact]
+    public async Task StopAsync_StalledPump_ReturnsWithinPumpDrainTimeout()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var segmenter = CreateSegmenter(pumpDrainTimeout: TimeSpan.FromMilliseconds(200));
+        await segmenter.StartAsync(FileJob() with
+        {
+            Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new NeverEndingReadStream()))
+        }, ct);
+
+        // Die Pumpe bleibt trotz Kill in source.ReadAsync haengen — StopAsync darf nur
+        // bis zur injizierten Schranke warten (der äußere Rahmen sichert den Fehlerfall ab).
+        var elapsed = Stopwatch.StartNew();
+        await segmenter.StopAsync(ct).WaitAsync(TimeSpan.FromSeconds(20), CancellationToken.None);
+        elapsed.Stop();
+
+        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(5),
+            $"StopAsync dauerte {elapsed.Elapsed} — die Pump-Drain-Schranke greift nicht.");
+        Assert.False(segmenter.IsRunning);
+
+        // Der verwaiste Pump wird nicht still fallengelassen: der Timeout meldet sich
+        // als Warnung mit Slot-Kontext (wie der stderr-Drain im Standby-Segmenter).
+        var warning = Assert.Single(_logger.Entries, e => e.Level == LogLevel.Warning);
+        Assert.Contains("Eingabe-Pumpe", warning.Message);
+        Assert.Contains("Sendeplatz 42", warning.Message);
+        Assert.Contains("nicht eingeholt", warning.Message);
+    }
+
+    [Fact]
+    public async Task StartAsync_SlotSwitch_CollectsPreviousPump()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var segmenter = CreateSegmenter(p => p.UseBrokenPipeStandardInput());
+        var open = (CancellationToken _) => Task.FromResult<Stream?>(new EndlessReadStream());
+        await segmenter.StartAsync(FileJob(slotId: 1) with { Input = LiveStreamInput.ForStream(open) }, ct);
+
+        // Sendeplatz-Wechsel: StartAsync stoppt den alten Job intern und holt dessen
+        // Pumpe ein — deren Ende-Eintrag liegt vor der Start-Meldung des neuen Slots.
+        await segmenter.StartAsync(FileJob(slotId: 2) with { Input = LiveStreamInput.ForStream(open) }, ct);
+
+        var entries = _logger.Entries.ToArray();
+        var pumpIndex = Array.FindIndex(entries, e =>
+            e.Level == LogLevel.Debug && e.Message.Contains("Slot 1")
+            && e.Message.Contains("Eingabe-Pump beendet"));
+        Assert.True(pumpIndex >= 0,
+            "Die Pumpe des alten Slots wurde beim Slot-Wechsel nicht eingeholt.");
+        var startIndex = Array.FindIndex(entries, e =>
+            e.Level == LogLevel.Information && e.Message.Contains("Sendeplatz 2 gestartet"));
+        Assert.True(startIndex > pumpIndex,
+            "Der Pump-Ende-Eintrag des alten Slots muss vor der Start-Meldung des neuen liegen.");
+
+        await segmenter.StopAsync(ct);
     }
 }

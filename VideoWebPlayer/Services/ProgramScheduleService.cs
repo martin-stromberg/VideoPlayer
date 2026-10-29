@@ -230,7 +230,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // Everything derived from the loaded slot window lives in the ReconcileWindow — Reload()
         // re-derives and re-validates it atomically on every (re-)load, so no structure of a
         // narrower window can be reused by mistake.
-        var window = new ReconcileWindow(coverageStart, horizonEnd, federalState, activeRules, states, rulesById, _minStartRemain, ageRule);
+        var window = new ReconcileWindow(coverageStart, horizonEnd, federalState, activeRules, states, rulesById, _minStartRemain, ageRule, _logger);
 
         // Cost heuristic only — carries no correctness weight: a slot starting at or before the
         // base window edge proves that pre-window context exists, so the window is widened once
@@ -492,6 +492,29 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     }
 
     /// <inheritdoc />
+    public async Task<int> CleanupSelfDisplacedSlotsAsync(CancellationToken cancellationToken = default)
+    {
+        var channel = await _ruleService.GetOrCreateChannelAsync(cancellationToken);
+        // Strict twin criterion: a displaced row is only a proven self-displacement duplicate
+        // when a scheduled row of the same producing rule occupies the identical interval with
+        // the same content. The scheduled twin covers the interval completely — the occupancy
+        // evidence of the following reconcile run is unchanged, so no evidence is lost.
+        var deleted = await _db.ProgramSlots
+            .Where(d => d.TVChannelId == channel.Id && d.Status == ProgramSlotStatus.Displaced)
+            .Where(d => _db.ProgramSlots.Any(s => s.TVChannelId == d.TVChannelId
+                && s.Status == ProgramSlotStatus.Scheduled
+                && s.Start == d.Start && s.End == d.End
+                && s.ProgramRuleId == d.ProgramRuleId
+                && s.IsClipFill == d.IsClipFill
+                && (s.MediaItemId == d.MediaItemId
+                    || (d.MovieId != null && s.MovieId == d.MovieId)
+                    || (d.TVShowEpisodeId != null && s.TVShowEpisodeId == d.TVShowEpisodeId))))
+            .ExecuteDeleteAsync(cancellationToken);
+        _logger.LogInformation("[ProgramSchedule] {Deleted} Selbst-Verdraengungs-Duplikate bereinigt.", deleted);
+        return deleted;
+    }
+
+    /// <inheritdoc />
     public async Task<int> PurgeExpiredRulesAsync(DateTimeOffset utcNow, CancellationToken cancellationToken = default)
     {
         var channel = await _ruleService.GetOrCreateChannelAsync(cancellationToken);
@@ -573,10 +596,22 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         RuleState State,
         HashSet<DateTime> OccurrenceStarts,
         List<(DateTime StartUtc, int Priority)> BoundStarts,
-        Dictionary<DateTime, DateTime> InvaderStarts,
+        IReadOnlyList<Interval> OccupiedEvidence,
         TimeSpan MinStartRemain,
         ProgramScheduleAgeWindowRule AgeRule,
-        Dictionary<(int Offset, DateTime AfterStart), bool> Memo);
+        Dictionary<(int Offset, DateTime AfterStart), bool> Memo)
+    {
+        // Diagnosis sink: the deepest check stage any hypothesis reached before failing wins
+        // (the enum is stage-ordered), so the reported reason is the most informative one —
+        // not the first failure of an early hypothesis.
+        public AiringInvalidReason InvalidReason { get; private set; } = AiringInvalidReason.None;
+
+        public void NoteFailure(AiringInvalidReason reason)
+        {
+            if (reason > InvalidReason)
+                InvalidReason = reason;
+        }
+    }
 
     // An airing is still valid iff its producing rule would schedule exactly this slot sequence for
     // the occurrence the airing belongs to. That occurrence may already have been in progress when
@@ -604,7 +639,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return ids;
     }
 
-    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, Dictionary<DateTime, DateTime> invaderStarts, TimeSpan minStartRemain, ProgramScheduleAgeWindowRule ageRule)
+    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, IReadOnlyList<Interval> occupiedEvidence, TimeSpan minStartRemain, ProgramScheduleAgeWindowRule ageRule, out AiringInvalidReason invalidReason)
     {
         var clipIds = ClipMediaItemIds(state);
         var effective = airing;
@@ -622,7 +657,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             {
                 var slot = airing[i];
                 if (i > 0 && slot.Start != airing[i - 1].End)
-                    return false; // broken chain — a clip airing must stay gaplessly linked
+                {
+                    invalidReason = AiringInvalidReason.ClipChainBroken; // a clip airing must stay gaplessly linked
+                    return false;
+                }
                 if (clipIds.Contains(slot.MediaItemId))
                 {
                     clipTime += slot.End - slot.Start;
@@ -641,10 +679,19 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 });
             }
             if (effective.Count == 0)
-                return false; // an airing always carries at least one title
+            {
+                invalidReason = AiringInvalidReason.TitlelessAiring; // an airing always carries at least one title
+                return false;
+            }
         }
-        return AiringReproducible(effective, 0, DateTime.MinValue,
-            new ReproContext(state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, ageRule, new Dictionary<(int Offset, DateTime AfterStart), bool>()));
+        var context = new ReproContext(state, occurrenceStarts, boundStarts, occupiedEvidence, minStartRemain, ageRule, new Dictionary<(int Offset, DateTime AfterStart), bool>());
+        if (AiringReproducible(effective, 0, DateTime.MinValue, context))
+        {
+            invalidReason = AiringInvalidReason.None;
+            return true;
+        }
+        invalidReason = context.InvalidReason;
+        return false;
     }
 
     // Validates airing[offset..] as a chain of sub-airings anchored at strictly ascending
@@ -669,14 +716,25 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
     private static bool FlatAiringTailReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
     {
-        var (state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, ageRule, _) = context;
+        var (state, occurrenceStarts, boundStarts, occupiedEvidence, minStartRemain, ageRule, _) = context;
         var items = state.Items;
-        if (items.Count == 0 || occurrenceStarts.Count == 0)
+        if (items.Count == 0)
+        {
+            context.NoteFailure(AiringInvalidReason.ItemNotInExpansion);
             return false;
+        }
+        if (occurrenceStarts.Count == 0)
+        {
+            context.NoteFailure(AiringInvalidReason.NoOccurrenceAnchor);
+            return false;
+        }
 
         var idx = FindItemIndex(items, airing[offset]);
         if (idx < 0)
+        {
+            context.NoteFailure(AiringInvalidReason.ItemNotInExpansion);
             return false;
+        }
 
         var rule = state.Rule;
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
@@ -684,7 +742,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var preservesOrder = state.PreservesOrder;
 
         var count = items.Count;
-        var earliestStart = occurrenceStarts.Min();
         // Backward hypotheses: k = taken-but-unwritten head items. The scan head may
         // additionally lie behind window-skipped positions — a skipped position consumed the
         // ring without producing airtime, so it counts toward the head index but not toward
@@ -734,18 +791,28 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             // The sub-airing's real start — its first taken item began here; the nominal
             // occurrence started at or before this point.
             var airingStart = airing[offset].Start - skipped;
-            if (airingStart < earliestStart)
-                break; // skipped duration already reaches past the oldest occurrence in the window
+            // Anchor space exhausted: the reconstructed start lies before every occurrence
+            // that can still anchor the tail (the skipped duration already reaches past the
+            // oldest occurrence in the window, or earlier chain links consumed all of them).
+            // A larger k only walks the start further back — no hypothesis remains.
+            if (!occurrenceStarts.Any(o => o > afterStart && o <= airingStart))
+            {
+                context.NoteFailure(AiringInvalidReason.OutsideOccurrenceWindow);
+                break;
+            }
 
             var headIndex = ((idx - positionsBack) % count + count) % count;
             foreach (var occurrenceStart in occurrenceStarts.Where(o => o > afterStart && o <= airingStart))
             {
-                // A shift needs invader evidence: an occupied slot covering the nominal start
-                // whose end is exactly the real start — otherwise the earlier anchor would
-                // rescue stale airings (e.g. after the rule's time-of-day changed).
+                // A shift needs invader evidence: a chain of occupied intervals covering the
+                // nominal start whose end is exactly the real start — otherwise the earlier
+                // anchor would rescue stale airings (e.g. after the rule's time-of-day changed).
                 if (occurrenceStart < airingStart
-                    && !(invaderStarts.TryGetValue(airingStart, out var invaderStart) && invaderStart < occurrenceStart))
+                    && !ShiftProvable(occurrenceStart, airingStart, occupiedEvidence))
+                {
+                    context.NoteFailure(AiringInvalidReason.AnchorWithoutInvaderEvidence);
                     continue;
+                }
                 var expected = SelectAiringItems(items, headIndex, rule, airingStart,
                     BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain, clipGrace,
                     preservesOrder, ageRule);
@@ -754,13 +821,19 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 // observed ring position.
                 var headPick = k < expected.Taken.Count && expected.Positions[k] == idx ? k : -1;
                 if (headPick < 0)
+                {
+                    context.NoteFailure(AiringInvalidReason.HeadPickInconsistent);
                     continue;
+                }
                 // The candidate may cover a real prefix of the group — the merged chain holds
                 // one airing per occurrence; the remainder is checked recursively against
                 // strictly later occurrences.
                 var consumed = expected.Taken.Count - headPick;
                 if (consumed < 1 || consumed > airing.Count - offset)
+                {
+                    context.NoteFailure(AiringInvalidReason.SlotSequenceMismatch);
                     continue;
+                }
 
                 var start = airing[offset].Start;
                 var matches = true;
@@ -775,12 +848,28 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     }
                     start = slot.End;
                 }
-                if (matches && AiringReproducible(airing, offset + consumed, occurrenceStart, context))
+                if (!matches)
+                {
+                    context.NoteFailure(AiringInvalidReason.SlotSequenceMismatch);
+                    continue;
+                }
+                if (AiringReproducible(airing, offset + consumed, occurrenceStart, context))
                     return true;
+                context.NoteFailure(AiringInvalidReason.RemainderNotReproducible);
             }
         }
         return false;
     }
+
+    // Shift proof for the reproducibility check: the airing's real start must be reachable
+    // from the nominal occurrence start through a chain of occupied intervals — each link
+    // strictly covering the running point, the same ShiftPastInvaders fixpoint semantics the
+    // materialization applies, so single-invader and chained shifts are provable alike. Only
+    // links ending at or before the real start take part: the evidence set is grown history
+    // (Scheduled ∪ displaced rows) and may contain intervals reaching past it — they must not
+    // push the proven end beyond the observed start.
+    private static bool ShiftProvable(DateTime occurrenceStart, DateTime airingStart, IReadOnlyList<Interval> occupiedEvidence)
+        => ShiftPastInvaders(occurrenceStart, occupiedEvidence.Where(i => i.End <= airingStart)) == airingStart;
 
     // Interleaved counterpart of <see cref="AiringReproducible"/> for multi-strand states: the
     // occurrence's picks rotate over the strands, so the check hypothesizes the number p of
@@ -794,13 +883,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // fails the check, so the airing is displaced and re-materialized rather than kept stale.
     private static bool InterleavedAiringTailReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
     {
-        var (state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, ageRule, _) = context;
+        var (state, occurrenceStarts, boundStarts, occupiedEvidence, minStartRemain, ageRule, _) = context;
         var strands = state.Strands;
         var m = strands.Count;
         var rule = state.Rule;
         var clipGrace = state.ClipGrace;
         if (occurrenceStarts.Count == 0)
+        {
+            context.NoteFailure(AiringInvalidReason.NoOccurrenceAnchor);
             return false;
+        }
 
         // Locate each slot of the remaining tail inside its strand. Ordered strands keep
         // strict ring contiguity (episodes of a series never air shuffled); unordered rings
@@ -828,7 +920,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 }
             }
             if (s < 0)
+            {
+                context.NoteFailure(AiringInvalidReason.ItemNotInExpansion);
                 return false;
+            }
 
             strandOf[i] = s;
             if (firstIndex[s] < 0)
@@ -839,7 +934,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             else if (strands[s].PreservesOrder)
             {
                 if (idx != (lastIndex[s] + 1) % strands[s].Items.Count)
+                {
+                    context.NoteFailure(AiringInvalidReason.StrandSequenceBroken);
                     return false;
+                }
             }
             else
             {
@@ -852,7 +950,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     if (ProgramScheduleAgeWindow.IsAllowedAt(
                             strands[s].Items[(lastIndex[s] + d) % n].AgeRatingMinAge,
                             airing[offset + i].Start, ageRule))
+                    {
+                        context.NoteFailure(AiringInvalidReason.StrandSequenceBroken);
                         return false; // an allowed intermediate position would have been taken
+                    }
                 }
             }
             lastIndex[s] = idx;
@@ -861,6 +962,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
         var maxPrefix = Math.Min(wanted, strands.Sum(s => s.Items.Count) + rest);
+
+        // Anchor space exhausted: the tail can only anchor to occurrences after the lower
+        // bound and at or before its first slot's start — an empty candidate space means the
+        // airing starts ahead of every usable occurrence in the window (or earlier chain
+        // links already consumed all of them).
+        if (!occurrenceStarts.Any(o => o > afterStart && o <= airing[offset].Start))
+        {
+            context.NoteFailure(AiringInvalidReason.OutsideOccurrenceWindow);
+            return false;
+        }
 
         foreach (var occurrenceStart in occurrenceStarts.Where(o => o > afterStart && o <= airing[offset].Start).OrderBy(o => o))
         {
@@ -877,7 +988,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 for (var p = 0; p < maxPrefix; p++)
                 {
                     if ((startOffset + p) % m != strandOf[0])
+                    {
+                        // This prefix length cannot land the first observed slot's pick on
+                        // its observed strand — if no (offset, p) pair can, the head pick is
+                        // inconsistent with the airing.
+                        context.NoteFailure(AiringInvalidReason.HeadPickInconsistent);
                         continue;
+                    }
 
                     var prefixCount = new int[m];
                     var possible = true;
@@ -890,7 +1007,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                             prefixCount[s]++;
                     }
                     if (!possible)
+                    {
+                        context.NoteFailure(AiringInvalidReason.HeadPickInconsistent);
                         break;
+                    }
 
                     // Reconstruct each strand's scan head: the scan consumes taken prefix picks
                     // plus window-skipped positions. Walking the ring back from the first
@@ -931,7 +1051,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         }
                     }
                     if (!reconstructable)
+                    {
+                        context.NoteFailure(AiringInvalidReason.HeadPickInconsistent);
                         break;
+                    }
 
                     var simStrands = new List<StrandState>(m);
                     for (var s = 0; s < m; s++)
@@ -946,12 +1069,18 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     // The materialization derived the start-strand offset from the real start's
                     // day — a hypothesis is only consistent when it yields the same offset.
                     if (StrandStartOffset(wanted, m, simStart) != startOffset)
+                    {
+                        context.NoteFailure(AiringInvalidReason.HeadPickInconsistent);
                         continue;
+                    }
 
                     if (occurrenceStart > simStart
                         || (occurrenceStart < simStart
-                            && !(invaderStarts.TryGetValue(simStart, out var inv) && inv < occurrenceStart)))
-                        continue; // shift requires an occupied slot covering the nominal start
+                            && !ShiftProvable(occurrenceStart, simStart, occupiedEvidence)))
+                    {
+                        context.NoteFailure(AiringInvalidReason.AnchorWithoutInvaderEvidence);
+                        continue; // shift requires an occupied chain ending exactly at the real start
+                    }
 
                     var picks = SelectAiringItemsInterleaved(simStrands, rule, simStart,
                         BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain, clipGrace,
@@ -960,7 +1089,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     // against strictly later occurrences (merged multi-occurrence chains).
                     var consumed = picks.Picks.Count - p;
                     if (consumed < 1 || consumed > rest)
+                    {
+                        context.NoteFailure(AiringInvalidReason.SlotSequenceMismatch);
                         continue;
+                    }
 
                     var start = simStart;
                     var matches = true;
@@ -983,9 +1115,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         }
                         pos++;
                     }
-                    if (matches && pos == picks.Picks.Count
-                        && AiringReproducible(airing, offset + consumed, occurrenceStart, context))
+                    if (!matches || pos < picks.Picks.Count)
+                    {
+                        context.NoteFailure(AiringInvalidReason.SlotSequenceMismatch);
+                        continue;
+                    }
+                    if (AiringReproducible(airing, offset + consumed, occurrenceStart, context))
                         return true;
+                    context.NoteFailure(AiringInvalidReason.RemainderNotReproducible);
                 }
             }
         }
@@ -993,16 +1130,18 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     }
 
     // Locates a slot's content inside the expanded list: by media item first (unique), then by the
-    // content reference (movie / episode) for material whose media item changed.
+    // content reference (movie / episode) for material whose media item changed — matched on the
+    // item's own content fields so playlist entries (ContentType PlaylistEntry, not the slot's
+    // MovieId/TVShowEpisodeId) resolve the same way as direct movie/episode material.
     private static int FindItemIndex(List<SchedulableItem> items, ProgramSlot slot)
     {
         var idx = items.FindIndex(i => i.MediaItemId == slot.MediaItemId);
         if (idx >= 0)
             return idx;
         if (slot.MovieId is { } movieId)
-            return items.FindIndex(i => i.ContentType == ProgramCursorContentType.Movie && i.ContentId == movieId);
+            return items.FindIndex(i => i.MovieId == movieId);
         if (slot.TVShowEpisodeId is { } episodeId)
-            return items.FindIndex(i => i.ContentType == ProgramCursorContentType.TVShowEpisode && i.ContentId == episodeId);
+            return items.FindIndex(i => i.TVShowEpisodeId == episodeId);
         return -1;
     }
 
@@ -1074,7 +1213,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         Dictionary<long, RuleState> states,
         Dictionary<long, ProgramRule> rulesById,
         TimeSpan minStartRemain,
-        ProgramScheduleAgeWindowRule ageRule)
+        ProgramScheduleAgeWindowRule ageRule,
+        ILogger logger)
     {
         public List<ProgramSlot> Scheduled { get; private set; } = [];
 
@@ -1085,7 +1225,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public List<(List<List<ProgramSlot>> Ordered, int FirstInvalid)> InvalidGroups { get; private set; } = [];
         public bool HasRescuableInvalid { get; private set; }
 
-        private Dictionary<DateTime, DateTime> _invaderStarts = [];
+        private List<Interval> _occupiedEvidence = [];
         private Dictionary<long, HashSet<DateTime>> _occurrenceStarts = [];
 
         // Sets the load-window edge together with the freshly loaded slots and atomically
@@ -1103,14 +1243,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         private void Rebuild(DateTime loadFrom, List<ProgramSlot> displacedEvidence)
         {
             // Invader evidence for the reproducibility check: an airing that starts later than
-            // its nominal occurrence start is only plausible when an occupied slot covered that
-            // start — grouped by the invader's exact end (the shifted airing starts there
-            // contiguously). Displaced rows contribute the same evidence: the shift was proven
-            // at materialization time and stays provable after the invader is displaced.
-            _invaderStarts = Scheduled
+            // its nominal occurrence start is only plausible when a chain of occupied intervals
+            // covered that start and ends exactly at the real start. Displaced rows contribute
+            // the same evidence: the shift was proven at materialization time and stays
+            // provable after the invader itself is displaced.
+            _occupiedEvidence = Scheduled
                 .Concat(displacedEvidence)
-                .GroupBy(s => s.End)
-                .ToDictionary(g => g.Key, g => g.Min(s => s.Start));
+                .Select(s => new Interval(s.Start, s.End))
+                .ToList();
 
             var reconcileLookback = coverageStart - loadFrom;
             Occurrences = BuildOccurrences(activeRules.Where(r => r.RuleType != ProgramRuleType.Filler), coverageStart, horizonEnd, federalState, reconcileLookback);
@@ -1133,6 +1273,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             {
                 var ordered = group.OrderBy(a => a[0].Start).ToList();
                 var firstInvalid = -1;
+                // Only the first invalid airing of a rule group gets a diagnosis line: the
+                // following airings are displaced as a suffix anyway (their cursor context
+                // is obsolete), so per-airing reasons would not add information.
                 for (var i = 0; i < ordered.Count && firstInvalid < 0; i++)
                 {
                     var airing = ordered[i];
@@ -1140,13 +1283,32 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         continue; // fully aired — history
 
                     var rule = airing[0].ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
-                    var invalid = rule is null || !rule.IsActive
-                        || !_occurrenceStarts.TryGetValue(rule.Id, out var starts)
-                        || !AiringReproducible(airing, states[rule.Id], starts, BoundStarts, _invaderStarts, minStartRemain, ageRule);
+                    AiringInvalidReason reason;
+                    var invalid = true;
+                    if (rule is null)
+                    {
+                        reason = AiringInvalidReason.RuleMissing;
+                    }
+                    else if (!rule.IsActive)
+                    {
+                        reason = AiringInvalidReason.RuleInactive;
+                    }
+                    else if (!_occurrenceStarts.TryGetValue(rule.Id, out var starts))
+                    {
+                        reason = AiringInvalidReason.NoOccurrenceAnchor;
+                    }
+                    else
+                    {
+                        invalid = !AiringReproducible(airing, states[rule.Id], starts, BoundStarts, _occupiedEvidence, minStartRemain, ageRule, out reason);
+                    }
+
                     if (invalid)
                     {
                         firstInvalid = i;
                         HasRescuableInvalid |= rule is { IsActive: true };
+                        logger.LogInformation(
+                            "[ProgramSchedule] Ausstrahlung invalide: Regel {RuleId}, Kopf {Start:o}-{End:o}, {Slots} Sendeplaetze, Grund {Reason}.",
+                            airing[0].ProgramRuleId, airing[0].Start, airing[0].End, airing.Count, reason);
                     }
                 }
 

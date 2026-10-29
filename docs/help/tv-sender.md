@@ -446,6 +446,12 @@ Im Tab „Sendeplan" räumen zwei Schaltflächen (nur für Administratoren) den 
   Regeln (d. h. Serien beginnen wieder am Anfang ihrer Rotation). Der Plan wird beim nächsten
   Generierungslauf komplett neu aufgebaut; „Jetzt generieren" stößt ihn sofort an.
 
+Einen Teil der Historie räumt der Planlauf auch ohne Zutun auf: Liegt zu einem verdrängten
+Sendeplatz ein geplanter Sendeplatz vor, der denselben Zeitraum mit demselben Inhalt aus
+derselben Regel belegt (die Sendung wurde fälschlich „durch sich selbst ersetzt"), entfernt
+der nächste Generierungslauf die verdrängte Kopie automatisch — die manuelle Bereinigung
+bleibt für die übrige Verdrängungs-Historie gedacht.
+
 ### Planungsdiagnose und manueller Anstoß
 
 Die Diagnose-Zeile im Regel-Panel zeigt pro Regel, wie viele Inhalte des

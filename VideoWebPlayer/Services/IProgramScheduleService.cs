@@ -151,6 +151,21 @@ public interface IProgramScheduleService
     Task<int> PurgeExpiredRulesAsync(DateTimeOffset utcNow, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Deletes proven self-displacement duplicates: every <see cref="ProgramSlotStatus.Displaced"/>
+    /// slot that has a scheduled twin on the same channel — identical start, end, producing rule,
+    /// <see cref="ProgramSlot.IsClipFill"/> flag and content (same media item, or same
+    /// movie/episode). The scheduled twin covers the deleted interval completely, so the
+    /// occupancy evidence the next <see cref="ReconcileAsync"/> sees is unchanged — genuine
+    /// displacement history (no twin, different content, foreign rule) is kept. Called by the
+    /// schedule worker inside the <c>TvSenderEnabled</c> block before <see cref="ReconcileAsync"/>
+    /// (not administrator-bound); for a full sweep of all displaced rows use
+    /// <see cref="DeleteDisplacedSlotsAsync"/>.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>How many displaced slots were deleted.</returns>
+    Task<int> CleanupSelfDisplacedSlotsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes the channel's whole program schedule — every slot regardless of status plus all
     /// rule cursors — so the next schedule run plans completely fresh. Administrator-only.
     /// </summary>

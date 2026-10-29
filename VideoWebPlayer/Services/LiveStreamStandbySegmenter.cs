@@ -48,10 +48,6 @@ public sealed class LiveStreamStandbySegmenter
     /// </summary>
     internal static readonly TimeSpan TranscodeTimeout = TimeSpan.FromSeconds(2 * MaxStandbyDurationSeconds);
 
-    /// <summary>Grace period to collect the input pump's task once the process ended —
-    /// a stalled source must not stall the transcode completion.</summary>
-    private static readonly TimeSpan PumpDrainTimeout = TimeSpan.FromSeconds(10);
-
     /// <summary>Grace period to collect the stderr drain once the process ended — a process
     /// that could not be killed must not hang <see cref="TranscodeAsync"/> forever.</summary>
     private static readonly TimeSpan StderrDrainTimeout = TimeSpan.FromSeconds(10);
@@ -188,23 +184,14 @@ public sealed class LiveStreamStandbySegmenter
             // Der stderr-Drain endet erst mit dem Prozess — konnte ffmpeg nicht beendet
             // werden, wuerde ein unbegrenztes Warten TranscodeAsync wieder endlos haengen
             // (genau der Blockierpfad, den TranscodeTimeout beseitigen soll).
-            try
-            {
-                stderrTail = await stderrTask.WaitAsync(_stderrDrainTimeout);
-            }
-            catch (TimeoutException)
-            {
-                // Eine spaetere Faultierung des verwaisten Drains wird beobachtet,
-                // damit sie nicht als unbehandelte Task-Ausnahme liegen bleibt.
-                _ = stderrTask.ContinueWith(
-                    t => _ = t.Exception, CancellationToken.None,
-                    TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-                _logger.LogWarning("[LiveStreamStandbySegmenter] stderr-Drain des ffmpeg-Prozesses blieb nach {TimeoutSeconds}s offen — Ausgabe verworfen.", _stderrDrainTimeout.TotalSeconds);
-                stderrTail = string.Empty;
-            }
+            stderrTail = await SegmenterProcessSupport.AwaitDrainObservingFaultsAsync(
+                stderrTask, _stderrDrainTimeout, _logger,
+                "[LiveStreamStandbySegmenter] stderr-Drain des ffmpeg-Prozesses")
+                ?? string.Empty;
             // Der Pump wartet auf das Quell-Ende — bei stallendem Input nur begrenzt.
-            try { await pumpTask.WaitAsync(PumpDrainTimeout); }
-            catch (TimeoutException) { }
+            await SegmenterProcessSupport.AwaitDrainObservingFaultsAsync(
+                pumpTask, SegmenterProcessSupport.PumpDrainTimeout, _logger,
+                "[LiveStreamStandbySegmenter] Eingabe-Pumpe");
 
             var masked = InternalMediaStreamTokenService.MaskStreamTokenInText(
                 SftpProbeUriBuilder.MaskCredentialsInText(stderrTail));

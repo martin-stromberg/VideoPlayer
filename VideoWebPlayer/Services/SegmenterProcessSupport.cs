@@ -35,6 +35,11 @@ internal static class SegmenterProcessSupport
     /// <summary>The maximum stderr tail kept in memory for the exit diagnosis.</summary>
     internal const int StderrTailCapacityChars = 8192;
 
+    /// <summary>Grace period to collect the stdin pump task once the process ended —
+    /// a source blocked in <c>ReadAsync</c> must not hang the caller's teardown (the
+    /// pump's <c>CopyToAsync</c> runs without a cancellation token).</summary>
+    internal static readonly TimeSpan PumpDrainTimeout = TimeSpan.FromSeconds(10);
+
     /// <summary>
     /// Starts a real <see cref="Process"/> wrapped as <see cref="ISegmenterProcess"/>, or
     /// <see langword="null"/> when the start fails — the failure cause (e.g.
@@ -138,8 +143,10 @@ internal static class SegmenterProcessSupport
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
         {
-            // The process ending or being killed breaks the pipe — expected during stops.
-            logger.LogDebug(ex, "[{Caller}] Eingabe-Pump beendet.", caller);
+            // The process ending or being killed breaks the pipe — expected during stops,
+            // so only the exception type and short message are logged, not the stack trace.
+            logger.LogDebug("[{Caller}] Eingabe-Pump beendet ({ExceptionType}: {Reason}).",
+                caller, ex.GetType().Name, ex.Message);
             return SegmenterPumpOutcome.Completed;
         }
         catch (Exception ex)
@@ -152,4 +159,54 @@ internal static class SegmenterProcessSupport
             try { process.StandardInput.Close(); } catch (Exception) { }
         }
     }
+
+    /// <summary>
+    /// Awaits a diagnostic side task (stdin pump, stderr drain) bounded by
+    /// <paramref name="timeout"/>: the task only accompanies the process teardown, so a
+    /// stalled one must neither hang nor a faulted one break the regular stop. A task
+    /// still running past the bound is abandoned with a warning — a later fault is
+    /// observed so it does not linger as an unobserved task exception; a faulted task
+    /// is likewise logged and swallowed. Returns <see langword="true"/> when the task
+    /// completed within the bound.
+    /// </summary>
+    /// <param name="drainTask">The side task to await.</param>
+    /// <param name="timeout">The bounded wait.</param>
+    /// <param name="logger">Logger for the timeout/fault diagnostics.</param>
+    /// <param name="drainDescription">Log prefix naming the drained task (with caller context).</param>
+    internal static async Task<bool> AwaitDrainObservingFaultsAsync(
+        Task drainTask, TimeSpan timeout, ILogger logger, string drainDescription)
+    {
+        try
+        {
+            await drainTask.WaitAsync(timeout);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            // Eine spaetere Faultierung des verwaisten Tasks wird beobachtet, damit sie
+            // nicht als unbehandelte Task-Ausnahme liegen bleibt.
+            _ = drainTask.ContinueWith(
+                t => _ = t.Exception, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            logger.LogWarning("{Drain} nach {TimeoutSeconds}s nicht eingeholt — laeuft verwaist weiter.",
+                drainDescription, timeout.TotalSeconds);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "{Drain} endete fehlerhaft.", drainDescription);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// <see cref="AwaitDrainObservingFaultsAsync(Task, TimeSpan, ILogger, string)"/> for a
+    /// side task producing a result, returned on success — or <see langword="default"/>
+    /// when the drain did not complete within the bound.
+    /// </summary>
+    internal static async Task<T?> AwaitDrainObservingFaultsAsync<T>(
+        Task<T> drainTask, TimeSpan timeout, ILogger logger, string drainDescription)
+        => await AwaitDrainObservingFaultsAsync((Task)drainTask, timeout, logger, drainDescription)
+            ? drainTask.Result
+            : default;
 }

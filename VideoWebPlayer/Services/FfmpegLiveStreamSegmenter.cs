@@ -95,10 +95,12 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     private readonly ILogger<FfmpegLiveStreamSegmenter> _logger;
     private readonly Func<ProcessStartInfo, ISegmenterProcess?> _startProcess;
     private readonly TimeProvider _timeProvider;
+    private readonly TimeSpan _pumpDrainTimeout;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private ISegmenterProcess? _process;
     private LiveStreamJob? _job;
+    private Task _pumpTask = Task.CompletedTask;
     private DateTimeOffset _startedAt;
     private volatile LiveStreamExitInfo? _lastUnexpectedExit;
 
@@ -117,11 +119,13 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     internal FfmpegLiveStreamSegmenter(
         ILogger<FfmpegLiveStreamSegmenter> logger,
         Func<ProcessStartInfo, ISegmenterProcess?> startProcess,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        TimeSpan? pumpDrainTimeout = null)
     {
         _logger = logger;
         _startProcess = startProcess;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _pumpDrainTimeout = pumpDrainTimeout ?? SegmenterProcessSupport.PumpDrainTimeout;
     }
 
     /// <inheritdoc />
@@ -176,8 +180,9 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
                     SftpProbeUriBuilder.MaskCredentialsInText(startInfo.Arguments)));
 
             _ = Task.Run(() => DrainStandardErrorAsync(process, job, _startedAt), CancellationToken.None);
-            if (job.Input.IsPipe)
-                _ = Task.Run(() => PumpInputAsync(process, job), CancellationToken.None);
+            _pumpTask = job.Input.IsPipe
+                ? Task.Run(() => PumpInputAsync(process, job), CancellationToken.None)
+                : Task.CompletedTask;
         }
         finally
         {
@@ -203,8 +208,10 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     {
         var process = _process;
         var job = _job;
+        var pumpTask = _pumpTask;
         _process = null;
         _job = null;
+        _pumpTask = Task.CompletedTask;
 
         if (process is null)
             return;
@@ -223,6 +230,15 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
         {
             process.Dispose();
         }
+
+        // Der Kill hat die stdin-Pipe gebrochen; die Eingabe-Pumpe wird zeitgebunden
+        // eingeholt, damit ihre Abschlussmeldung geordnet vor der „beendet"-Meldung liegt.
+        // Ein in source.ReadAsync blockierender Pump (CopyToAsync laeuft ohne
+        // CancellationToken) darf StopAsync dabei nicht haengen — und ein fehlerhafter
+        // Pump als rein diagnostischer Neben-Task den regulären Stop nicht gefährden.
+        await SegmenterProcessSupport.AwaitDrainObservingFaultsAsync(
+            pumpTask, _pumpDrainTimeout, _logger,
+            $"[FfmpegLiveStreamSegmenter] Eingabe-Pumpe (Sendeplatz {job?.SlotId})");
 
         if (job is not null)
             _logger.LogInformation("[FfmpegLiveStreamSegmenter] Segmentierung fuer Sendeplatz {SlotId} beendet.", job.SlotId);

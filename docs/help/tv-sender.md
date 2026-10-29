@@ -102,7 +102,9 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
   Füller), Genre (Genre-/Formatrotation) oder eine vorhandene Benutzer-Playlist. Welche Materialart
   zulässig ist, richtet sich nach der Regelart und wird serverseitig geprüft.
   Ausnahme Genre: Hier sind **mehrere Genres** wählbar (Checkbox-Liste); der Sendeplan bildet die
-  deduplizierte Vereinigung aller gewählten Genres. Zusätzlich kann die Expansion auf ausgewählte
+  deduplizierte Vereinigung aller gewählten Genres. **Keine Auswahl = alle Genres** — die Regel
+  rotiert dann über den gesamten Genre-Bestand (angezeigt als „Alle Genres"). Zusätzlich kann die
+  Expansion auf ausgewählte
   **Medienquellen** eingeschränkt werden — ohne Auswahl gelten alle Quellen. Wählbar sind nur
   sichtbare, kanonische Genres: Versteckte Genres ohne gültige Alternativnamen-Zuordnung stehen
   nicht zur Wahl; Alternativnamen werden zum kanonischen Genre aufgelöst, sodass auch Inhalte

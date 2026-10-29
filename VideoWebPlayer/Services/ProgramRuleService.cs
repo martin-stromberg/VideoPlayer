@@ -202,10 +202,12 @@ public sealed class ProgramRuleService : IProgramRuleService
     }
 
     // For genre material the first selected genre keeps MaterialId populated (the column stays
-    // required and serves as the single-genre fallback for legacy rows and old backups).
+    // required and serves as the single-genre fallback for legacy rows and old backups). An empty
+    // genre selection is normalized to 0 — the marker for „keine Auswahl = alle Genres", so a stale
+    // id can never reactivate the single-genre fallback.
     private static long MaterialIdFor(ProgramRuleInput input)
-        => input.MaterialType == ProgramRuleMaterialType.Genre && input.GenreIds is { Count: > 0 } ids
-            ? ids[0]
+        => input.MaterialType == ProgramRuleMaterialType.Genre
+            ? input.GenreIds is { Count: > 0 } ids ? ids[0] : 0
             : input.MaterialId;
 
     // Replaces the genre and media-source filter links of the rule: genre material stores both
@@ -416,11 +418,11 @@ public sealed class ProgramRuleService : IProgramRuleService
         }
     }
 
+    // Genre material with an empty selection means „alle Genres" — the same „keine Auswahl = alle"
+    // semantics the media-source filter already uses. Only explicitly chosen ids are checked.
     private async Task ValidateGenreInputAsync(ProgramRuleInput input, CancellationToken cancellationToken)
     {
         var genreIds = (input.GenreIds ?? Array.Empty<long>()).Distinct().ToList();
-        if (genreIds.Count == 0)
-            throw new ArgumentException("Bei Genre-Material muss mindestens ein Genre gewählt werden.");
 
         var existingGenres = await _db.Genres.CountAsync(g => genreIds.Contains(g.Id), cancellationToken);
         if (existingGenres != genreIds.Count)

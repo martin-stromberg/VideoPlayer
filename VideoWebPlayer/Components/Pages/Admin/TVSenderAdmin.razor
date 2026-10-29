@@ -412,7 +412,7 @@ else
                     && (editRule.MaterialType == ProgramRuleMaterialType.Genre || string.IsNullOrWhiteSpace(editRule.MaterialDisplayName)))
                 {
                     <div class="rule-genre-editor" id="rule-genre-editor">
-                        <label class="form-label" id="rule-material-genre-label">Genres (Mehrfachauswahl)</label>
+                        <label class="form-label" id="rule-material-genre-label">Genres (Mehrfachauswahl, keine Auswahl = alle Genres)</label>
                         <div id="rule-material-genre" class="rule-multi-select">
                             @if (genreOptions.Count == 0)
                             {
@@ -1998,7 +1998,7 @@ else
     {
         editError = null;
         var genreIds = rule.MaterialType == ProgramRuleMaterialType.Genre
-            ? (rule.Genres.Count > 0 ? rule.Genres.Select(g => g.GenreId) : [rule.MaterialId])
+            ? (rule.Genres.Count > 0 ? rule.Genres.Select(g => g.GenreId) : rule.MaterialId > 0 ? [rule.MaterialId] : Enumerable.Empty<long>())
             : Enumerable.Empty<long>();
         editRule = new RuleEditModel
         {
@@ -2198,6 +2198,15 @@ else
         var validity = BuildValidityInput();
         if (editError is not null)
             return;
+
+        // Ist die gesetzte Materialart für die Regelart nicht zulässig (z. B. nach dem Wechsel
+        // auf Genre-/Formatrotation ohne neue Auswahl), gilt die sichtbare Genre-Mehrfachauswahl
+        // — eine leere Auswahl speichert die Rotation über alle Genres.
+        if (!AllowedMaterialTypes.Contains(editRule.MaterialType)
+            && AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Genre))
+        {
+            editRule.MaterialType = ProgramRuleMaterialType.Genre;
+        }
 
         var input = new ProgramRuleInput(
             editRule.Name,
@@ -2411,9 +2420,10 @@ else
         {
             var names = ResolveGenreNames(rule);
             var sources = rule.MediaSourceFilters.Select(s => s.MediaSource?.Name).Where(n => n is not null).OrderBy(n => n).ToList();
-            if (names.Count == 0)
-                return "Genre (nicht gefunden)";
-            var label = $"Genre: {string.Join(", ", names)}";
+            // Keine Auswahl (MaterialId 0 ohne Verknüpfungen) = Rotation über alle Genres.
+            var label = names.Count > 0
+                ? $"Genre: {string.Join(", ", names)}"
+                : rule.Genres.Count == 0 && rule.MaterialId == 0 ? "Alle Genres" : "Genre (nicht gefunden)";
             return (sources.Count > 0 ? $"{label} — Quellen: {string.Join(", ", sources)}" : label) + ClipGroupSuffix(rule);
         }
         return MaterialLabel(rule.MaterialType, rule.MaterialId) + ClipGroupSuffix(rule);
@@ -2424,9 +2434,9 @@ else
         if (rule.MaterialType == ProgramRuleMaterialType.Genre)
         {
             var genreNames = ResolveGenreNames(rule);
-            if (genreNames.Count == 0)
-                return "Genre (nicht gefunden)";
-            var label = $"Genre: {genreNames.Count} Genre(n)";
+            var label = genreNames.Count > 0
+                ? $"Genre: {genreNames.Count} Genre(n)"
+                : rule.Genres.Count == 0 && rule.MaterialId == 0 ? "Alle Genres" : "Genre (nicht gefunden)";
             if (rule.MediaSourceFilters.Count > 0)
                 label += $" — {rule.MediaSourceFilters.Count} Quelle(n)";
             if (rule.ClipGroups.Count > 0)

@@ -164,7 +164,11 @@ serverseitig erzwungen, nicht nur in der Oberfläche.
 
 ## Sendeplan
 
-Die Karten im Tab „Sendeplan" sind nach Kalendertag gegliedert (Tages-Header). Innerhalb eines
+Oberhalb der Titelauflistung im Tab „Sendeplan" wählt eine **Auswahlleiste** den angezeigten
+Kalendertag: Sie bietet jeden im Plan enthaltenen Tag als Schaltfläche an und markiert den
+gewählten Tag. Vorausgewählt ist der aktuelle bzw. der nächste belegte Tag; ein Klick
+wechselt die Tagesansicht ohne Neuaufbau des Plans. Die Karten des gewählten Tages stehen
+unter dem Tages-Header. Innerhalb eines
 Tages markiert eine gestrichelte Trennlinie mit Regelname den Blockwechsel, sobald eine andere
 Programmregel den Sendeplatz erzeugt hat. Alle angezeigten Sendezeiten folgen der lokalen
 Zeitzone des Servers — gespeichert werden sie intern in UTC; die Sendezeit einer Regel wird

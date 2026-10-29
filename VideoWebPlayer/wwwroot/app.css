@@ -828,6 +828,42 @@ input[type="text"]:focus {
     margin-top: 0;
 }
 
+/* Tages-Auswahlleiste (Issue #306): ein Klick waehlt den einzig sichtbaren Kalendertag
+   der Titelauflistung; Optik angelehnt an die .admin-tab-Leiste der Seite. */
+.admin-console .tvsender-day-bar {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+    padding: 0.35rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+}
+
+.admin-console .tvsender-day-btn {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid transparent;
+    border-radius: var(--vp-radius-sm);
+    background: transparent;
+    color: var(--admin-muted);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-align: center;
+}
+
+.admin-console .tvsender-day-btn:hover {
+    color: var(--admin-text);
+    background: var(--admin-surface-high);
+}
+
+.admin-console .tvsender-day-btn.active {
+    color: #fff;
+    background: var(--admin-primary-strong);
+    border-color: var(--admin-primary-strong);
+}
+
 .admin-console .tvsender-rule-divider {
     display: flex;
     align-items: center;

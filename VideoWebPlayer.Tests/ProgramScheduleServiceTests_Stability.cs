@@ -182,5 +182,6 @@ public sealed class ProgramScheduleServiceTests_Stability
             _output.WriteLine("LOG: " + m);
         var displacedCount = (await fixture.SlotsAsync(ct)).Count(s => s.Status == ProgramSlotStatus.Displaced);
         _output.WriteLine($"Displaced gesamt: {displacedCount}");
+        Assert.Equal(0, displacedCount);
     }
 }

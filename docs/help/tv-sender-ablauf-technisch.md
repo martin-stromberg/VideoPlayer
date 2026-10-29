@@ -611,11 +611,15 @@ bereinigen" entfernt diesen Beleg; eine Sendung, deren Verschiebung nur noch in 
 verdrängten Zeile nachweisbar war, kann danach einmalig verdrängt und an ihrem
 Nominalstart neu eingeplant werden (Anwendersicht: `docs/help/tv-sender.md`).
 
-Jeder verdrängte Block schreibt eine Diagnose-Zeile (`Information`): Regel, Kopf-
-Intervall, Sendeplatzanzahl und der `AiringInvalidReason`, der die tiefste erreichte
-Ablehnungsstufe benennt (fehlende/inaktive Regel, fehlender Occurrence-Anker,
-fehlende Verschiebe-Evidenz, Folge-/Kopf-Pick- oder Clip-Ketten-Bruch, nicht
-reproduzierbarer Rest). Im Anwendungslog erscheint sie als
+Jeder als invalide erkannte Block schreibt eine Diagnose-Zeile (`Information`):
+Regel, Kopf-Intervall, Sendeplatzanzahl und der `AiringInvalidReason`, der die
+tiefste erreichte Ablehnungsstufe benennt (fehlende/inaktive Regel, fehlender
+Occurrence-Anker bzw. Ausstrahlungskopf vor jedem nutzbaren Anker, fehlende
+Verschiebe-Evidenz, Folge-/Kopf-Pick- oder Clip-Ketten-Bruch, nicht reproduzierbarer
+Rest). Pro Regelgruppe wird nur der erste invalide Block geprüft und protokolliert —
+die nachfolgenden Ausstrahlungen derselben Regel werden als Suffix mitverdrängt, ohne
+eigene Diagnose-Zeile, weil ihr Cursor-Kontext nach der ersten Ablehnung ohnehin
+veraltet ist. Im Anwendungslog erscheint sie als
 `[ProgramSchedule] Ausstrahlung invalide: Regel {id}, Kopf {start-end}, {n}
 Sendeplaetze, Grund {Reason}` — sie macht erkennbar, ob eine Verdrängung eine echte
 Änderung oder eine Beweislücke ist.

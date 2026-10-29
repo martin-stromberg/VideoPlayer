@@ -720,7 +720,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var items = state.Items;
         if (items.Count == 0)
         {
-            context.NoteFailure(AiringInvalidReason.HeadItemNotInExpansion);
+            context.NoteFailure(AiringInvalidReason.ItemNotInExpansion);
             return false;
         }
         if (occurrenceStarts.Count == 0)
@@ -732,7 +732,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var idx = FindItemIndex(items, airing[offset]);
         if (idx < 0)
         {
-            context.NoteFailure(AiringInvalidReason.HeadItemNotInExpansion);
+            context.NoteFailure(AiringInvalidReason.ItemNotInExpansion);
             return false;
         }
 
@@ -742,7 +742,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var preservesOrder = state.PreservesOrder;
 
         var count = items.Count;
-        var earliestStart = occurrenceStarts.Min();
         // Backward hypotheses: k = taken-but-unwritten head items. The scan head may
         // additionally lie behind window-skipped positions — a skipped position consumed the
         // ring without producing airtime, so it counts toward the head index but not toward
@@ -792,8 +791,15 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             // The sub-airing's real start — its first taken item began here; the nominal
             // occurrence started at or before this point.
             var airingStart = airing[offset].Start - skipped;
-            if (airingStart < earliestStart)
-                break; // skipped duration already reaches past the oldest occurrence in the window
+            // Anchor space exhausted: the reconstructed start lies before every occurrence
+            // that can still anchor the tail (the skipped duration already reaches past the
+            // oldest occurrence in the window, or earlier chain links consumed all of them).
+            // A larger k only walks the start further back — no hypothesis remains.
+            if (!occurrenceStarts.Any(o => o > afterStart && o <= airingStart))
+            {
+                context.NoteFailure(AiringInvalidReason.OutsideOccurrenceWindow);
+                break;
+            }
 
             var headIndex = ((idx - positionsBack) % count + count) % count;
             foreach (var occurrenceStart in occurrenceStarts.Where(o => o > afterStart && o <= airingStart))
@@ -915,7 +921,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             }
             if (s < 0)
             {
-                context.NoteFailure(AiringInvalidReason.HeadItemNotInExpansion);
+                context.NoteFailure(AiringInvalidReason.ItemNotInExpansion);
                 return false;
             }
 
@@ -957,6 +963,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
         var maxPrefix = Math.Min(wanted, strands.Sum(s => s.Items.Count) + rest);
 
+        // Anchor space exhausted: the tail can only anchor to occurrences after the lower
+        // bound and at or before its first slot's start — an empty candidate space means the
+        // airing starts ahead of every usable occurrence in the window (or earlier chain
+        // links already consumed all of them).
+        if (!occurrenceStarts.Any(o => o > afterStart && o <= airing[offset].Start))
+        {
+            context.NoteFailure(AiringInvalidReason.OutsideOccurrenceWindow);
+            return false;
+        }
+
         foreach (var occurrenceStart in occurrenceStarts.Where(o => o > afterStart && o <= airing[offset].Start).OrderBy(o => o))
         {
             // The real start may shift across a UTC day boundary when invaders push it —
@@ -972,7 +988,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 for (var p = 0; p < maxPrefix; p++)
                 {
                     if ((startOffset + p) % m != strandOf[0])
+                    {
+                        // This prefix length cannot land the first observed slot's pick on
+                        // its observed strand — if no (offset, p) pair can, the head pick is
+                        // inconsistent with the airing.
+                        context.NoteFailure(AiringInvalidReason.HeadPickInconsistent);
                         continue;
+                    }
 
                     var prefixCount = new int[m];
                     var possible = true;
@@ -1251,6 +1273,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             {
                 var ordered = group.OrderBy(a => a[0].Start).ToList();
                 var firstInvalid = -1;
+                // Only the first invalid airing of a rule group gets a diagnosis line: the
+                // following airings are displaced as a suffix anyway (their cursor context
+                // is obsolete), so per-airing reasons would not add information.
                 for (var i = 0; i < ordered.Count && firstInvalid < 0; i++)
                 {
                     var airing = ordered[i];

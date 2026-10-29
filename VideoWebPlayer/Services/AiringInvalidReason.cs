@@ -21,16 +21,27 @@ internal enum AiringInvalidReason
     /// <summary>The rule has no occurrence inside the loaded window that could anchor the airing.</summary>
     NoOccurrenceAnchor,
 
+    /// <summary>
+    /// Occurrences exist in the window, but none can anchor the (remaining) airing: its
+    /// reconstructed start lies before every usable occurrence — e.g. a marathon-long airing
+    /// reaching past the maximum lookback — or earlier chain links already consumed every
+    /// candidate at or before it.
+    /// </summary>
+    OutsideOccurrenceWindow,
+
     /// <summary>Clip-aware pre-filter: the airing's slot chain is not gaplessly linked.</summary>
     ClipChainBroken,
 
     /// <summary>Clip-aware pre-filter: the airing carries no title slot (clips only).</summary>
     TitlelessAiring,
 
-    /// <summary>The airing's head item is not part of the rule's current expansion.</summary>
-    HeadItemNotInExpansion,
+    /// <summary>
+    /// An airing slot is not part of the rule's current expansion — the flat tail check tests
+    /// the tail's head item, the interleaved check every tail slot against its strand.
+    /// </summary>
+    ItemNotInExpansion,
 
-    /// <summary>A slot cannot be assigned to a strand, or the strand order/contiguity is broken.</summary>
+    /// <summary>The strand order/contiguity of a tail slot is broken.</summary>
     StrandSequenceBroken,
 
     /// <summary>A shifted real start lacks invader evidence covering the nominal occurrence start.</summary>

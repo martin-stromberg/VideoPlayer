@@ -2398,14 +2398,15 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // movies and shows into the union — including legacy links on hidden genre rows that forward
     // to a selected canonical genre. The per-rule media-source filter additionally restricts both
     // the genre rows and the resulting content; empty filter = all sources. Rules without
-    // ProgramRuleGenre rows (legacy data, old backups) fall back to MaterialId as the single
-    // genre.
+    // ProgramRuleGenre rows carry two meanings: a positive MaterialId is the single-genre
+    // fallback (legacy data, old backups), while MaterialId 0 is the persisted „keine Auswahl =
+    // alle Genres" marker and expands to every usable genre in scope.
     private async Task<List<SchedulableItem>> ExpandGenreAsync(ProgramRule rule, AccessContext access, SummaryCounters summary, DateTime coverageStart, CancellationToken cancellationToken)
     {
         var sourceFilter = rule.MediaSourceFilters.Select(s => s.MediaSourceId).ToHashSet();
-        var storedIds = rule.Genres.Count > 0
+        List<long> storedIds = rule.Genres.Count > 0
             ? rule.Genres.Select(g => g.GenreId).ToList()
-            : [rule.MaterialId];
+            : rule.MaterialId > 0 ? [rule.MaterialId] : [];
 
         var scopedGenres = await _db.Genres
             .AsNoTracking()
@@ -2418,7 +2419,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .Include(g => g.AlternateNames)
             .Where(g => storedIds.Contains(g.Id))
             .ToListAsync(cancellationToken);
-        if (storedGenres.Count == 0)
+        if (storedGenres.Count == 0 && storedIds.Count > 0)
         {
             summary.MaterialMissing++;
             return [];
@@ -2432,7 +2433,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var selectedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var stored in storedGenres)
             selectedNames.UnionWith(canonicalNames.GetValueOrDefault(stored.Id, []));
-        if (selectedNames.Count == 0)
+        if (storedIds.Count > 0 && selectedNames.Count == 0)
         {
             // Every stored genre is hidden/out-of-season without a usable alternate — the
             // selection resolves to nothing.
@@ -2440,8 +2441,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             return [];
         }
 
+        // storedIds empty: „keine Auswahl = alle Genres" — every genre row in scope that resolves
+        // to a usable canonical name participates; otherwise only rows overlapping the selection.
         var effectiveGenreIds = scopedGenres
-            .Where(g => canonicalNames[g.Id].Overlaps(selectedNames))
+            .Where(g => storedIds.Count == 0
+                ? canonicalNames[g.Id].Count > 0
+                : canonicalNames[g.Id].Overlaps(selectedNames))
             .Select(g => g.Id)
             .ToHashSet();
         if (effectiveGenreIds.Count == 0)

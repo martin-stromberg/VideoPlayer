@@ -199,6 +199,37 @@ public sealed class ProgramScheduleServiceTests_Genres
     }
 
     [Fact]
+    public async Task EnsureCoverage_GenreRuleWithoutSelection_ExpandsAllGenres()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("schedule-genre-all", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var gA = await fixture.CreateGenreAsync("Action");
+        var gB = await fixture.CreateGenreAsync("Komödie");
+        var hidden = await fixture.CreateGenreAsync("Versteckt", isHidden: true);
+        var mA = await fixture.CreateMovieAsync("Nur A", duration: TimeSpan.FromMinutes(90));
+        var mB = await fixture.CreateMovieAsync("Nur B", duration: TimeSpan.FromMinutes(90));
+        var mHidden = await fixture.CreateMovieAsync("Unsichtbar", duration: TimeSpan.FromMinutes(90));
+        await fixture.LinkMovieGenreAsync(mA.Id, gA.Id);
+        await fixture.LinkMovieGenreAsync(mB.Id, gB.Id);
+        await fixture.LinkMovieGenreAsync(mHidden.Id, hidden.Id);
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        // „Keine Auswahl = alle Genres": MaterialId 0 ohne ProgramRuleGenres-Rows — die
+        // Expansion umfasst jedes verwendbare Genre im Quell-Scope.
+        await fixture.CreateRuleAsync(channel.Id, "Alles", ProgramRuleType.GenreRotation, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Genre, 0, episodeCount: 3);
+
+        await fixture.CreateService().EnsureCoverageAsync(now, ct);
+
+        var movieIds = (await GenreSlotsAsync(fixture, ct)).Select(s => s.MovieId).ToList();
+        Assert.Contains(mA.Id, movieIds);
+        Assert.Contains(mB.Id, movieIds);
+        // Versteckte Genres ohne Alternativnamen bleiben auch im „alle"-Modus wirkungslos.
+        Assert.DoesNotContain(mHidden.Id, movieIds);
+    }
+
+    [Fact]
     public async Task EnsureCoverage_LegacyGenreRuleWithoutJoins_FallsBackToMaterialId()
     {
         var ct = TestContext.Current.CancellationToken;

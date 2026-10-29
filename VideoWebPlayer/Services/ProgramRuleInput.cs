@@ -6,9 +6,10 @@ namespace VideoWebPlayer.Services;
 /// The administrator-submitted attributes of a <see cref="ProgramRule"/>, shared by the create and
 /// update operations of <see cref="IProgramRuleService"/>. For
 /// <see cref="ProgramRuleMaterialType.Genre"/> material, <c>GenreIds</c> carries the selected
-/// genres (at least one required) and <c>MediaSourceIds</c> the optional source filter (empty
-/// means all sources); both lists are rejected for every other material type. <c>MaterialId</c>
-/// remains the single material reference for non-genre materials.
+/// genres (empty means all genres — persisted as <c>MaterialId</c> 0 without join rows) and
+/// <c>MediaSourceIds</c> the optional source filter (empty means all sources); both lists are
+/// rejected for every other material type. <c>MaterialId</c> remains the single material
+/// reference for non-genre materials.
 /// </summary>
 public sealed record ProgramRuleInput(
     string Name,

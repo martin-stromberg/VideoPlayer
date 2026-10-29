@@ -435,6 +435,65 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
     }
 
     [Fact]
+    public async Task Admin_GenreRotationRule_WithoutGenreSelection_SavesAllGenres()
+    {
+        if (SkipBrowser) return;
+        await EnableTvSenderAsync();
+
+        // Issue #307: eine Genre-/Formatrotation ohne explizite Genre-Auswahl muss sich
+        // speichern lassen — „keine Auswahl = alle Genres".
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
+            var sourceId = await EnsureMediaSourceIdAsync(db);
+            db.Genres.Add(new VideoWebPlayer.Data.Genre { Name = "E2E Rotation", MediaSourceId = sourceId });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await OpenAdminPageAsAdminAsync();
+
+        await DriveUntilStateAsync(
+            async () =>
+            {
+                if (await Page.Locator("#rule-name").CountAsync() > 0) return;
+                var btn = Page.Locator("#tvsender-new-rule");
+                if (await btn.CountAsync() > 0) await btn.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
+            },
+            () => Page.Locator("#rule-name").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
+
+        await Page.FillAsync("#rule-name", "Allesrotation");
+        await Page.FillAsync("#rule-episodes", "2");
+        await Page.SelectOptionAsync("#rule-type", "GenreRotation");
+        // Der Genre-Editor ist sichtbar, es wird aber bewusst nichts angehakt — bislang
+        // scheiterte das Speichern an der Materialart-Validierung.
+        await Page.Locator("#rule-material-genre").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+
+        await Page.ClickAsync("#rule-save");
+
+        var row = Page.Locator(".tvsender-rule-row", new PageLocatorOptions { HasText = "Allesrotation" });
+        await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await Expect(row).ToContainTextAsync("Genre-/Formatrotation");
+        await Expect(row).ToContainTextAsync("Alle Genres");
+
+        // Persistiert als Genre-Material mit Marker MaterialId 0 und ohne Join-Rows.
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
+            var ct = TestContext.Current.CancellationToken;
+            var rule = await db.ProgramRules.SingleAsync(r => r.Name == "Allesrotation", ct);
+            Assert.Equal(VideoWebPlayer.Data.ProgramRuleMaterialType.Genre, rule.MaterialType);
+            Assert.Equal(0, rule.MaterialId);
+            Assert.Equal(0, await db.ProgramRuleGenres.CountAsync(g => g.ProgramRuleId == rule.Id, ct));
+        }
+
+        // Edit: die leere Auswahl bleibt leer und speicherbar.
+        await row.Locator(".tvsender-rule-edit").ClickAsync();
+        await Page.Locator("#rule-name").WaitForAsync();
+        await Page.ClickAsync("#rule-save");
+        await Expect(Page.Locator("#tvsender-rules-status")).ToContainTextAsync("gespeichert");
+    }
+
+    [Fact]
     public async Task NonAdmin_SeesNotAuthorized()
     {
         if (SkipBrowser) return;

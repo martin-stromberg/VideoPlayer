@@ -50,14 +50,57 @@ public sealed class ProgramRuleServiceTests_GenreMaterial
     }
 
     [Fact]
-    public async Task CreateRule_GenreWithoutGenreIds_Throws()
+    public async Task CreateRule_GenreWithoutGenreIds_RotatesAllGenres()
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("rule-genre-empty", ct);
         var (service, adminId, _, channelId) = await SetupAsync(fixture, ct);
 
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            service.CreateRuleAsync(adminId, channelId, GenreInput(null), ct));
+        // „Keine Auswahl = alle Genres": Genre-Material ohne Auswahl ist zulässig und wird mit
+        // MaterialId 0 ohne Join-Rows gespeichert — der Marker verhindert, dass der Planer in
+        // den Einzel-Genre-Fallback für Altbestände läuft.
+        var rule = await service.CreateRuleAsync(adminId, channelId, GenreInput(null), ct);
+
+        Assert.Equal(ProgramRuleMaterialType.Genre, rule.MaterialType);
+        Assert.Equal(0, rule.MaterialId);
+        Assert.Equal(0, await fixture.Db.ProgramRuleGenres.CountAsync(x => x.ProgramRuleId == rule.Id, ct));
+    }
+
+    [Fact]
+    public async Task CreateRule_GenreRotationWithoutGenreIds_IsAllowed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("rule-genrerotation-empty", ct);
+        var (service, adminId, _, channelId) = await SetupAsync(fixture, ct);
+
+        // Der aus Issue #307 gemeldete Fall: Genre-/Formatrotation ohne explizite
+        // Genre-Auswahl speichern — die Regel rotiert anschließend über alle Genres.
+        var rule = await service.CreateRuleAsync(adminId, channelId,
+            GenreInput(null) with { RuleType = ProgramRuleType.GenreRotation }, ct);
+
+        Assert.Equal(ProgramRuleType.GenreRotation, rule.RuleType);
+        Assert.Equal(ProgramRuleMaterialType.Genre, rule.MaterialType);
+        Assert.Equal(0, rule.MaterialId);
+    }
+
+    [Fact]
+    public async Task UpdateRule_GenreSelectionCleared_RotatesAllGenres()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("rule-genre-cleared", ct);
+        var (service, adminId, _, channelId) = await SetupAsync(fixture, ct);
+        var g1 = await AddGenreAsync(fixture, "Action", ct);
+        var g2 = await AddGenreAsync(fixture, "Komödie", ct);
+
+        var rule = await service.CreateRuleAsync(adminId, channelId, GenreInput([g1.Id, g2.Id]), ct);
+
+        // Entfernt der Benutzer alle Häkchen, bleibt die Regel gültig — sie rotiert danach
+        // über alle Genres und bleibt nicht auf der letzten Auswahl hängen.
+        await service.UpdateRuleAsync(adminId, rule.Id, GenreInput(null), ct);
+
+        var stored = await fixture.Db.ProgramRules.AsNoTracking().SingleAsync(r => r.Id == rule.Id, ct);
+        Assert.Equal(0, stored.MaterialId);
+        Assert.Equal(0, await fixture.Db.ProgramRuleGenres.CountAsync(x => x.ProgramRuleId == rule.Id, ct));
     }
 
     [Fact]

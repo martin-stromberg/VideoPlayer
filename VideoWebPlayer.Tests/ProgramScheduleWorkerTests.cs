@@ -208,4 +208,109 @@ public sealed class ProgramScheduleWorkerTests
 
         Assert.Equal(expectSlots, created > 0);
     }
+
+    // End-to-end: ein Worker-Takt bereinigt ein bewiesenes Selbst-Verdraengungs-Zwillingpaar —
+    // die verdrängte Kopie verschwindet, der geplante Zwilling und eine echte
+    // Verdrängungshistorie bleiben.
+    [Fact]
+    public async Task Worker_Run_CleansSelfDisplacedDuplicates()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connectionString = $"Data Source=file:schedule-worker-{Guid.NewGuid():N}?mode=memory&cache=shared";
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(ct);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<EventManager>();
+        services.AddDbContext<ApplicationDbContext>(o => o.UseSqlite(connectionString));
+        services.AddScoped<ProgramRuleService>();
+        services.AddScoped<IProgramRuleService>(sp => sp.GetRequiredService<ProgramRuleService>());
+        services.AddScoped<ProgramSettingsService>();
+        services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
+        services.AddSingleton<ILogger<ProgramScheduleService>>(NullLogger<ProgramScheduleService>.Instance);
+        services.AddSingleton<ILogger<ProgramScheduleWorker>>(NullLogger<ProgramScheduleWorker>.Instance);
+        services.AddScoped<IProgramScheduleService, ProgramScheduleService>();
+        var provider = services.BuildServiceProvider();
+
+        // Historisches Zwillingpaar: das Reconcile lädt es nicht (vollständig ausgestrahlt),
+        // die Bereinigung entfernt trotzdem nur die bewiesene Kopie.
+        var start = DateTime.UtcNow.AddDays(-3);
+        var end = start.AddMinutes(90);
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await db.Database.EnsureCreatedAsync(ct);
+            var channel = await db.TVChannels.FirstOrDefaultAsync(ct)
+                ?? db.TVChannels.Add(new TVChannel { Name = "TV-Sender" }).Entity;
+            await db.SaveChangesAsync(ct);
+            var source = new MediaSource { Name = "Q", Path = "/q", Host = "h", Port = 1 };
+            db.MediaSources.Add(source);
+            await db.SaveChangesAsync(ct);
+            var collection = new MediaCollection { Name = "C", MediaSourceId = source.Id, Path = "/c", CreatedAt = DateTime.UtcNow };
+            db.MediaCollections.Add(collection);
+            await db.SaveChangesAsync(ct);
+            var item = new MediaItem { Name = "f.mkv", Path = "/c/f.mkv", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(90) };
+            db.MediaItems.Add(item);
+            var movie = new Movie { Name = "M", MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
+            db.Movies.Add(movie);
+            await db.SaveChangesAsync(ct);
+            db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
+            db.Setups.Add(new Setup { TvSenderEnabled = true, ProgramScheduleUnknownRatingMode = ProgramScheduleUnknownRatingMode.Unrestricted });
+            await db.SaveChangesAsync(ct);
+            var rule = new ProgramRule
+            {
+                TVChannelId = channel.Id, Name = "Primetime", RuleType = ProgramRuleType.MoviePrimeTime,
+                Recurrence = ProgramRuleRecurrence.Daily, TimeOfDay = new TimeOnly(20, 0), EpisodeCount = 1,
+                MaterialType = ProgramRuleMaterialType.Movie, MaterialId = movie.Id, IsActive = true
+            };
+            db.ProgramRules.Add(rule);
+            await db.SaveChangesAsync(ct);
+            ProgramSlot Row(ProgramSlotStatus status) => new()
+            {
+                TVChannelId = channel.Id, Start = start, End = end, MediaItemId = item.Id, MovieId = movie.Id,
+                ProgramRuleId = rule.Id, RuleType = ProgramRuleType.MoviePrimeTime, Status = status,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.ProgramSlots.Add(Row(ProgramSlotStatus.Scheduled));
+            db.ProgramSlots.Add(Row(ProgramSlotStatus.Displaced)); // bewiesenes Duplikat
+            db.ProgramSlots.Add(new ProgramSlot // echte Verdraengungshistorie: kein Zwilling
+            {
+                TVChannelId = channel.Id, Start = start.AddDays(1), End = end.AddDays(1), MediaItemId = item.Id,
+                MovieId = movie.Id, ProgramRuleId = rule.Id, RuleType = ProgramRuleType.MoviePrimeTime,
+                Status = ProgramSlotStatus.Displaced, CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+        }
+
+        var worker = new ProgramScheduleWorker(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<ProgramScheduleWorker>.Instance,
+            initialDelay: TimeSpan.Zero);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        await worker.StartAsync(cts.Token);
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        var done = false;
+        while (DateTime.UtcNow < deadline)
+        {
+            using var scope = provider.CreateScope();
+            var displaced = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+                .ProgramSlots.CountAsync(s => s.Status == ProgramSlotStatus.Displaced, ct);
+            if (displaced == 1)
+            {
+                done = true;
+                break;
+            }
+            await Task.Delay(200, ct);
+        }
+        await cts.CancelAsync();
+        await worker.StopAsync(CancellationToken.None);
+        worker.Dispose();
+
+        Assert.True(done, "Der Worker-Task hat das Duplikat nicht entfernt.");
+        using var check = provider.CreateScope();
+        var dbCheck = check.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var scheduled = await dbCheck.ProgramSlots.CountAsync(s => s.Status == ProgramSlotStatus.Scheduled, ct);
+        Assert.True(scheduled > 0);
+    }
 }

@@ -70,8 +70,12 @@ public sealed class ProgramScheduleWorker : BackgroundService
                         var service = scope.ServiceProvider.GetRequiredService<IProgramScheduleService>();
                         // Ablauf-Bereinigung zuerst: das folgende Reconcile verdrängt die
                         // Sendeplätze der geloeschten Regeln (weiche Referenz, Muster der
-                        // manuellen Loeschung).
+                        // manuellen Loeschung). Danach bewiesene Selbst-Verdraengungs-
+                        // Duplikate entfernen — bewusst VOR dem Reconcile, damit eine im selben
+                        // Takt frisch erzeugte Verdraengung sichtbar bleibt und nicht verdeckt
+                        // wird.
                         await service.PurgeExpiredRulesAsync(_timeProvider.GetUtcNow(), stoppingToken);
+                        await service.CleanupSelfDisplacedSlotsAsync(stoppingToken);
                         await service.ReconcileAsync(_timeProvider.GetUtcNow(), stoppingToken);
                         await service.EnsureCoverageAsync(_timeProvider.GetUtcNow(), stoppingToken);
                     }

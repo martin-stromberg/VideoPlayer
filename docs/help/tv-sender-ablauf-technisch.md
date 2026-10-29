@@ -589,15 +589,54 @@ einmalige Verdrängung.
 nicht über die Entity-Eigenschaft, weil ein getracktes `ProgramSlot` nach einem
 Bulk-`ExecuteUpdate` (z. B. „Verdrängte bereinigen" in derselben `DbContext`-Instanz)
 einen veralteten Status tragen kann. `ReconcileWindow.Reload(loadFrom, scheduled,
-displacedEvidence)` reicht die Verdrängt-Zeilen an `Rebuild`, das `_invaderStarts` aus
-`Scheduled.Concat(displacedEvidence)` gruppiert — ausschließlich als Evidenz:
-`Airings`/`FillerSlots`/`Scheduled` bleiben Scheduled-only. Damit bleibt eine berechtigt
-hinter einen anderen Sendeplatz gerückte Ausstrahlung beweisbar, nachdem der belegende
-Sendeplatz selbst verdrängt wurde — sonst pendelte die Ausstrahlung Lauf für Lauf
-zwischen Verschiebung und erneuter Verdrängung. Umgekehrt gilt: „Verdrängte bereinigen"
-entfernt diesen Beleg; eine Sendung, deren Verschiebung nur noch in einer verdrängten
-Zeile nachweisbar war, kann danach einmalig verdrängt und an ihrem Nominalstart neu
-eingeplant werden (Anwendersicht: `docs/help/tv-sender.md`).
+displacedEvidence)` reicht die Verdrängt-Zeilen an `Rebuild`, das `_occupiedEvidence` aus
+`Scheduled.Concat(displacedEvidence)` als Intervalle aufbaut — ausschließlich als
+Evidenz: `Airings`/`FillerSlots`/`Scheduled` bleiben Scheduled-only. Damit bleibt eine
+berechtigt hinter einen anderen Sendeplatz gerückte Ausstrahlung beweisbar, nachdem der
+belegende Sendeplatz selbst verdrängt wurde — sonst pendelte die Ausstrahlung Lauf für
+Lauf zwischen Verschiebung und erneuter Verdrängung.
+
+Der Verschiebungs-Beweis läuft seit Issue #310 über denselben Fixpunkt, den auch die
+Materialisierung verwendet: `ShiftPastInvaders(occurrenceStart, evidence)` kettet die
+belegten Intervalle — ein Beleger, der den laufenden Punkt strikt überdeckt, schiebt ihn
+an sein eigenes Ende, der Fixpunkt endet am echten Start. Es zählen nur Intervalle mit
+`End <= realStart`, damit eine über den beobachteten Start hinausreichende
+Verdrängt-Zeile den Beweis nicht überschießt. Der frühere Einzel-Beleger-Test
+(„irgendein Sendeplatz endet am realen Start und begann vor dem Occurrence-Start")
+verwarf zulässige Ausstrahlungen, deren Verschiebung nur als *Kette* mehrerer
+Belegungen entstehen kann — und verwarf sie bei jedem weiteren Lauf erneut, weil die
+Neueinplanung am selben Platz wieder denselben Inhalt schrieb („durch sich selbst
+ersetzt", wachsende Verdrängt-Stapel). Umgekehrt gilt weiterhin: „Verdrängte
+bereinigen" entfernt diesen Beleg; eine Sendung, deren Verschiebung nur noch in einer
+verdrängten Zeile nachweisbar war, kann danach einmalig verdrängt und an ihrem
+Nominalstart neu eingeplant werden (Anwendersicht: `docs/help/tv-sender.md`).
+
+Jeder verdrängte Block schreibt eine Diagnose-Zeile (`Information`): Regel, Kopf-
+Intervall, Sendeplatzanzahl und der `AiringInvalidReason`, der die tiefste erreichte
+Ablehnungsstufe benennt (fehlende/inaktive Regel, fehlender Occurrence-Anker,
+fehlende Verschiebe-Evidenz, Folge-/Kopf-Pick- oder Clip-Ketten-Bruch, nicht
+reproduzierbarer Rest). Im Anwendungslog erscheint sie als
+`[ProgramSchedule] Ausstrahlung invalide: Regel {id}, Kopf {start-end}, {n}
+Sendeplaetze, Grund {Reason}` — sie macht erkennbar, ob eine Verdrängung eine echte
+Änderung oder eine Beweislücke ist.
+
+### Bereinigung von Selbst-Verdrängungs-Duplikaten
+
+Der Sendeplan-Worker ruft im selben Takt `CleanupSelfDisplacedSlotsAsync` (zwischen
+`PurgeExpiredRulesAsync` und `ReconcileAsync`): es löscht genau die `Displaced`-Zeilen,
+die einen bewiesenen `Scheduled`-Zwilling haben — gleicher Kanal, gleiches Intervall
+(Start und Ende identisch), gleiche erzeugende Regel (`ProgramRuleId` — EF kompensiert
+die Null-Semantik, zwei NULL-Regeln gelten ebenfalls als Zwilling), gleiche
+`IsClipFill`-Markierung und gleicher Inhalt (gleiche `MediaItemId` **oder** gleiche
+`MovieId`/`TVShowEpisodeId`, damit ein Repräsentantenwechsel ein Duplikat nicht
+verdeckt). Der geplante Zwilling deckt das Intervall vollständig ab, deshalb geht beim
+Löschen keine Verschiebungs-Evidenz verloren und das folgende Reconcile bleibt ein
+No-Op. Alles andere bleibt stehen: echte Verdrängungsverlierer (gleiches Intervall,
+anderer Inhalt), Zeilen ohne geplanten Zwilling und Fremd-Regel-Zeilen. Die
+Bereinigung steht nicht hinter einer Admin-Berechtigung — sie läuft innerhalb
+`TvSenderEnabled` als Haushaltsarbeit; der Vollsweep „Verdrängte bereinigen"
+(`DeleteDisplacedSlotsAsync`) bleibt unverändert eine Verwaltungs-Aktion mit anderen
+Auswirkungen (sie entfernt auch die Evidenz, voriger Abschnitt).
 
 ### Gebündelte Auslöse-Signale
 

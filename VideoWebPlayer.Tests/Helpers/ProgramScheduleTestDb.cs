@@ -76,8 +76,10 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         await SaveDiagAsync();
     }
 
-    public ProgramScheduleService CreateService(Microsoft.Extensions.Options.IOptions<VideoWebPlayer.Configuration.ProgramScheduleOptions>? scheduleOptions = null)
-        => new(Db, new ProgramRuleService(Db), new ProgramSettingsService(Db, NullLogger<ProgramSettingsService>.Instance), NullLogger<ProgramScheduleService>.Instance, scheduleOptions: scheduleOptions);
+    public ProgramScheduleService CreateService(
+        Microsoft.Extensions.Options.IOptions<VideoWebPlayer.Configuration.ProgramScheduleOptions>? scheduleOptions = null,
+        Microsoft.Extensions.Logging.ILogger<ProgramScheduleService>? logger = null)
+        => new(Db, new ProgramRuleService(Db), new ProgramSettingsService(Db, NullLogger<ProgramSettingsService>.Instance), logger ?? NullLogger<ProgramScheduleService>.Instance, scheduleOptions: scheduleOptions);
 
     public ProgramGuideService CreateGuideService()
         => new(Db);
@@ -362,6 +364,29 @@ internal sealed class ProgramScheduleTestDb : IDisposable
             .Select(s => $"{(s.Status == ProgramSlotStatus.Displaced ? "X" : "S")} {s.Start:dd.HH:mm}-{s.End:dd.HH:mm} rule={s.ProgramRuleId} type={s.RuleType} ep={s.TVShowEpisodeId} item={s.MediaItemId}")
             .ToList();
         Assert.Fail($"{(context is null ? "" : context + " — ")}No-Op erwartet (Displaced={summary.SlotsDisplaced}, Created={summary.SlotsCreated}): " + string.Join(" | ", dumped));
+    }
+
+    /// <summary>Asserts no displaced slot was replaced "by itself": fails when a
+    /// <see cref="ProgramSlotStatus.Displaced"/> row shares its exact time interval and content
+    /// (same <see cref="ProgramSlot.MovieId"/>/<see cref="ProgramSlot.TVShowEpisodeId"/>; for raw
+    /// media the <see cref="ProgramSlot.MediaItemId"/>) with a
+    /// <see cref="ProgramSlotStatus.Scheduled"/> row — the direct proof of an unnecessary
+    /// displacement.</summary>
+    public static async Task AssertNoSelfDisplacedAsync(ProgramScheduleTestDb fixture, CancellationToken ct, string? context = null)
+    {
+        var slots = await fixture.SlotsAsync(ct);
+        var scheduled = slots.Where(s => s.Status == ProgramSlotStatus.Scheduled).ToList();
+        var twins = slots
+            .Where(d => d.Status == ProgramSlotStatus.Displaced)
+            .Where(d => scheduled.Any(s => s.Start == d.Start && s.End == d.End
+                && (s.MediaItemId == d.MediaItemId
+                    || (d.MovieId is not null && s.MovieId == d.MovieId)
+                    || (d.TVShowEpisodeId is not null && s.TVShowEpisodeId == d.TVShowEpisodeId))))
+            .Select(d => $"{d.Start:dd.HH:mm}-{d.End:dd.HH:mm} rule={d.ProgramRuleId} movie={d.MovieId} ep={d.TVShowEpisodeId} item={d.MediaItemId}")
+            .ToList();
+        if (twins.Count == 0)
+            return;
+        Assert.Fail((context is null ? "Selbst-Verdrängung: " : context + " — Selbst-Verdrängung: ") + string.Join(" | ", twins));
     }
 
     /// <summary>Links an additional media item to an existing movie — reproduces a

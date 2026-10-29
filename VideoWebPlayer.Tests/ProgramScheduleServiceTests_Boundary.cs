@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
@@ -181,6 +182,98 @@ public sealed class ProgramScheduleServiceTests_Boundary
         // Follow-up runs must not re-displace it either — no oscillation.
         var second = await service.ReconcileAsync(now.AddMinutes(10), ct);
         await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, second, ct, "2. Lauf");
+    }
+
+    // Issue #310, Primärhypothese „verkettete Invader-Evidenz": eine Verschiebung über ≥2
+    // verkettete Belegungen (Invader A überdeckt den Occurrence-Start, Invader B greift in A
+    // hinein und endet exakt am realen Start) ist mit der Einzel-Beleger-Evidenz
+    // (End → min Start) unbeweisbar — kein einzelner Beleger überdeckt den nominalen Start UND
+    // endet am realen Start. Über den Materialisierungspfad ist die Konstellation nicht
+    // erreichbar (belegte Intervalle überlappen dort nie — der echte Start ist damit immer ein
+    // Einzel-Beleger-Ende); als gewachsener Zustand ist sie aber denkbar: die überlappende
+    // Kettenglied-Zeile liegt hier als Displaced-Evidenz vor (nur verdrängte Zeilen dürfen
+    // geplante überlappen), ihre erzeugende Regel ist inaktiv, damit kein Occurrence-Bound in
+    // das verschobene Fenster hineinragt. Erwartung: die Intervall-Ketten-Evidenz beweist die
+    // Verschiebung, die Ausstrahlung bleibt geplant (fail-first gegen das alte Evidenzmodell).
+    [Fact]
+    public async Task Reconcile_ShiftedAiring_ChainedInvaders_StaysScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("boundary-chained-invaders", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movieA = await fixture.CreateMovieAsync("FilmA", duration: TimeSpan.FromMinutes(90));
+        var movieB = await fixture.CreateMovieAsync("FilmB", duration: TimeSpan.FromMinutes(90));
+        var movieT = await fixture.CreateMovieAsync("Zielsendung", duration: TimeSpan.FromMinutes(120));
+        var itemA = await fixture.Db.MovieMediaItems.Where(l => l.MovieId == movieA.Id).Select(l => l.MediaItemId).SingleAsync(ct);
+        var itemB = await fixture.Db.MovieMediaItems.Where(l => l.MovieId == movieB.Id).Select(l => l.MediaItemId).SingleAsync(ct);
+        var itemT = await fixture.Db.MovieMediaItems.Where(l => l.MovieId == movieT.Id).Select(l => l.MediaItemId).SingleAsync(ct);
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        var ruleA = await fixture.CreateRuleAsync(channel.Id, "Nachmittag", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(15, 30), ProgramRuleMaterialType.Movie, movieA.Id, episodeCount: 1);
+        // Inaktiv: keine Occurrence der B-Regel ragt als Bound zwischen nominalen und realen
+        // Start — sonst wäre der Zustand nicht materialisierbar gewesen (Auswahl-Abbruch).
+        var ruleB = await fixture.CreateRuleAsync(channel.Id, "Fernsehfilm", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(16, 30), ProgramRuleMaterialType.Movie, movieB.Id, episodeCount: 1, isActive: false);
+        var target = await fixture.CreateRuleAsync(channel.Id, "Zielsendung", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(16, 0), ProgramRuleMaterialType.Movie, movieT.Id, episodeCount: 1);
+
+        // Belegungs-Kette A [15:30,17:00) → B [16:30,18:00): A überdeckt den Occurrence-Start
+        // 16:00 der Zielregel, B überlappt in A hinein und endet exakt am realen Start 18:00.
+        await fixture.CreateSlotAsync(channel.Id, LocalUtc(2026, 10, 24, 15, 30), LocalUtc(2026, 10, 24, 17, 0),
+            itemA, movieId: movieA.Id, ruleId: ruleA.Id);
+        await fixture.CreateSlotAsync(channel.Id, LocalUtc(2026, 10, 24, 16, 30), LocalUtc(2026, 10, 24, 18, 0),
+            itemB, movieId: movieB.Id, ruleId: ruleB.Id, status: ProgramSlotStatus.Displaced);
+        await fixture.CreateSlotAsync(channel.Id, LocalUtc(2026, 10, 24, 18, 0), LocalUtc(2026, 10, 24, 20, 0),
+            itemT, movieId: movieT.Id, ruleId: target.Id);
+
+        var service = fixture.CreateService();
+        var summary = await service.ReconcileAsync(now, ct);
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+        await ProgramScheduleTestDb.AssertNoSelfDisplacedAsync(fixture, ct);
+
+        var second = await service.ReconcileAsync(now.AddMinutes(10), ct);
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, second, ct, "2. Lauf");
+    }
+
+    // Wechselwirkungs-/Negativtest: entfernt die Admin-Bereinigung die Displaced-Evidenz des
+    // Invaders, ist die Verschiebung nicht mehr beweisbar — die Ausstrahlung wird genau
+    // einmal verdrängt und neu geplant, der Folgelauf bleibt stabil (kein Oszillieren).
+    [Fact]
+    public async Task Reconcile_ShiftedAiring_EvidenceCleaned_ReplansOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("boundary-evidence-cleaned", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Vormittagsfilm", duration: TimeSpan.FromMinutes(90));
+        var (show, _, _) = await fixture.CreateShowAsync("Serie", 40, duration: TimeSpan.FromMinutes(45));
+        var admin = await fixture.AddUserAsync("admin@test.local", isAdmin: true);
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        var invader = await fixture.CreateRuleAsync(channel.Id, "Vormittag", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(15, 30), ProgramRuleMaterialType.Movie, movie.Id);
+        var shifted = await fixture.CreateRuleAsync(channel.Id, "Vorbendserien", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(16, 0), ProgramRuleMaterialType.TVShow, show.Id, slotDuration: TimeSpan.FromHours(4));
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+        Assert.Equal(LocalUtc(2026, 10, 24, 17, 0),
+            (await ScheduledAsync(fixture, ct)).Where(s => s.ProgramRuleId == shifted.Id).ToList()[0].Start);
+
+        // Der Invader wird verdrängt — seine Zeile bleibt als Evidenz bestehen.
+        invader.IsActive = false;
+        await fixture.SaveDiagAsync();
+        await service.ReconcileAsync(now, ct);
+        var invaderDisplaced = (await fixture.SlotsAsync(ct))
+            .Count(s => s.ProgramRuleId == invader.Id && s.Status == ProgramSlotStatus.Displaced);
+        Assert.True(invaderDisplaced > 0);
+
+        // Vollsweep: die Evidenz geht verloren — genau eine echte Neuplanung ist erlaubt.
+        await service.DeleteDisplacedSlotsAsync(admin.Id, channel.Id, ct);
+        var replan = await service.ReconcileAsync(now, ct);
+        Assert.True(replan.SlotsDisplaced > 0);
+        var second = await service.ReconcileAsync(now.AddMinutes(10), ct);
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, second, ct, "Folgelauf");
     }
 
     // A head item larger than the remaining window is no longer consumed or skipped — it airs

@@ -11,9 +11,9 @@ Branch: `task/285aeee4bd0b4c5383e642b11843c386-unnoetige-verdraengungen-im-se`
 | [x] | 4 | Bestandsaufnahme (Unteragent) | `inventory.md`, `inventory/` |
 | [x] | 5 | Umsetzungsplanung (Unteragent) | `plan.md` |
 | [x] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
-| [ ] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
-| [ ] | 5c | Planungscommit | – |
-| [ ] | 6 | Implementierung (Unteragent) | Codeänderungen |
+| [x] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
+| [x] | 5c | Planungscommit | – |
+| [x] | 6 | Implementierung (Unteragent) | Codeänderungen |
 | [ ] | 7 | Plan-Review (Unteragent, bedingt) | `review.md` |
 | [ ] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |
 | [ ] | 9 | Code-Review (Unteragent) | `review-code.md` |

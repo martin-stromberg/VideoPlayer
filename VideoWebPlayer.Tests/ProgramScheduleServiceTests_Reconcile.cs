@@ -855,6 +855,44 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, second, ct, "2. Lauf");
     }
 
+    // Diagnose-Log: ein bekanntermaßen invalider Block (hier: Sendezeit geändert, kein Anker,
+    // keine Verschiebe-Evidenz) erzeugt genau eine Logzeile mit dem Ablehnungsgrund.
+    [Fact]
+    public async Task Reconcile_InvalidAiring_LogsRejectionReason()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-log-reason", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Film", duration: TimeSpan.FromMinutes(60));
+        var filler = await fixture.CreateMovieAsync("Füller", duration: TimeSpan.FromMinutes(20));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Primetime", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id);
+        await fixture.CreateRuleAsync(channel.Id, "Füller", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, filler.Id, episodeCount: 1);
+
+        var messages = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var service = fixture.CreateService(logger: new Helpers.ListLogger<ProgramScheduleService>(messages));
+        await service.EnsureCoverageAsync(now, ct);
+
+        rule.TimeOfDay = new TimeOnly(22, 0);
+        await fixture.SaveDiagAsync();
+        var summary = await service.ReconcileAsync(now.AddMinutes(30), ct);
+
+        Assert.True(summary.SlotsDisplaced > 0);
+        // Keine Occurrence der geänderten Sendezeit kann die geschriebenen Sendeplätze
+        // erzeugen — die tiefste erreichte Ablehnungsstufe wird protokolliert.
+        var lines = messages.Where(m => m.Contains("invalide")).ToList();
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line =>
+        {
+            Assert.Contains("Grund", line);
+            Assert.Contains($"Regel {rule.Id}", line);
+        });
+        Assert.Contains(lines, l => l.Contains("HeadPickInconsistent"));
+    }
+
     // Issue #290 baseline: two reconcile runs with an identical time anchor and unchanged
     // inputs — the second run must be a complete no-op (no displaced copies, no re-created
     // slots). A failure here means the reconcile check is not idempotent even without any

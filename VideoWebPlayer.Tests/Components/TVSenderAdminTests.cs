@@ -543,7 +543,7 @@ public sealed class TVSenderAdminTests
     }
 
     [Fact]
-    public async Task Sendeplan_GroupsSlotsByDay_AndMarksRuleChanges()
+    public async Task Sendeplan_DayBar_SelectsNextDay_AndMarksRuleChanges()
     {
         var ct = Xunit.TestContext.Current.CancellationToken;
         using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-day-groups", ct);
@@ -579,17 +579,26 @@ public sealed class TVSenderAdminTests
 
         cut.WaitForAssertion(() =>
         {
-            // Je Kalendertag (lokale Zeit) genau ein Header.
-            var headers = cut.FindAll("#tvsender-schedule-cards .tvsender-day-header");
-            Assert.Equal(2, headers.Count);
-            Assert.Equal(slot1Start.ToLocalTime().ToString("yyyy-MM-dd"), headers[0].GetAttribute("data-day"));
-            Assert.Equal(slot4Start.ToLocalTime().ToString("yyyy-MM-dd"), headers[1].GetAttribute("data-day"));
+            // Die Auswahlleiste bietet beide Kalendertage (lokale Zeit); vorausgewaehlt
+            // ist der naechste belegte Tag — heute selbst hat keine Sendeplaetze.
+            var buttons = cut.FindAll("#tvsender-day-bar .tvsender-day-btn");
+            Assert.Equal(2, buttons.Count);
+            Assert.Equal(slot1Start.ToLocalTime().ToString("yyyy-MM-dd"), buttons[0].GetAttribute("data-day"));
+            Assert.Equal(slot4Start.ToLocalTime().ToString("yyyy-MM-dd"), buttons[1].GetAttribute("data-day"));
+            Assert.Contains("active", buttons[0].ClassList);
+            Assert.Equal("true", buttons[0].GetAttribute("aria-selected"));
+            Assert.Equal("false", buttons[1].GetAttribute("aria-selected"));
+
+            // Nur der gewaehlte Tag rendert einen Header — Tag zwei bleibt verborgen.
+            var header = Assert.Single(cut.FindAll("#tvsender-schedule-cards .tvsender-day-header"));
+            Assert.Equal(slot1Start.ToLocalTime().ToString("yyyy-MM-dd"), header.GetAttribute("data-day"));
 
             // Genau eine Trennlinie: der Regelwechsel A → B am ersten Tag.
             var dividers = cut.FindAll("#tvsender-schedule-cards .tvsender-rule-divider");
             var divider = Assert.Single(dividers);
             Assert.Equal(ruleB.Id.ToString(), divider.GetAttribute("data-rule-id"));
             Assert.Contains("Nachtregel", divider.TextContent);
+            Assert.Equal(3, cut.FindAll("#tvsender-schedule-cards .program-card.tvsender-slot-row").Count);
         }, TimeSpan.FromSeconds(10));
     }
 

@@ -137,6 +137,20 @@ public interface IProgramScheduleService
     Task<int> DeleteDisplacedSlotsAsync(string userId, long channelId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Deletes the channel's expired one-off (<see cref="ProgramRuleValidityMode.OneTime"/>) program
+    /// rules — every rule whose <see cref="ProgramRule.ValidTo"/> lies before the local day of
+    /// <paramref name="utcNow"/>; one-off rules without a Bis date and all recurring validity
+    /// windows never expire. Called by the schedule worker inside the
+    /// <c>TvSenderEnabled</c> block before <see cref="ReconcileAsync"/> (not administrator-bound);
+    /// cursors and join rows cascade, the orphaned slots stay as history and are marked displaced
+    /// by the following reconcile run.
+    /// </summary>
+    /// <param name="utcNow">The current time.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>How many expired rules were deleted.</returns>
+    Task<int> PurgeExpiredRulesAsync(DateTimeOffset utcNow, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes the channel's whole program schedule — every slot regardless of status plus all
     /// rule cursors — so the next schedule run plans completely fresh. Administrator-only.
     /// </summary>

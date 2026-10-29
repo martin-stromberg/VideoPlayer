@@ -26,4 +26,5 @@ public sealed record ProgramRuleInput(
     IReadOnlyList<long>? GenreIds = null,
     IReadOnlyList<long>? MediaSourceIds = null,
     IReadOnlyList<long>? ClipGroupIds = null,
-    TimeSpan? PlaceholderGrace = null);
+    TimeSpan? PlaceholderGrace = null,
+    ProgramRuleValidityInput? Validity = null);

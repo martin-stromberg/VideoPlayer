@@ -122,6 +122,27 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
 - **Priorität** — ganzzahlig; bei sich überschneidenden Regeln gewinnt der höhere Wert.
 - **Status** — aktive Regeln gehen in die Sendeplan-Erzeugung ein, inaktive bleiben erhalten,
   werden aber ignoriert.
+- **Gültigkeit** — zeitlicher Rahmen der Regel, unabhängig von der Wiederholung: Die Wiederholung
+  bestimmt die Sendetage, die Gültigkeit begrenzt den Gesamtzeitraum. Zur Wahl stehen:
+  - **Uneingeschränkt** (Standard) — die Regel gilt an jedem Tag.
+  - **Einmaliger Zeitraum** — Von- und/oder Bis-Datum (beide inklusive, einseitig offen
+    erlaubt, mindestens eine Grenze Pflicht). Nach Überschreiten des Bis-Datums wird die
+    Regel beim nächsten Planlauf automatisch gelöscht; ohne Bis-Datum läuft sie nie ab.
+  - **Jährlich wiederkehrend** — Fenster aus Monat/Tag bis Monat/Tag; der Zeitraum darf über
+    den Jahreswechsel laufen (z. B. 20.12.–06.01.).
+  - **Monatlich wiederkehrend** — Fenster aus Tag im Monat bis Tag im Monat (1–31); der
+    Zeitraum darf über den Monatswechsel laufen (z. B. 25.–5.), und ein Tag, den es im
+    Monat nicht gibt, entfällt.
+  - **Wöchentlich (Wochentage)** — Mehrfachauswahl der Wochentage; mindestens ein Tag Pflicht.
+  - **Feiertagsfenster** — Fenster relativ zu einem Feiertags-Anker (Neujahr, Karfreitag,
+    Ostersonntag/-montag, Christi Himmelfahrt, Pfingstsonntag/-montag, 1. Advent, Heiligabend,
+    1./2. Weihnachtstag, Silvester) plus je 0–62 Tage davor/danach — z. B. „Ostersonntag
+    −3 bis +0 Tage". Die Anker sind bundeslandunabhängig.
+  Außerhalb ihrer Gültigkeit erzeugt eine Regel keine Sendeplätze — das gilt auch für
+  Füller-Regeln. Aktuell ungültige Regeln (außerhalb des Fensters, noch nicht begonnen oder
+  abgelaufen) sortiert die Übersicht ans Ende und kennzeichnet sie mit dem Chip
+  „Derzeit ungültig"; die Meta-Zeile zeigt das Fenster im Klartext. Die Gültigkeit wird pro
+  lokalem Kalendertag des Servers ausgewertet.
 
 In der Übersicht steht jede Regel als eigenes Panel untereinander. Der Kopf des Panels führt
 vor dem Regelnamen den Status als Chip („Aktiv" bzw. „Inaktiv") sowie — nur bei einer

@@ -492,6 +492,32 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     }
 
     /// <inheritdoc />
+    public async Task<int> PurgeExpiredRulesAsync(DateTimeOffset utcNow, CancellationToken cancellationToken = default)
+    {
+        var channel = await _ruleService.GetOrCreateChannelAsync(cancellationToken);
+        var localDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utcNow.UtcDateTime, TimeZoneInfo.Local));
+
+        // Nur einmalige Zeiträume laufen ab — einseitig offene Regeln ohne Bis-Datum und alle
+        // wiederkehrenden Fenster bleiben bestehen. Die FK-Kaskade entfernt Fortsetzungsstände
+        // und Join-Zeilen mit; die Sendeplätze bleiben als weiche Referenz (Historie) erhalten
+        // und werden vom folgenden Reconcile-Lauf verdrängt. Das Ablauf-Prädikat selbst liegt
+        // in ProgramRuleValidity.IsExpired — die EF-Abfrage grenzt nur grob ein.
+        var candidates = await _db.ProgramRules
+            .Where(r => r.TVChannelId == channel.Id
+                && r.ValidityMode == ProgramRuleValidityMode.OneTime
+                && r.ValidTo != null)
+            .ToListAsync(cancellationToken);
+        var expired = candidates.Where(r => ProgramRuleValidity.IsExpired(r, localDay)).ToList();
+        if (expired.Count == 0)
+            return 0;
+
+        _db.ProgramRules.RemoveRange(expired);
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("[ProgramSchedule] {Deleted} abgelaufene Programmregeln bereinigt.", expired.Count);
+        return expired.Count;
+    }
+
+    /// <inheritdoc />
     public async Task<ProgramScheduleResetResult> ResetScheduleAsync(string userId, long channelId, CancellationToken cancellationToken = default)
     {
         await RequireAdminAsync(userId, cancellationToken);
@@ -1623,6 +1649,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         {
             for (var day = windowStartDay; day <= windowEndDay; day = day.AddDays(1))
             {
+                // The validity window bounds the days the recurrence may fire on at all —
+                // a day outside it produces no occurrence (Unrestricted never blocks).
+                if (!ProgramRuleValidity.IsValidOn(rule, day))
+                    continue;
+
                 var applies = rule.Recurrence switch
                 {
                     ProgramRuleRecurrence.Daily => true,
@@ -2011,6 +2042,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 {
                     if (fillAt >= gap.End)
                         break;
+                    // Filler rules have no occurrences — their validity window is checked per
+                    // gap position: a filler outside its window does not fill. The day is taken
+                    // from the current position — fillAt may cross local midnight within a round.
+                    var fillDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(fillAt, TimeZoneInfo.Local));
+                    if (!ProgramRuleValidity.IsValidOn(filler.Rule, fillDay))
+                        continue;
                     var take = 1;
                     SchedulableItem? item;
                     if (filler.Rule.MaterialType == ProgramRuleMaterialType.Trailer)
@@ -2073,6 +2110,22 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     summary.FillerSlotsCreated++;
                     summary.SlotsCreated++;
                     progressed = true;
+                }
+
+                // Ist an diesem lokalen Tag gar kein Füller gültig, wird der Rest der Lücke nicht
+                // aufgegeben, sondern zum nächsten Tageswechsel gesprungen — ein wiederkehrendes
+                // Fenster kann am Folgetag wieder offen sein. Der übersprungene Abschnitt bleibt
+                // eine echte Lücke und fließt in die Restzeit-Summe.
+                if (!progressed && fillAt < gap.End)
+                {
+                    var restDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(fillAt, TimeZoneInfo.Local));
+                    if (fillerStates.All(f => !ProgramRuleValidity.IsValidOn(f.Rule, restDay)))
+                    {
+                        var dayEnd = TimeZoneInfo.ConvertTimeToUtc(restDay.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeZoneInfo.Local);
+                        summary.RemainingGapSeconds += (long)(Math.Min(dayEnd.Ticks, gap.End.Ticks) - fillAt.Ticks) / TimeSpan.TicksPerSecond;
+                        fillAt = dayEnd;
+                        progressed = fillAt < gap.End;
+                    }
                 }
             }
 

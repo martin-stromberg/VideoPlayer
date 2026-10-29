@@ -27,7 +27,9 @@ public interface IProgramRuleService
 
     /// <summary>
     /// Returns all program rules of the channel including their genre and media-source filter
-    /// links, ordered by name. Requires administrator rights.
+    /// links: currently valid rules first (ordered by name), currently invalid rules — outside
+    /// their validity window, not yet started or expired one-off ranges — sorted to the end
+    /// (ordered by name within both groups). Requires administrator rights.
     /// </summary>
     Task<List<ProgramRule>> GetRulesAsync(string userId, long channelId, CancellationToken cancellationToken = default);
 

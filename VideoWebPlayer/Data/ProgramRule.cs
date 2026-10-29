@@ -140,6 +140,66 @@ namespace VideoWebPlayer.Data
         public bool IsActive { get; set; } = true;
 
         /// <summary>
+        /// Gets or sets the validity mode — a dimension independent of <see cref="Recurrence"/>
+        /// that bounds the days on which the rule may produce occurrences at all.
+        /// </summary>
+        public ProgramRuleValidityMode ValidityMode { get; set; } = ProgramRuleValidityMode.Unrestricted;
+
+        /// <summary>
+        /// Gets or sets the window start for <see cref="ProgramRuleValidityMode.OneTime"/> (a real
+        /// date, optional — the window is open-ended without it) and
+        /// <see cref="ProgramRuleValidityMode.AnnualWindow"/> (month-day only; the year is
+        /// normalized to the leap-year convention 2000 so February 29th stays representable).
+        /// </summary>
+        public DateOnly? ValidFrom { get; set; }
+
+        /// <summary>
+        /// Gets or sets the inclusive window end for <see cref="ProgramRuleValidityMode.OneTime"/>
+        /// (a real date, optional — a one-off window without it never expires) and
+        /// <see cref="ProgramRuleValidityMode.AnnualWindow"/> (month-day, year convention like
+        /// <see cref="ValidFrom"/>).
+        /// </summary>
+        public DateOnly? ValidTo { get; set; }
+
+        /// <summary>
+        /// Gets or sets the first day-of-month (1–31) of a
+        /// <see cref="ProgramRuleValidityMode.MonthlyWindow"/> validity window.
+        /// </summary>
+        public int? ValidFromDay { get; set; }
+
+        /// <summary>
+        /// Gets or sets the inclusive last day-of-month (1–31) of a
+        /// <see cref="ProgramRuleValidityMode.MonthlyWindow"/> validity window; a value below
+        /// <see cref="ValidFromDay"/> wraps over the turn of the month.
+        /// </summary>
+        public int? ValidToDay { get; set; }
+
+        /// <summary>
+        /// Gets or sets the days-of-week bitmask of a
+        /// <see cref="ProgramRuleValidityMode.WeeklyWindow"/> validity window — bit
+        /// <c>(int)DayOfWeek</c> (Sunday = 0 … Saturday = 6).
+        /// </summary>
+        public int? ValidWeekdays { get; set; }
+
+        /// <summary>
+        /// Gets or sets the named holiday anchor of a
+        /// <see cref="ProgramRuleValidityMode.HolidayWindow"/> validity window.
+        /// </summary>
+        public ProgramRuleHolidayAnchor? ValidHolidayAnchor { get; set; }
+
+        /// <summary>
+        /// Gets or sets how many days before the anchor a
+        /// <see cref="ProgramRuleValidityMode.HolidayWindow"/> validity window opens (≥ 0).
+        /// </summary>
+        public int? ValidHolidayBeforeDays { get; set; }
+
+        /// <summary>
+        /// Gets or sets how many days after the anchor a
+        /// <see cref="ProgramRuleValidityMode.HolidayWindow"/> validity window closes (≥ 0).
+        /// </summary>
+        public int? ValidHolidayAfterDays { get; set; }
+
+        /// <summary>
         /// Gets or sets the creation timestamp.
         /// </summary>
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -259,14 +259,17 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         await SaveDiagAsync();
     }
 
-    /// <summary>Creates a program rule directly in the database (service-level validation bypassed).</summary>
+    /// <summary>Creates a program rule directly in the database (service-level validation bypassed).
+    /// <paramref name="validity"/> seeds the validity window the same way the service persists it
+    /// (mode-matching fields only).</summary>
     public async Task<ProgramRule> CreateRuleAsync(
         long channelId, string name, ProgramRuleType type, ProgramRuleRecurrence recurrence,
         TimeOnly timeOfDay, ProgramRuleMaterialType materialType, long materialId,
         int priority = 0, int? episodeCount = null, TimeSpan? slotDuration = null,
         DayOfWeek? dayOfWeek = null, DateOnly? singleDate = null, bool isActive = true,
         IEnumerable<long>? genreIds = null, IEnumerable<long>? mediaSourceIds = null,
-        IEnumerable<long>? clipGroupIds = null, TimeSpan? placeholderGrace = null)
+        IEnumerable<long>? clipGroupIds = null, TimeSpan? placeholderGrace = null,
+        ProgramRuleValidityInput? validity = null)
     {
         var rule = new ProgramRule
         {
@@ -287,6 +290,8 @@ internal sealed class ProgramScheduleTestDb : IDisposable
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
+        // Same mode-to-field normalization the service persists with — not a local copy.
+        ProgramRuleService.ApplyValidity(rule, validity);
         Db.ProgramRules.Add(rule);
         await SaveDiagAsync();
         if (genreIds is not null)

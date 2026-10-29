@@ -136,7 +136,29 @@ beim Zurückschalten verdrängt der Mitgliedschafts-Check nicht mehr reproduzier
 5. `FillGaps` läuft unverändert über die verbleibenden Lücken **zwischen** Ausstrahlungen;
    `PersistCursors` schreibt zusätzlich die Clip-Strang-Zeilen (`clipgroup:{groupId}`).
 
-#### 4. Neu-Bewertung (`ReconcileAsync`)
+#### 4. Gültigkeitsprüfung und Ablauf-Bereinigung
+
+- `BuildOccurrences` prüft pro Regel und lokalem Tag zusätzlich zum `Recurrence`-Switch
+  `ProgramRuleValidity.IsValidOn(rule, day)` — Tage außerhalb des Gültigkeitsfensters
+  (Modi `OneTime`, `AnnualWindow`, `MonthlyWindow`, `WeeklyWindow`, `HolidayWindow` über
+  `GermanHolidayCalendar.GetAnchorDate` für `day.Year ± 1`) erzeugen keine `Occurrence`;
+  `Unrestricted` blockiert nie. Damit decken `EnsureCoverageAsync`, `ReconcileWindow` und
+  `GetRuleDiagnosesAsync` die Gültigkeit automatisch mit ab: Airings außerhalb des Fensters
+  finden beim Reconcile keinen Occurrence-Anker mehr und werden `Displaced`; ein Airing, das
+  innerhalb des Fensters begann, läuft zu Ende.
+- `FillGaps` wählt Filler-Regeln pro Lückenposition auf denselben Check ein; ist an einem
+  lokalen Tag kein Füller gültig, springt die Füllung zum nächsten Tageswechsel statt die
+  restliche Lücke aufzugeben (der übersprungene Abschnitt fließt in `RemainingGapSeconds`).
+- `IProgramScheduleService.PurgeExpiredRulesAsync(utcNow, ct)` löscht im Worker-Lauf hinter
+  `TvSenderEnabled` vor `ReconcileAsync` alle `OneTime`-Regeln mit `ValidTo` vor dem lokalen
+  Tag (`RemoveRange`; einseitig offene Regeln ohne `ValidTo` und alle wiederkehrenden Modi
+  laufen nie ab). FK-Kaskade entfernt `ProgramRuleCursor`- und Join-Zeilen; `ProgramSlot`s
+  bleiben als weiche Referenz erhalten und werden vom folgenden Reconcile `Displaced`.
+- `GetRulesAsync` gruppiert stabil nach `IsValidOn(rule, localToday)`: aktuell ungültige
+  Regeln ans Ende der Liste; die UI zeigt dort den Chip „Derzeit ungültig" und den
+  Fenstertext in der Meta-Zeile.
+
+#### 5. Neu-Bewertung (`ReconcileAsync`)
 
 1. Regel-Zustände werden inkl. Clip-Gruppen expandiert; die Trailer-Gruppe expandiert hier
    sofort, da `airingsByMovie` aus den persistierten Slots bekannt ist.

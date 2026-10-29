@@ -1,3 +1,5 @@
+using VideoWebPlayer.Data;
+
 namespace VideoWebPlayer.Services;
 
 /// <summary>
@@ -61,6 +63,44 @@ public static class GermanHolidayCalendar
             holidays.Add(RepentanceDay(year));
 
         return holidays;
+    }
+
+    /// <summary>
+    /// Computes the concrete date of the named holiday anchor in the given year — the federal-state
+    /// independent anchors a <see cref="Data.ProgramRuleValidityMode.HolidayWindow"/> validity
+    /// window can be placed around (e.g. "Easter Sunday −3 to +0 days").
+    /// </summary>
+    /// <param name="anchor">The named holiday anchor.</param>
+    /// <param name="year">The calendar year.</param>
+    /// <returns>The anchor's date in the given year.</returns>
+    public static DateOnly GetAnchorDate(ProgramRuleHolidayAnchor anchor, int year)
+    {
+        var easter = EasterSunday(year);
+        return anchor switch
+        {
+            ProgramRuleHolidayAnchor.NewYear => new DateOnly(year, 1, 1),
+            ProgramRuleHolidayAnchor.GoodFriday => easter.AddDays(-2),
+            ProgramRuleHolidayAnchor.EasterSunday => easter,
+            ProgramRuleHolidayAnchor.EasterMonday => easter.AddDays(1),
+            ProgramRuleHolidayAnchor.AscensionDay => easter.AddDays(39),
+            ProgramRuleHolidayAnchor.PentecostSunday => easter.AddDays(49),
+            ProgramRuleHolidayAnchor.PentecostMonday => easter.AddDays(50),
+            ProgramRuleHolidayAnchor.FirstAdvent => FirstAdvent(year),
+            ProgramRuleHolidayAnchor.ChristmasEve => new DateOnly(year, 12, 24),
+            ProgramRuleHolidayAnchor.ChristmasDay => new DateOnly(year, 12, 25),
+            ProgramRuleHolidayAnchor.SecondChristmasDay => new DateOnly(year, 12, 26),
+            ProgramRuleHolidayAnchor.NewYearsEve => new DateOnly(year, 12, 31),
+            _ => throw new ArgumentOutOfRangeException(nameof(anchor), anchor, "Unbekannter Feiertags-Anker.")
+        };
+    }
+
+    // 1. Advent: the Sunday between November 27th and December 3rd.
+    private static DateOnly FirstAdvent(int year)
+    {
+        var day = new DateOnly(year, 12, 3);
+        while (day.DayOfWeek != DayOfWeek.Sunday)
+            day = day.AddDays(-1);
+        return day;
     }
 
     /// <summary>

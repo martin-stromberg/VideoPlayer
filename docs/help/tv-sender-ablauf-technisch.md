@@ -570,6 +570,15 @@ weiter (statt `start += item.Duration`), damit eine Alternativ-Datei mit abweich
 Laufzeit konsistent bleibt. Ein entlinktes oder gelöschtes Item steht nicht unter den
 Alternativen — das ist eine echte Änderung und verdrängt genau einmal.
 
+Bevor der Vergleich läuft, muss jeder Sendeplatz seinem Inhalt in der Expansion
+zugeordnet werden: `FindItemIndex` — genutzt von beiden Tail-Checks und `RewindCursor` —
+sucht zuerst die `MediaItemId`, dann den Inhalt. Der Inhaltsfallback matcht seit Issue
+#310 über die eigenen Inhaltsfelder des Items (`i.MovieId == slot.MovieId` bzw.
+`i.TVShowEpisodeId`) statt über `ContentType`/`ContentId`: Playlist-Einträge tragen als
+`ContentId` die `PlaylistEntryId`, sodass der frühere typ-spezifische Vergleich sie nie
+fand — ein Repräsentantenwechsel machte Playlist-Slots unbeweisbar. Jetzt lösen sie wie
+direktes Film-/Episodenmaterial auf.
+
 ### Einheitliche Zeitbasis der Expansion
 
 `ExpandMaterialAsync` verlangt `coverageStart` als Pflichtparameter — der frühere
@@ -614,9 +623,9 @@ Nominalstart neu eingeplant werden (Anwendersicht: `docs/help/tv-sender.md`).
 Jeder als invalide erkannte Block schreibt eine Diagnose-Zeile (`Information`):
 Regel, Kopf-Intervall, Sendeplatzanzahl und der `AiringInvalidReason`, der die
 tiefste erreichte Ablehnungsstufe benennt (fehlende/inaktive Regel, fehlender
-Occurrence-Anker bzw. Ausstrahlungskopf vor jedem nutzbaren Anker, fehlende
-Verschiebe-Evidenz, Folge-/Kopf-Pick- oder Clip-Ketten-Bruch, nicht reproduzierbarer
-Rest). Pro Regelgruppe wird nur der erste invalide Block geprüft und protokolliert —
+Occurrence-Anker bzw. Ausstrahlungskopf vor jedem nutzbaren Anker, Inhalt nicht mehr
+im expandierten Material, fehlende Verschiebe-Evidenz, Folge-/Kopf-Pick-, Strang- oder
+Clip-Ketten-Bruch, titellose Clip-Ausstrahlung, nicht reproduzierbarer Rest). Pro Regelgruppe wird nur der erste invalide Block geprüft und protokolliert —
 die nachfolgenden Ausstrahlungen derselben Regel werden als Suffix mitverdrängt, ohne
 eigene Diagnose-Zeile, weil ihr Cursor-Kontext nach der ersten Ablehnung ohnehin
 veraltet ist. Im Anwendungslog erscheint sie als

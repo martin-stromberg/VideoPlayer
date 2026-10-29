@@ -65,7 +65,7 @@ public sealed class ProgramScheduleServiceTests_Purge
             validity: new ProgramRuleValidityInput(ProgramRuleValidityMode.OneTime, To: new DateOnly(2026, 10, 24)));
         var service = fixture.CreateService();
         await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0)), ct);
-        Assert.True((await fixture.SlotsAsync(ct)).Any(s => s.ProgramRuleId == rule.Id));
+        Assert.Contains(await fixture.SlotsAsync(ct), s => s.ProgramRuleId == rule.Id);
 
         var purgeNow = new DateTimeOffset(LocalUtc(2026, 10, 25, 12, 0));
         Assert.Equal(1, await service.PurgeExpiredRulesAsync(purgeNow, ct));

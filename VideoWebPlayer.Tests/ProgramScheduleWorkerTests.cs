@@ -259,25 +259,43 @@ public sealed class ProgramScheduleWorkerTests
             await db.SaveChangesAsync(ct);
             var rule = new ProgramRule
             {
-                TVChannelId = channel.Id, Name = "Primetime", RuleType = ProgramRuleType.MoviePrimeTime,
-                Recurrence = ProgramRuleRecurrence.Daily, TimeOfDay = new TimeOnly(20, 0), EpisodeCount = 1,
-                MaterialType = ProgramRuleMaterialType.Movie, MaterialId = movie.Id, IsActive = true
+                TVChannelId = channel.Id,
+                Name = "Primetime",
+                RuleType = ProgramRuleType.MoviePrimeTime,
+                Recurrence = ProgramRuleRecurrence.Daily,
+                TimeOfDay = new TimeOnly(20, 0),
+                EpisodeCount = 1,
+                MaterialType = ProgramRuleMaterialType.Movie,
+                MaterialId = movie.Id,
+                IsActive = true
             };
             db.ProgramRules.Add(rule);
             await db.SaveChangesAsync(ct);
             ProgramSlot Row(ProgramSlotStatus status) => new()
             {
-                TVChannelId = channel.Id, Start = start, End = end, MediaItemId = item.Id, MovieId = movie.Id,
-                ProgramRuleId = rule.Id, RuleType = ProgramRuleType.MoviePrimeTime, Status = status,
+                TVChannelId = channel.Id,
+                Start = start,
+                End = end,
+                MediaItemId = item.Id,
+                MovieId = movie.Id,
+                ProgramRuleId = rule.Id,
+                RuleType = ProgramRuleType.MoviePrimeTime,
+                Status = status,
                 CreatedAt = DateTime.UtcNow
             };
             db.ProgramSlots.Add(Row(ProgramSlotStatus.Scheduled));
             db.ProgramSlots.Add(Row(ProgramSlotStatus.Displaced)); // bewiesenes Duplikat
             db.ProgramSlots.Add(new ProgramSlot // echte Verdraengungshistorie: kein Zwilling
             {
-                TVChannelId = channel.Id, Start = start.AddDays(1), End = end.AddDays(1), MediaItemId = item.Id,
-                MovieId = movie.Id, ProgramRuleId = rule.Id, RuleType = ProgramRuleType.MoviePrimeTime,
-                Status = ProgramSlotStatus.Displaced, CreatedAt = DateTime.UtcNow
+                TVChannelId = channel.Id,
+                Start = start.AddDays(1),
+                End = end.AddDays(1),
+                MediaItemId = item.Id,
+                MovieId = movie.Id,
+                ProgramRuleId = rule.Id,
+                RuleType = ProgramRuleType.MoviePrimeTime,
+                Status = ProgramSlotStatus.Displaced,
+                CreatedAt = DateTime.UtcNow
             });
             await db.SaveChangesAsync(ct);
         }

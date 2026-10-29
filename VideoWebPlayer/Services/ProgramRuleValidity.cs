@@ -46,24 +46,24 @@ public static class ProgramRuleValidity
                     && (rule.ValidTo is null || localDay <= rule.ValidTo.Value);
 
             case ProgramRuleValidityMode.AnnualWindow:
-            {
-                if (rule.ValidFrom is null || rule.ValidTo is null)
-                    return false;
-                var from = rule.ValidFrom.Value.Month * 100 + rule.ValidFrom.Value.Day;
-                var to = rule.ValidTo.Value.Month * 100 + rule.ValidTo.Value.Day;
-                var day = localDay.Month * 100 + localDay.Day;
-                return from <= to ? day >= from && day <= to : day >= from || day <= to;
-            }
+                {
+                    if (rule.ValidFrom is null || rule.ValidTo is null)
+                        return false;
+                    var from = rule.ValidFrom.Value.Month * 100 + rule.ValidFrom.Value.Day;
+                    var to = rule.ValidTo.Value.Month * 100 + rule.ValidTo.Value.Day;
+                    var day = localDay.Month * 100 + localDay.Day;
+                    return from <= to ? day >= from && day <= to : day >= from || day <= to;
+                }
 
             case ProgramRuleValidityMode.MonthlyWindow:
-            {
-                if (rule.ValidFromDay is null || rule.ValidToDay is null)
-                    return false;
-                var from = rule.ValidFromDay.Value;
-                var to = rule.ValidToDay.Value;
-                return from <= to ? localDay.Day >= from && localDay.Day <= to
-                    : localDay.Day >= from || localDay.Day <= to;
-            }
+                {
+                    if (rule.ValidFromDay is null || rule.ValidToDay is null)
+                        return false;
+                    var from = rule.ValidFromDay.Value;
+                    var to = rule.ValidToDay.Value;
+                    return from <= to ? localDay.Day >= from && localDay.Day <= to
+                        : localDay.Day >= from || localDay.Day <= to;
+                }
 
             case ProgramRuleValidityMode.WeeklyWindow:
                 return rule.ValidWeekdays is { } mask
@@ -71,19 +71,19 @@ public static class ProgramRuleValidity
                     && (mask & (1 << (int)localDay.DayOfWeek)) != 0;
 
             case ProgramRuleValidityMode.HolidayWindow:
-            {
-                if (rule.ValidHolidayAnchor is not { } anchor || !Enum.IsDefined(anchor)
-                    || rule.ValidHolidayBeforeDays is not { } before
-                    || rule.ValidHolidayAfterDays is not { } after)
-                    return false;
-                for (var year = localDay.Year - 1; year <= localDay.Year + 1; year++)
                 {
-                    var anchorDate = GermanHolidayCalendar.GetAnchorDate(anchor, year);
-                    if (anchorDate.AddDays(-before) <= localDay && localDay <= anchorDate.AddDays(after))
-                        return true;
+                    if (rule.ValidHolidayAnchor is not { } anchor || !Enum.IsDefined(anchor)
+                        || rule.ValidHolidayBeforeDays is not { } before
+                        || rule.ValidHolidayAfterDays is not { } after)
+                        return false;
+                    for (var year = localDay.Year - 1; year <= localDay.Year + 1; year++)
+                    {
+                        var anchorDate = GermanHolidayCalendar.GetAnchorDate(anchor, year);
+                        if (anchorDate.AddDays(-before) <= localDay && localDay <= anchorDate.AddDays(after))
+                            return true;
+                    }
+                    return false;
                 }
-                return false;
-            }
 
             default:
                 return false;

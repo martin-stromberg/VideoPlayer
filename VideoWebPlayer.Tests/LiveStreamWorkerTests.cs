@@ -283,6 +283,92 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ExecuteAsync_MediaUnavailableAfterGap_LogsInformationAgain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var entry = new DtoProgramGuideEntry
+        {
+            SlotId = 11,
+            MediaItemId = 98765, // nicht in der Datenbank → MediaUnavailable
+            Title = "Sendung",
+            StartUtc = DateTimeOffset.UtcNow.AddMinutes(-2),
+            EndUtc = DateTimeOffset.UtcNow.AddMinutes(30),
+            PositionSeconds = 100,
+            RemainingSeconds = 1800
+        };
+        var guide = new FakeGuide { Result = new DtoProgramGuideNow { Now = entry } };
+        var segmenter = new FakeSegmenter();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(_fixture.Db);
+        services.AddScoped<ProgramSettingsService>();
+        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
+            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
+        services.AddScoped<LiveStreamSegmentStore>();
+        services.AddSingleton<IProgramGuideService>(guide);
+        services.AddSingleton<ILiveStreamSegmenter>(segmenter);
+        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
+        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
+        services.AddSingleton(local);
+        services.AddSingleton(new SftpMediaSourceReader());
+        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
+            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
+        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
+            new VideoWebPlayer.Configuration.LiveStreamOptions()));
+        services.AddScoped<LiveStreamMediaResolver>();
+        services.AddScoped<LiveStreamCoordinator>();
+        await using var provider = services.BuildServiceProvider();
+
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
+        var logger = new ListLogger<LiveStreamWorker>(new ConcurrentQueue<string>());
+        var timeProvider = new ControllableTimeProvider();
+        var worker = new LiveStreamWorker(scopeFactory, logger, CreateStandby(scopeFactory),
+            signal: null, initialDelay: TimeSpan.Zero, timeProvider: timeProvider);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(30));
+        await worker.StartAsync(cts.Token);
+        try
+        {
+            // Tick 1: MediaUnavailable → einmalig Information.
+            for (var i = 0; i < 100
+                && !logger.Entries.Any(e => e.Level == LogLevel.Information && e.Message.Contains("auflösbar")); i++)
+                await Task.Delay(50, ct);
+
+            // Tick 2: Sendelücke (Stopped) — ein Zwischenzustand, der den Dedup-Merker
+            // zurücksetzt: der gleiche Auflösungsfehler danach ist ein neues Ereignis.
+            guide.Result.Now = null;
+            var stops = segmenter.StopCalls;
+            for (var i = 0; i < 100 && segmenter.StopCalls <= stops; i++)
+            {
+                timeProvider.TickTimers();
+                await Task.Delay(50, ct);
+            }
+
+            // Tick 3: identisches MediaUnavailable → erneut Information, nicht Debug.
+            guide.Result.Now = entry;
+            for (var i = 0; i < 100
+                && !logger.Entries.Any(e => e.Message.Contains("auflösbar")
+                    && e.Level != LogLevel.Information)
+                && logger.Entries.Count(e => e.Level == LogLevel.Information && e.Message.Contains("auflösbar")) < 2; i++)
+            {
+                timeProvider.TickTimers();
+                await Task.Delay(50, ct);
+            }
+
+            var infoCount = logger.Entries.Count(e =>
+                e.Level == LogLevel.Information && e.Message.Contains("auflösbar"));
+            Assert.Equal(2, infoCount);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ClearsSegmentDirectory_BeforeInitialDelay()
     {
         var ct = TestContext.Current.CancellationToken;

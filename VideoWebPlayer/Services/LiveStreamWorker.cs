@@ -110,6 +110,13 @@ public sealed class LiveStreamWorker : BackgroundService
                         var coordinator = scope.ServiceProvider.GetRequiredService<LiveStreamCoordinator>();
                         var result = await coordinator.SynchronizeAsync(_timeProvider.GetUtcNow(), stoppingToken);
 
+                        // Nur unmittelbar aufeinanderfolgende Gleichergebnisse duerfen
+                        // dedupliziert werden — ein Zwischenzustand (z. B. Started oder
+                        // eine Sendelücke) macht das naechste MediaUnavailable wieder zu
+                        // einem neuen Ereignis, nicht zu einer Wiederholung.
+                        if (result.Action is not (LiveStreamSyncAction.MediaUnavailable or LiveStreamSyncAction.InputUnplayable))
+                            _lastPersistentResult = default;
+
                         if (result.Action == LiveStreamSyncAction.FfmpegUnavailable)
                             LogFfmpegUnavailableThrottled(result.Detail);
                         else if (result.Action == LiveStreamSyncAction.Started)

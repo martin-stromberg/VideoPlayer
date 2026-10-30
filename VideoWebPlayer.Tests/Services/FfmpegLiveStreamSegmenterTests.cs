@@ -907,4 +907,32 @@ public sealed class FfmpegLiveStreamSegmenterTests
         Assert.False(segmenter.LastUnexpectedExit.SftpInputFailedForSlot);
     }
 
+    [Fact]
+    public async Task UnexpectedExit_LateClassificationDuringRestart_DoesNotOverwriteNewJobState()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Lange Pump-Drain-Schranke: die Exit-Klassifikation parkt im Pump-Await,
+        // waehrend der Neustart den Prozess ersetzt.
+        var segmenter = CreateSegmenter(pumpDrainTimeout: TimeSpan.FromSeconds(2));
+        await segmenter.StartAsync(FileJob(slotId: 42) with
+        {
+            Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new NeverEndingReadStream())),
+            RemainingSeconds = 3600
+        }, ct);
+
+        _processes[0].SimulateExit(1);
+        // Der Drain hat den Prozess als laufend klassifiziert und wartet nun die
+        // verwaiste Pumpe ein — in diesem Fenster ersetzt der Neustart den Prozess.
+        await Task.Delay(300, ct);
+        await segmenter.StartAsync(FileJob(slotId: 43), ct);
+
+        // Die verspätete Klassifikation des alten Prozesses darf den Zustand des neuen
+        // Jobs nicht mit der Alt-Diagnose überschreiben — sie läuft auf denselben
+        // „angehalten"-Befund wie ein rechtzeitig erkannter Stop.
+        await WaitUntilAsync(() => _logger.Entries.Any(e =>
+            e.Level == LogLevel.Debug && e.Message.Contains("Sendeplatz 42 wurde angehalten")));
+        Assert.Null(segmenter.LastUnexpectedExit);
+        Assert.DoesNotContain(_logger.Entries, e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("Sendeplatz 42 beendete sich unerwartet"));
+    }
 }

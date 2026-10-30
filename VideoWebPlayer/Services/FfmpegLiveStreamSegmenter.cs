@@ -338,8 +338,6 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             && FfmpegErrorMarkers.ContainsHttpTransportError(maskedTail);
         var sftpUnsupported = job.Input.SftpUrl is not null
             && FfmpegErrorMarkers.ContainsUnsupportedSchemeError(maskedTail);
-        if (sftpUnsupported)
-            _sftpInputSupported = false;
         var sftpInputFailure = job.Input.SftpUrl is not null
             && (sftpUnsupported || FfmpegErrorMarkers.ContainsSftpInputError(maskedTail));
         // Transport failures win: when the content was never reached, demux markers in
@@ -353,21 +351,44 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             && (!job.Input.IsPipe
                 || pumpResult is { Outcome: SegmenterPumpOutcome.Completed });
 
-        // Fold this exit into the slot's escalation memory — the cumulative flags travel
-        // with the report because the coordinator lives only one tick.
-        if (_inputFailureSlotId != job.SlotId)
+        // Re-check under the start/stop gate right before publishing: the bounded pump
+        // await above can span a StopCoreAsync/StartAsync that already replaced this
+        // process — a late classification must not overwrite the new job's state with
+        // the stale diagnosis (deliberate stops clear _process first).
+        await _gate.WaitAsync(CancellationToken.None);
+        try
         {
-            _inputFailureSlotId = job.SlotId;
-            _slotHttpInputFailed = false;
-            _slotSftpInputFailed = false;
-        }
-        _slotHttpInputFailed |= httpTransportFailure;
-        _slotSftpInputFailed |= sftpInputFailure;
+            if (!ReferenceEquals(_process, process))
+            {
+                _logger.LogDebug(
+                    "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} wurde angehalten (Exit-Code {ExitCode}).",
+                    job.SlotId, exitCode);
+                return;
+            }
 
-        _lastUnexpectedExit = new LiveStreamExitInfo(
-            job.SlotId, exitCode, httpTransportFailure, _timeProvider.GetUtcNow(),
-            UndecodableInput: undecodableInput, SftpInputFailure: sftpInputFailure,
-            HttpInputFailedForSlot: _slotHttpInputFailed, SftpInputFailedForSlot: _slotSftpInputFailed);
+            if (sftpUnsupported)
+                _sftpInputSupported = false;
+
+            // Fold this exit into the slot's escalation memory — the cumulative flags
+            // travel with the report because the coordinator lives only one tick.
+            if (_inputFailureSlotId != job.SlotId)
+            {
+                _inputFailureSlotId = job.SlotId;
+                _slotHttpInputFailed = false;
+                _slotSftpInputFailed = false;
+            }
+            _slotHttpInputFailed |= httpTransportFailure;
+            _slotSftpInputFailed |= sftpInputFailure;
+
+            _lastUnexpectedExit = new LiveStreamExitInfo(
+                job.SlotId, exitCode, httpTransportFailure, _timeProvider.GetUtcNow(),
+                UndecodableInput: undecodableInput, SftpInputFailure: sftpInputFailure,
+                HttpInputFailedForSlot: _slotHttpInputFailed, SftpInputFailedForSlot: _slotSftpInputFailed);
+        }
+        finally
+        {
+            _gate.Release();
+        }
 
         var pumpStats = pumpResult is { } pump
             ? pump.ExpectedBytes is { } expected

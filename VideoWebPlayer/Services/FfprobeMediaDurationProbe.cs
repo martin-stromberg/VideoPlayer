@@ -22,26 +22,12 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     /// </summary>
     internal const string StandardInputArgument = "pipe:0";
 
-    /// <summary>
-    /// stderr markers that — for a <em>seekable</em> input — prove a permanently broken or
-    /// unreadable file instead of a transient problem. For piped input the same messages can
-    /// also appear when the stream aborts early, so they must not be evaluated there.
-    /// </summary>
-    private static readonly string[] PermanentErrorMarkers =
-    {
-        "moov atom not found",
-        "Invalid data found when processing input"
-    };
-
-    /// <summary>
-    /// stderr marker emitted when the ffprobe build does not support the input's URI scheme
-    /// (e.g. <c>sftp</c> without libssh).
-    /// </summary>
-    private const string ProtocolNotFoundMarker = "Protocol not found";
-
-    // HTTP transport error classification is shared with the live stream segmenter and
-    // lives in FfmpegErrorMarkers — for an http(s) input such markers mean the URI itself
-    // cannot be served, so the result is MediaDurationProbeResult.UriUnsupported.
+    // HTTP transport, unsupported-scheme and demux error classification is shared with
+    // the live stream segmenter and lives in FfmpegErrorMarkers — for an http(s) input
+    // transport markers mean the URI itself cannot be served (UriUnsupported), scheme
+    // markers latch the scheme as unsupported, and demux markers prove a permanently
+    // broken file — but only for a seekable input, since piped input produces the same
+    // messages when the stream aborts early.
 
     private readonly IFfprobeLocator _locator;
     private readonly MediaProbeOptions _options;
@@ -180,7 +166,7 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
             var stderr = InternalMediaStreamTokenService.MaskStreamTokenInText(
                 SftpProbeUriBuilder.MaskCredentialsInText(result.StandardError));
 
-            if (scheme is not null && stderr.Contains(ProtocolNotFoundMarker, StringComparison.OrdinalIgnoreCase))
+            if (scheme is not null && FfmpegErrorMarkers.ContainsUnsupportedSchemeError(stderr))
             {
                 _unsupportedSchemes[scheme] = 1;
                 _logger.LogWarning(
@@ -189,7 +175,7 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
                 return MediaDurationProbeResult.UriUnsupportedFailure;
             }
 
-            if (httpInput && ContainsHttpTransportErrorMarker(stderr))
+            if (httpInput && FfmpegErrorMarkers.ContainsHttpTransportError(stderr))
             {
                 _logger.LogWarning(
                     "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode} und einem HTTP-Transportfehler ({Error}) — es wird auf andere Eingabemethoden zurückgefallen.",
@@ -197,7 +183,7 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
                 return MediaDurationProbeResult.UriUnsupportedFailure;
             }
 
-            if (seekable && ContainsPermanentErrorMarker(stderr))
+            if (seekable && FfmpegErrorMarkers.ContainsUndecodableInputError(stderr))
             {
                 _logger.LogWarning(
                     "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode} und einem dauerhaften Fehler ({Error}) — die Datei wird nicht erneut geprüft.",
@@ -221,20 +207,6 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
         }
 
         return MediaDurationProbeResult.Success(duration.Value);
-    }
-
-    private static bool ContainsHttpTransportErrorMarker(string stderr)
-        => FfmpegErrorMarkers.ContainsHttpTransportError(stderr);
-
-    private static bool ContainsPermanentErrorMarker(string stderr)
-    {
-        foreach (var marker in PermanentErrorMarkers)
-        {
-            if (stderr.Contains(marker, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
     }
 
     private static string Truncate(string? text)

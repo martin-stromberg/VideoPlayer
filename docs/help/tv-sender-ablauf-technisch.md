@@ -539,19 +539,24 @@ inkonsistent sind; `ToString` maskiert Token und `sftp`-Zugangsdaten. Schalter:
 `LiveStream:UseHttpInput` und `LiveStream:UseSftpInput` (`LiveStreamOptions`,
 Standard jeweils `true`).
 
-#### 2. Fallback-Gedächtnis je Sendeplatz (`LiveStreamCoordinator`)
+#### 2. Fallback-Gedächtnis je Sendeplatz (`FfmpegLiveStreamSegmenter` → `LiveStreamCoordinator`)
 
-Der Koordinator kumuliert die Fehlschlag-Flags des `LastUnexpectedExit` pro
-`SlotId` (`_inputFailureSlotId`, `_slotHttpInputFailed`, `_slotSftpInputFailed`;
-beim Slotwechsel verworfen): `useHttpInput`/`useSftpInput` bleiben für den Rest
-des Sendeplatzes gesperrt, sobald ihre Stufe dort einmal gescheitert ist — erst
-die Kumulierung über die Ticks lässt die Kaskade auch bei abwechselnden
-Fehlschlägen bis `pipe:0` durchlaufen. Zusätzlich senkt der prozessweite
-`ILiveStreamSegmenter.SftpInputSupported`-Latch (Schema-Marker im stderr eines
-`sftp`-Laufs) `useSftpInput` dauerhaft. `UndecodableInput` am selben Slot greift
-**vor** der Auflösung: `StopAsync` + `LiveStreamSyncResult(InputUnplayable,
-now.EndUtc, Detail)` — kein neuer Job bis zum nächsten Sendeplatz, keine eigene
-Koordinator-Warnung (die Diagnose steht in der Segmentierer-Warnung).
+Der Koordinator wird pro Tick in einem frischen Scope aufgelöst — das
+Fehlschlag-Gedächtnis liegt deshalb im Singleton-Segmenter: `ReportProcessExit`
+faltet jeden klassifizierten Exit in die Stufen-Maske des Sendeplatzes
+(`_inputFailureSlotId`, `_slotHttpInputFailed`, `_slotSftpInputFailed`; beim
+Slotwechsel verworfen, geschrieben unter `_gate` nach Re-Check der
+Prozess-Identität) und meldet sie als `HttpInputFailedForSlot`/
+`SftpInputFailedForSlot` am `LiveStreamExitInfo`. `useHttpInput`/`useSftpInput`
+bleiben für den Rest des Sendeplatzes gesperrt, sobald ihre Stufe dort einmal
+gescheitert ist — erst die Kumulierung über die Ticks lässt die Kaskade auch
+bei abwechselnden Fehlschlägen bis `pipe:0` durchlaufen. Zusätzlich senkt der
+prozessweite `ILiveStreamSegmenter.SftpInputSupported`-Latch (Schema-Marker im
+stderr eines `sftp`-Laufs) `useSftpInput` dauerhaft. `UndecodableInput` am
+selben Slot greift **vor** der Auflösung: `StopAsync` +
+`LiveStreamSyncResult(InputUnplayable, now.EndUtc, Detail)` — kein neuer Job
+bis zum nächsten Sendeplatz, keine eigene Koordinator-Warnung (die Diagnose
+steht in der Segmentierer-Warnung).
 
 #### 3. Exit-Klassifikation (`FfmpegLiveStreamSegmenter.ReportProcessExit`)
 

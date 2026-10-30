@@ -59,6 +59,10 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
     // The bound addresses never change after startup — resolve once, log once. A negative
     // result is NOT cached: at startup Addresses can still be empty, and retrying on the
     // next probe is cheap, while permanently disabling HTTP probing would be wrong.
+    // All fields are guarded by _baseUrlLock: the service is a singleton and is called
+    // concurrently (duration probe + live stream resolution) — unsynchronized, a torn
+    // read could hand out null for an already-resolved URL or log a warning twice.
+    private readonly object _baseUrlLock = new();
     private string? _resolvedBaseUrl;
     private bool _baseUrlResolved;
     private bool _noAddressWarned;
@@ -155,6 +159,14 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
     /// dev/self-signed certificates), so the caller falls back to the other probe paths.
     /// </summary>
     private string? ResolveBaseUrl()
+    {
+        lock (_baseUrlLock)
+        {
+            return ResolveBaseUrlCore();
+        }
+    }
+
+    private string? ResolveBaseUrlCore()
     {
         if (_baseUrlResolved)
             return _resolvedBaseUrl;

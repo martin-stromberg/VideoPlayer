@@ -325,10 +325,11 @@ weiterzählte.
   Hintergrund-Vorbereitung an (`_prepareTask`, ein Lauf prozessweit) — der bisherige
   Satz antwortet in der Zwischenzeit weiter.
 - `PrepareAsync` (Gate `_prepareGate`): `null` → Default-Satz. Sonst wird das MediaItem
-  immer zuerst über `LiveStreamMediaResolver.ResolveAsync` aufgelöst (HTTP-Eingang) —
+  immer zuerst über `LiveStreamMediaResolver.ResolveAsync` aufgelöst (Fallback-Kette
+  Datei → HTTP → `sftp` → `pipe:0`) —
   ein gelöschtes Item mit noch vorhandenem Cache-Marker wird nicht aus dem Cache
   bedient. Danach Cache-Prüfung über `standby-source.json` (MediaItemId,
-  Quell-Deskriptor — Dateipfad bzw. `http`/`stream` — und bei Dateiquellen der
+  Quell-Deskriptor — Dateipfad bzw. `http`/`sftp`/`stream` — und bei Dateiquellen der
   Änderungsstempel, damit eine ersetzte Quelldatei neu eingelesen wird), andernfalls
   `LiveStreamStandbySegmenter.TranscodeAsync`: Offline-Lauf ohne `-re` (`-f segment`,
   `-segment_time 4`, `-t 60` als harte Kappe gegen falsch gewählte lange Inhalte,
@@ -440,8 +441,27 @@ sondern wird als Warnung protokolliert und toleriert (der stderr-Tail entfällt 
   protokolliert „Eingabe-Stream fuer Sendeplatz {SlotId} nicht verfuegbar.";
   `LiveStreamStandbySegmenter` tötet den Prozess, weil ffmpeg sonst endlos auf stdin
   wartete.
+- **Vorzeitig endende Quelle** (`Truncated`): der Pump zählt die übergebenen Bytes;
+  meldet eine seekbare Quelle ihre Länge (`source.Length`), erkennt er am EOF den
+  Unterschied und meldet `SegmenterPumpResult` mit `Outcome = Truncated`,
+  `BytesPumped` und `ExpectedBytes` — `LiveStreamStandbySegmenter` behandelt das
+  wie einen Fehlschlag und tötet ffmpeg, damit kein Teilmaterial in den Cache
+  gerät. Bei nicht-seekbaren Quellen bleibt `ExpectedBytes` leer; die Bytezählung
+  wandert als „Eingabe-Pumpe: n/m Bytes" in die Warnung über den unerwarteten
+  ffmpeg-Exit, sofern der Pump zum Exitzeitpunkt bereits abgeschlossen war.
+- **Nicht demuxbarer Eingang:** erkennt die stderr-Diagnose Demux-Marker
+  (`partial file`, `Invalid data found`, `Could not find codec parameters`,
+  `Cannot determine format`, `moov atom not found`), setzt der Segmentierer
+  `LiveStreamExitInfo.UndecodableInput` — der `LiveStreamCoordinator` überspringt
+  denselben Sendeplatz bis zu seinem Ende (`LiveStreamSyncAction.InputUnplayable`,
+  einmal `Information`, danach `Debug`), statt im Takt neu zu starten.
+  Transport-Fehler schlagen vor: HTTP-Transportmarker → `HttpTransportFailure`
+  (nächster Versuch ohne HTTP-Eingang), bei `sftp`-Eingängen
+  Transport-/Auth-Marker → `SftpInputFailure` (nächster Versuch ohne `sftp`-Stufe)
+  bzw. fehlendes Protokoll („Protocol not found" u. ä.) → zusätzlich prozessweiter
+  `SftpInputSupported`-Latch.
 - **Stallende Quelle** (`source.ReadAsync` kehrt trotz Pipe-Bruch nicht zurück;
-  `CopyToAsync` läuft ohne `CancellationToken`): `StopAsync` kehrt spätestens nach
+  die Pump-Schleife läuft ohne `CancellationToken`): `StopAsync` kehrt spätestens nach
   `_pumpDrainTimeout` zurück; der verwaiste Pump bleibt fachlich harmlos, weil er nur
   noch den stdin-Handle des toten Prozesses berührt, und eine spätere Faultierung ist
   über die Fortsetzung beobachtet.

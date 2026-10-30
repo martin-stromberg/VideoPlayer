@@ -562,11 +562,31 @@ Range-Endpunkt (`api/internal/media-stream/{token}`) bereit und übergibt `ffmpe
 Loopback-URL — `ffmpeg` liest dann mit HTTP-Range-Anfragen, kann für `-ss` springen und kommt
 auch mit MP4-Dateien zurecht, deren `moov`-Atom am Dateiende liegt. Das Token lebt nur im
 Speicher, autorisiert genau diese eine Datei und ist auf die Restlaufzeit des Sendeplatzes
-plus Sicherheitspuffer bemessen; es erscheint maskiert im Log. Ist keine Adresse baubar oder
-scheitert ein Lauf am HTTP-Transport, fällt der nächste Versuch automatisch auf die bisherige
-Methode zurück, die den Inhalt in die Standardeingabe des Prozesses pumpt (`pipe:0`). Das
-Verhalten lässt sich mit `LiveStream:UseHttpInput` (`appsettings.json`, Standard `true`)
-abschalten — `false` nutzt immer den Pipe-Weg.
+plus Sicherheitspuffer bemessen; es erscheint maskiert im Log.
+
+Die Loopback-Basis-Adresse wird dreistufig ermittelt: `MediaProbe:HttpProbeBaseUrl`
+(`appsettings.json`) → die tatsächlich gebundenen `http`-Adressen der laufenden Instanz →
+die konfigurierten `Kestrel:Endpoints` (ein `http`-Endpunkt wie `http://*:5002` genügt;
+Endpunkte mit `Protocols` ohne `Http1`/`Http2` sowie Port `0` werden übersprungen, `https`
+ist für Loopback-Prozesse ungeeignet). Reicht keine Stufe, greift bei SFTP-Quellen mit
+hinterlegten Zugangsdaten als Mittelstufe eine direkte `sftp://`-Eingangs-URI (seekfähig
+über libssh, vorausgesetzt der `ffmpeg`-Build bringt das Protokoll mit — prüfbar über
+`ffmpeg -protocols`); erkennt der erste Lauf, dass `sftp` nicht unterstützt wird, bleibt
+die Stufe prozessweit deaktiviert. Scheitert ein Lauf am Transport der jeweiligen Stufe,
+versucht der nächste Takt die nachfolgende. Letzter Ausweg ist die bisherige Methode, die
+den Inhalt in die Standardeingabe des Prozesses pumpt (`pipe:0`). Der gewählte Eingang
+samt Grund steht einmalig je Job in der `Started`-Logzeile.
+
+Zwei Schalter steuern die Kette: `LiveStream:UseHttpInput` (Standard `true`) schaltet den
+HTTP-Eingang ab, `LiveStream:UseSftpInput` (Standard `true`) die `sftp`-Stufe — Letztere
+ist z. B. auf Mehrbenutzersystemen sinnvoll auszuschalten, weil die `sftp://`-URI die
+Zugangsdaten in der Prozess-Kommandozeile trägt (in Logzeilen bleiben sie maskiert).
+
+Kann `ffmpeg` den Eingang nicht demuxen (z. B. eine korrupte Datei oder ein MP4 mit
+`moov`-Atom am Ende über `pipe:0`), wird der betroffene Sendeplatz bis zu seinem Ende
+übersprungen, statt im 30-Sekunden-Takt neu gestartet zu werden — der nächste Sendeplatz
+beginnt regulär. Die einmalige Fehlerdiagnose (stderr-Ausschnitt samt gepumpter Bytezahl)
+steht in der Warnung des Segmentierers.
 
 Drei Einstellungen der Karte „Segmentierung" im Tab „Einstellungen" steuern die Ausgabe:
 
@@ -746,7 +766,9 @@ verwendeten Builds ist beim Bezug zu prüfen (GPL-Builds erfordern bei Weitergab
 `ffmpeg`-Binärpakets selbst die GPL-Bedingungen — der Server ruft `ffmpeg` als eigenständigen
 Prozess auf und steht dadurch nicht unter der GPL). Hinweise für Pipe-Eingaben von
 Netzquellen: MP4-Dateien ohne `moov`-Atom am Dateianfang können über eine Pipe nicht demuxen
-werden — seit die entfernten Quellen bevorzugt über den HTTP-Range-Eingang laufen (siehe
-oben, `LiveStream:UseHttpInput`), trifft das nur noch zu, wenn der HTTP-Eingang deaktiviert
-ist oder als Fallback greift; lokale Medienquellen (`LocalDirectory`), die über den Dateipfad
+werden — seit die entfernten Quellen bevorzugt über die seekfähige Kette HTTP → `sftp://`
+laufen (siehe oben, `LiveStream:UseHttpInput`/`LiveStream:UseSftpInput`), trifft das nur
+noch zu, wenn alle seekfähigen Stufen deaktiviert sind oder als Fallback auslaufen; ein
+als nicht lesbar erkannter Sendeplatz wird dann bis zu seinem Ende übersprungen statt
+wiederholt neu gestartet. Lokale Medienquellen (`LocalDirectory`), die über den Dateipfad
 gelesen werden, sind generell nicht betroffen.

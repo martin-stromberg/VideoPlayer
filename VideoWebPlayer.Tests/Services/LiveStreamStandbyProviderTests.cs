@@ -137,7 +137,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var resolveCalls = 0;
         var provider = CreateProvider(
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, _, _) =>
+            resolveMediaInputAsync: (id, _, _, _) =>
             {
                 Interlocked.Increment(ref resolveCalls);
                 return Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile("/media/clip.mkv"));
@@ -172,7 +172,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var provider = CreateProvider(
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, _, _) => Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile("/media/clip.mkv")),
+            resolveMediaInputAsync: (id, _, _, _) => Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile("/media/clip.mkv")),
             transcodeAsync: (input, dir, _) =>
             {
                 File.WriteAllBytes(Path.Combine(dir, "standby_000.ts"), [0x47, 0xAA]);
@@ -202,7 +202,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var provider = CreateProvider(
             logger: logger,
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, _, _) =>
+            resolveMediaInputAsync: (id, _, _, _) =>
             {
                 Interlocked.Increment(ref resolveCalls);
                 return Task.FromResult<LiveStreamInput?>(null);
@@ -218,7 +218,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var transcodeCalls = 0;
         var provider2 = CreateProvider(
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, _, _) => Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile("/media/clip.mkv")),
+            resolveMediaInputAsync: (id, _, _, _) => Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile("/media/clip.mkv")),
             transcodeAsync: (input, dir, _) =>
             {
                 Interlocked.Increment(ref transcodeCalls);
@@ -239,7 +239,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var transcodeCalls = 0;
         var provider = CreateProvider(
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, _, _) =>
+            resolveMediaInputAsync: (id, _, _, _) =>
             {
                 Interlocked.Increment(ref resolveCalls);
                 return Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile("/media/clip.mkv"));
@@ -273,7 +273,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var transcodeCalls = 0;
         var provider = CreateProvider(
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, _, _) =>
+            resolveMediaInputAsync: (id, _, _, _) =>
             {
                 Interlocked.Increment(ref resolveCalls);
                 return Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile(clipPath));
@@ -304,7 +304,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var transcodeCalls = 0;
         var provider = CreateProvider(
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, _, _) => Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile(clipPath)),
+            resolveMediaInputAsync: (id, _, _, _) => Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile(clipPath)),
             transcodeAsync: (input, dir, _) =>
             {
                 Interlocked.Increment(ref transcodeCalls);
@@ -329,7 +329,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var resolveCalls = 0;
         var provider = CreateProvider(
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, _, _) =>
+            resolveMediaInputAsync: (id, _, _, _) =>
             {
                 Interlocked.Increment(ref resolveCalls);
                 return Task.FromResult<LiveStreamInput?>(null); // MediaItem geloescht
@@ -356,7 +356,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var throwingResolve = CreateProvider(
             logger: logger,
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, _, _) =>
+            resolveMediaInputAsync: (id, _, _, _) =>
             {
                 Interlocked.Increment(ref resolveCalls);
                 throw new InvalidOperationException("resolver boom");
@@ -372,7 +372,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var transcodeCalls = 0;
         var throwingTranscode = CreateProvider(
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, _, _) => Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile("/media/clip.mkv")),
+            resolveMediaInputAsync: (id, _, _, _) => Task.FromResult<LiveStreamInput?>(LiveStreamInput.ForFile("/media/clip.mkv")),
             transcodeAsync: (input, dir, _) =>
             {
                 Interlocked.Increment(ref transcodeCalls);
@@ -393,7 +393,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var useSftpFlags = new List<bool>();
         var provider = CreateProvider(
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, useSftpInput, _) =>
+            resolveMediaInputAsync: (id, _, useSftpInput, _) =>
             {
                 useSftpFlags.Add(useSftpInput);
                 return Task.FromResult<LiveStreamInput?>(useSftpInput
@@ -426,7 +426,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         var transcodeCalls = 0;
         var provider = CreateProvider(
             loadDefaultSet: () => TestSet(),
-            resolveMediaInputAsync: (id, useSftpInput, _) =>
+            resolveMediaInputAsync: (id, _, useSftpInput, _) =>
             {
                 useSftpFlags.Add(useSftpInput);
                 return Task.FromResult<LiveStreamInput?>(useSftpInput
@@ -446,6 +446,48 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
         Assert.Equal(new[] { true, false }, useSftpFlags);
         Assert.Equal(2, transcodeCalls);
         Assert.Contains("standby_0_", provider.BuildPlaylist(null));
+    }
+
+    [Fact]
+    public async Task PrepareAsync_HttpAndSftpTranscodeFail_CascadesToPipeInput()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var logger = new ListLogger<LiveStreamStandbyProvider>(new());
+        var flagCalls = new List<(bool UseHttp, bool UseSftp)>();
+        var provider = CreateProvider(
+            logger: logger,
+            loadDefaultSet: () => TestSet(),
+            resolveMediaInputAsync: (id, useHttpInput, useSftpInput, _) =>
+            {
+                flagCalls.Add((useHttpInput, useSftpInput));
+                return Task.FromResult<LiveStreamInput?>(useHttpInput
+                    ? LiveStreamInput.ForHttp("http://127.0.0.1:5002/api/internal/media-stream/" + new string('d', 64))
+                    : useSftpInput
+                        ? LiveStreamInput.ForSftp("sftp://u:p@host:22/remote/clip.mkv")
+                        : LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new MemoryStream())));
+            },
+            transcodeAsync: (input, dir, _) =>
+            {
+                if (!input.IsPipe)
+                    return Task.FromResult<IReadOnlyList<StandbyTranscodedSegment>?>(null);
+                File.WriteAllBytes(Path.Combine(dir, "standby_000.ts"), [0x47, 0x77]);
+                return Task.FromResult<IReadOnlyList<StandbyTranscodedSegment>?>(
+                    [new StandbyTranscodedSegment("standby_000.ts", TimeSpan.FromSeconds(4))]);
+            });
+
+        await provider.PrepareAsync(7, ct);
+
+        // Die volle Kaskade HTTP → sftp → pipe:0: ein HTTP-Fehlschlag endet nicht bei
+        // der sftp-Stufe — jede gescheiterte Stufe wird in der Neauflösung deaktiviert.
+        Assert.Equal(new[] { (true, true), (false, true), (false, false) }, flagCalls);
+        Assert.Contains("standby_1_", provider.BuildPlaylist(7));
+        Assert.Equal(new byte[] { 0x47, 0x77 }, provider.TryGetSegment("standby_1_00.ts"));
+
+        // Die Fallback-Info nennt die tatsächlich gewählte Eingangsstufe.
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Information && e.Message.Contains("Fallback auf Eingang sftp"));
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Information && e.Message.Contains("Fallback auf Eingang pipe:0"));
     }
 
     /// <summary>Legt eine echte Quelldatei an, damit Pfad + Aenderungsstempel im

@@ -41,12 +41,15 @@ internal sealed record StandbySegmentSet(int Generation, long? MediaItemId, IRea
 /// Resolves a standby media item to its ffmpeg input.
 /// </summary>
 /// <param name="mediaItemId">The media item to resolve.</param>
+/// <param name="useHttpInput">Whether the range-capable HTTP input may be used —
+/// <see langword="false"/> on the retry after a failed HTTP transcode so the resolver
+/// continues on the next stage (sftp or streamed pipe input).</param>
 /// <param name="useSftpInput">Whether the direct <c>sftp://</c> input may be used —
 /// <see langword="false"/> on the retry after a failed sftp transcode so the resolver
 /// falls back to the streamed pipe input.</param>
 /// <param name="cancellationToken">Cancellation token.</param>
 internal delegate Task<LiveStreamInput?> StandbyMediaInputResolver(
-    long mediaItemId, bool useSftpInput, CancellationToken cancellationToken);
+    long mediaItemId, bool useHttpInput, bool useSftpInput, CancellationToken cancellationToken);
 
 /// <summary>
 /// Holds the warm-up standby stream in memory: while no real <c>live.m3u8</c> with a
@@ -236,7 +239,9 @@ public sealed class LiveStreamStandbyProvider
             // vorhandenem Cache-Marker darf nicht weiter ausgeliefert werden, sondern
             // faellt auf den bisherigen Satz (Default) zurueck — die Aufloesung ist zudem
             // die Quell-Referenz fuer die Cache-Invalidierung (Pfad + Aenderungsstempel).
-            var input = await _resolveMediaInputAsync(target, useSftpInput: true, cancellationToken);
+            var useHttpInput = true;
+            var useSftpInput = true;
+            var input = await _resolveMediaInputAsync(target, useHttpInput, useSftpInput, cancellationToken);
             if (input is null)
             {
                 _logger.LogWarning("[LiveStreamStandbyProvider] Standby-MediaItem {MediaItemId} konnte nicht aufgeloest werden — bisheriger Satz bleibt aktiv.", target);
@@ -244,11 +249,10 @@ public sealed class LiveStreamStandbyProvider
                 return;
             }
 
-            // Ein scheiternder sftp-Eingang (z. B. ffmpeg ohne libssh oder ein
-            // Transport-Fehler) darf das Item nicht dauerhaft sperren — einmal auf die
-            // letzte Stufe (gestreamter pipe:0-Eingang) zurueckfallen, wie es auch der
-            // Live-Pfad des Koordinators tut.
-            var sftpFallbackUsed = false;
+            // Ein scheiternder Eingang darf das Item nicht dauerhaft sperren — die
+            // Kaskade laeuft wie im Live-Pfad des Koordinators bis zum gestreamten
+            // pipe:0-Eingang durch (HTTP → sftp → pipe:0): jede gescheiterte Stufe
+            // wird fuer den naechsten Aufloesungsversuch deaktiviert.
             while (true)
             {
                 if (await TryLoadFromCacheAsync(target, input, cancellationToken))
@@ -276,24 +280,34 @@ public sealed class LiveStreamStandbyProvider
                     return;
                 }
 
-                if (input.SftpUrl is null || sftpFallbackUsed)
+                // Datei- und pipe:0-Eingaenge haben keine weitere Stufe — erst hier
+                // wird die Fehlschlag-ID gemerkt. Liefert die Aufloesung entgegen den
+                // Flags erneut dieselbe Stufe, gilt das ebenfalls als Endstufe.
+                if (input.HttpUrl is not null && useHttpInput)
+                {
+                    useHttpInput = false;
+                }
+                else if (input.SftpUrl is not null && useSftpInput)
+                {
+                    useSftpInput = false;
+                }
+                else
                 {
                     _logger.LogWarning("[LiveStreamStandbyProvider] Standby-MediaItem {MediaItemId} konnte nicht transkodiert werden — bisheriger Satz bleibt aktiv.", target);
                     _failedMediaItemId = target;
                     return;
                 }
 
-                sftpFallbackUsed = true;
-                _logger.LogInformation(
-                    "[LiveStreamStandbyProvider] sftp-Eingang von MediaItem {MediaItemId} scheiterte — versuche Fallback auf den gestreamten Eingang (pipe:0).",
-                    target);
-                var fallback = await _resolveMediaInputAsync(target, useSftpInput: false, cancellationToken);
+                var fallback = await _resolveMediaInputAsync(target, useHttpInput, useSftpInput, cancellationToken);
                 if (fallback is null)
                 {
                     _logger.LogWarning("[LiveStreamStandbyProvider] Standby-MediaItem {MediaItemId} konnte nicht aufgeloest werden — bisheriger Satz bleibt aktiv.", target);
                     _failedMediaItemId = target;
                     return;
                 }
+                _logger.LogInformation(
+                    "[LiveStreamStandbyProvider] {FailedKind}-Eingang von MediaItem {MediaItemId} scheiterte — Fallback auf Eingang {InputKind}.",
+                    input.InputKindLabel, target, fallback.InputKindLabel);
                 input = fallback;
             }
         }
@@ -341,12 +355,12 @@ public sealed class LiveStreamStandbyProvider
     }
 
     private async Task<LiveStreamInput?> ResolveMediaInputDefaultAsync(
-        long mediaItemId, bool useSftpInput, CancellationToken cancellationToken)
+        long mediaItemId, bool useHttpInput, bool useSftpInput, CancellationToken cancellationToken)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var resolver = scope.ServiceProvider.GetRequiredService<LiveStreamMediaResolver>();
         return await resolver.ResolveAsync(mediaItemId, runDuration: null,
-            useHttpInput: true, useSftpInput: useSftpInput, cancellationToken: cancellationToken);
+            useHttpInput: useHttpInput, useSftpInput: useSftpInput, cancellationToken: cancellationToken);
     }
 
     private string GetCacheDirectory()

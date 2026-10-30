@@ -64,7 +64,7 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
             new LiveStreamStandbySegmenter(new NoToolLocator(), new NoToolLocator(),
                 NullLogger<LiveStreamStandbySegmenter>.Instance),
             NullLogger<LiveStreamStandbyProvider>.Instance, null, null,
-            (id, _, _) =>
+            (id, _, _, _) =>
             {
                 onResolve?.Invoke(id);
                 return Task.FromResult<LiveStreamInput?>(null);

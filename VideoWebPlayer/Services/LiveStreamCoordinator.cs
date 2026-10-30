@@ -53,13 +53,6 @@ public sealed class LiveStreamCoordinator
     private readonly ProgramSettingsService _settings;
     private readonly ILogger<LiveStreamCoordinator> _logger;
 
-    // Escalation memory per broadcast slot: the input cascade HTTP → sftp → pipe:0 must be
-    // walked even when the stages fail alternately over several ticks — the last exit alone
-    // knows only one failed stage.
-    private long? _inputFailureSlotId;
-    private bool _slotHttpInputFailed;
-    private bool _slotSftpInputFailed;
-
     /// <summary>
     /// Creates a new instance.
     /// </summary>
@@ -131,24 +124,17 @@ public sealed class LiveStreamCoordinator
                 $"Sendeplatz {now.SlotId} ({now.Title}): Eingang für ffmpeg nicht lesbar — Sendeplatz wird bis zum Slotende übersprungen.");
         }
 
-        // Input stages that already failed on this slot stay dropped for its remainder:
-        // accumulating the failure flags per slot — not just the last exit — is what lets
-        // the cascade HTTP → sftp → pipe:0 reach the piped stream when the seekable stages
+        // Input stages that already failed on this slot stay dropped for its remainder.
+        // The per-slot failure flags accumulate on the exit report (this coordinator is
+        // resolved per tick in a fresh scope — only the singleton segmenter can carry the
+        // memory across ticks): accumulating, not just the last exit, is what lets the
+        // cascade HTTP → sftp → pipe:0 reach the piped stream when the seekable stages
         // keep failing alternately. The stream token must outlive the slot's remaining
         // air time.
-        if (_inputFailureSlotId != now.SlotId)
-        {
-            _inputFailureSlotId = now.SlotId;
-            _slotHttpInputFailed = false;
-            _slotSftpInputFailed = false;
-        }
-        if (lastExit is { SlotId: var failedSlot } && failedSlot == now.SlotId)
-        {
-            _slotHttpInputFailed |= lastExit.HttpTransportFailure;
-            _slotSftpInputFailed |= lastExit.SftpInputFailure;
-        }
-        var useHttpInput = !_slotHttpInputFailed;
-        var useSftpInput = _segmenter.SftpInputSupported && !_slotSftpInputFailed;
+        var slotExit = lastExit?.SlotId == now.SlotId ? lastExit : null;
+        var useHttpInput = !(slotExit is { HttpTransportFailure: true } or { HttpInputFailedForSlot: true });
+        var useSftpInput = _segmenter.SftpInputSupported
+            && !(slotExit is { SftpInputFailure: true } or { SftpInputFailedForSlot: true });
         var runDuration = now.RemainingSeconds is { } remaining
             ? TimeSpan.FromSeconds(remaining)
             : (TimeSpan?)null;

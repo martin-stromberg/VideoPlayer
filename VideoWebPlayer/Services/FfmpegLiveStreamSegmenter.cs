@@ -105,6 +105,15 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     private volatile LiveStreamExitInfo? _lastUnexpectedExit;
     private volatile bool _sftpInputSupported = true;
 
+    // Escalation memory per broadcast slot, held by this singleton because the coordinator
+    // is resolved per tick in a fresh scope: the input cascade HTTP → sftp → pipe:0 must be
+    // walked even when the stages fail alternately over several ticks — the last exit alone
+    // knows only one failed stage. Folded into the exit report's cumulative flags in
+    // ReportProcessExit; discarded when the slot changes.
+    private long? _inputFailureSlotId;
+    private bool _slotHttpInputFailed;
+    private bool _slotSftpInputFailed;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="FfmpegLiveStreamSegmenter"/> class.
     /// </summary>
@@ -344,9 +353,21 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             && (!job.Input.IsPipe
                 || pumpResult is { Outcome: SegmenterPumpOutcome.Completed });
 
+        // Fold this exit into the slot's escalation memory — the cumulative flags travel
+        // with the report because the coordinator lives only one tick.
+        if (_inputFailureSlotId != job.SlotId)
+        {
+            _inputFailureSlotId = job.SlotId;
+            _slotHttpInputFailed = false;
+            _slotSftpInputFailed = false;
+        }
+        _slotHttpInputFailed |= httpTransportFailure;
+        _slotSftpInputFailed |= sftpInputFailure;
+
         _lastUnexpectedExit = new LiveStreamExitInfo(
             job.SlotId, exitCode, httpTransportFailure, _timeProvider.GetUtcNow(),
-            UndecodableInput: undecodableInput, SftpInputFailure: sftpInputFailure);
+            UndecodableInput: undecodableInput, SftpInputFailure: sftpInputFailure,
+            HttpInputFailedForSlot: _slotHttpInputFailed, SftpInputFailedForSlot: _slotSftpInputFailed);
 
         var pumpStats = pumpResult is { } pump
             ? pump.ExpectedBytes is { } expected

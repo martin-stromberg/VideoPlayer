@@ -818,4 +818,93 @@ public sealed class FfmpegLiveStreamSegmenterTests
 
         await segmenter.StopAsync(ct);
     }
+
+    [Fact]
+    public async Task UnexpectedExit_AccumulatesInputFailureFlagsAcrossRestarts()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var segmenter = CreateSegmenter();
+        var httpUrl = "http://127.0.0.1:5002/api/internal/media-stream/" + new string('e', 64);
+        await segmenter.StartAsync(FileJob(slotId: 42) with
+        {
+            Input = LiveStreamInput.ForHttp(httpUrl), RemainingSeconds = 3600
+        }, ct);
+
+        _processes[0].StderrPipe.WriteText("Server returned 404 Not Found\n");
+        _processes[0].SimulateExit(1);
+        await WaitUntilAsync(() => segmenter.LastUnexpectedExit is { HttpTransportFailure: true });
+        Assert.True(segmenter.LastUnexpectedExit!.HttpInputFailedForSlot);
+        Assert.False(segmenter.LastUnexpectedExit.SftpInputFailedForSlot);
+
+        // Retry desselben Sendeplatzes auf der sftp-Stufe — stirbt ebenfalls; der
+        // Report führt die kumulierte Maske beider gescheiterten Stufen.
+        await segmenter.StartAsync(FileJob(slotId: 42) with
+        {
+            Input = LiveStreamInput.ForSftp("sftp://user:pass@host:22/remote/movie.mkv"),
+            RemainingSeconds = 3600
+        }, ct);
+        _processes[1].StderrPipe.WriteText("sftp://user:pass@host:22/remote/movie.mkv: Connection refused\n");
+        _processes[1].SimulateExit(1);
+
+        await WaitUntilAsync(() => segmenter.LastUnexpectedExit is { SftpInputFailure: true });
+        Assert.True(segmenter.LastUnexpectedExit!.HttpInputFailedForSlot);
+        Assert.True(segmenter.LastUnexpectedExit.SftpInputFailedForSlot);
+    }
+
+    [Fact]
+    public async Task UnexpectedExit_ExitWithoutStageFlags_KeepsAccumulatedSlotFlags()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var segmenter = CreateSegmenter();
+        var httpUrl = "http://127.0.0.1:5002/api/internal/media-stream/" + new string('f', 64);
+        await segmenter.StartAsync(FileJob(slotId: 42) with
+        {
+            Input = LiveStreamInput.ForHttp(httpUrl), RemainingSeconds = 3600
+        }, ct);
+
+        _processes[0].StderrPipe.WriteText("Server returned 404 Not Found\n");
+        _processes[0].SimulateExit(1);
+        await WaitUntilAsync(() => segmenter.LastUnexpectedExit is { HttpTransportFailure: true });
+
+        // Der pipe:0-Retry desselben Sendeplatzes stirbt ohne Stufen-Marker — die
+        // kumulierte Maske des Slots bleibt im Report erhalten.
+        await segmenter.StartAsync(FileJob(slotId: 42) with
+        {
+            Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new MemoryStream())),
+            RemainingSeconds = 3600
+        }, ct);
+        _processes[1].SimulateExit(1);
+
+        await WaitUntilAsync(() => segmenter.LastUnexpectedExit is { HttpTransportFailure: false });
+        Assert.True(segmenter.LastUnexpectedExit!.HttpInputFailedForSlot);
+        Assert.False(segmenter.LastUnexpectedExit.SftpInputFailedForSlot);
+    }
+
+    [Fact]
+    public async Task UnexpectedExit_OtherSlot_ResetsAccumulatedInputFailureFlags()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var segmenter = CreateSegmenter();
+        var httpUrl = "http://127.0.0.1:5002/api/internal/media-stream/" + new string('a', 64);
+        await segmenter.StartAsync(FileJob(slotId: 42) with
+        {
+            Input = LiveStreamInput.ForHttp(httpUrl), RemainingSeconds = 3600
+        }, ct);
+
+        _processes[0].StderrPipe.WriteText("Server returned 404 Not Found\n");
+        _processes[0].SimulateExit(1);
+        await WaitUntilAsync(() => segmenter.LastUnexpectedExit is { HttpInputFailedForSlot: true });
+
+        // Neuer Sendeplatz — seine Fehlschlag-Maske startet leer.
+        await segmenter.StartAsync(FileJob(slotId: 43) with
+        {
+            Input = LiveStreamInput.ForHttp(httpUrl), RemainingSeconds = 3600
+        }, ct);
+        _processes[1].SimulateExit(1);
+
+        await WaitUntilAsync(() => segmenter.LastUnexpectedExit is { SlotId: 43 });
+        Assert.False(segmenter.LastUnexpectedExit!.HttpInputFailedForSlot);
+        Assert.False(segmenter.LastUnexpectedExit.SftpInputFailedForSlot);
+    }
+
 }

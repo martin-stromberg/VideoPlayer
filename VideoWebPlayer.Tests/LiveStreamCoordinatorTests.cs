@@ -97,6 +97,14 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         _locator = new FakeLocator();
         _segmenter = new FakeSegmenter();
         _streamTokens = new StubStreamTokenService();
+        _coordinator = CreateCoordinator();
+    }
+
+    // Produktiv wird der Koordinator pro Tick in einem frischen Scope aufgelöst —
+    // Tests, die mehrere Ticks spielen, bekommen deshalb je Tick eine neue Instanz;
+    // geteilt wird nur, was produktiv Singleton ist (Segmenter, Guide, Token-Dienst).
+    private LiveStreamCoordinator CreateCoordinator()
+    {
         var settings = new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance);
         var store = new LiveStreamSegmentStore(
             new TestWebHostEnvironment { ContentRootPath = _contentRoot },
@@ -108,7 +116,7 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
             new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance),
             _streamTokens, Options.Create(new LiveStreamOptions()),
             NullLogger<LiveStreamMediaResolver>.Instance);
-        _coordinator = new LiveStreamCoordinator(
+        return new LiveStreamCoordinator(
             _guide, resolver, store, _segmenter, _locator, settings,
             NullLogger<LiveStreamCoordinator>.Instance);
     }
@@ -460,18 +468,22 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
 
         // Tick 1: HTTP-Transportfehler — der naechste Versuch laeuft auf der sftp-Stufe.
-        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow);
-        var first = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+        // Der Exit-Report fuehrt die kumulierte Stufen-Maske des Sendeplatzes; frischer
+        // Koordinator pro Tick, weil er produktiv in einem neuen Scope aufgeloest wird.
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(
+            11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow, HttpInputFailedForSlot: true);
+        var first = await CreateCoordinator().SynchronizeAsync(DateTimeOffset.UtcNow, ct);
         Assert.Equal(LiveStreamSyncAction.Started, first.Action);
         Assert.NotNull(_segmenter.Jobs.Last().Input.SftpUrl);
 
         // Der Lauf ist inzwischen gestorben — Tick 2: auch der sftp-Eingang scheitert
-        // mit einem Transportfehler.
+        // mit einem Transportfehler; der Report fuehrt beide gescheiterten Stufen.
         _segmenter.IsRunning = false;
         _segmenter.CurrentSlotId = null;
         _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(
-            11, 1, HttpTransportFailure: false, DateTimeOffset.UtcNow, SftpInputFailure: true);
-        var second = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+            11, 1, HttpTransportFailure: false, DateTimeOffset.UtcNow,
+            SftpInputFailure: true, HttpInputFailedForSlot: true, SftpInputFailedForSlot: true);
+        var second = await CreateCoordinator().SynchronizeAsync(DateTimeOffset.UtcNow, ct);
 
         // Die Fehlschlaege kumulieren pro Sendeplatz: die Kaskade darf nicht zurueck zu
         // HTTP schwingen, sondern muss die letzte Stufe pipe:0 erreichen.
@@ -489,16 +501,19 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         _guide.Result.Now = Entry(11, item.Id);
         var ct = TestContext.Current.CancellationToken;
 
-        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow);
-        await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(
+            11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow, HttpInputFailedForSlot: true);
+        await CreateCoordinator().SynchronizeAsync(DateTimeOffset.UtcNow, ct);
         Assert.True(_segmenter.Jobs.Last().Input.IsPipe);
 
-        // Auch der pipe-Lauf endet unerwartet (kein Transport-Flag) — die HTTP-Stufe
-        // bleibt fuer den Rest des Sendeplatzes gescheitert, statt erneut zu alternieren.
+        // Auch der pipe-Lauf endet unerwartet (kein Transport-Flag) — die kumulierte
+        // Maske des Reports haelt die HTTP-Stufe fuer den Rest des Sendeplatzes
+        // gescheitert, statt erneut zu alternieren.
         _segmenter.IsRunning = false;
         _segmenter.CurrentSlotId = null;
-        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: false, DateTimeOffset.UtcNow);
-        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(
+            11, 1, HttpTransportFailure: false, DateTimeOffset.UtcNow, HttpInputFailedForSlot: true);
+        var result = await CreateCoordinator().SynchronizeAsync(DateTimeOffset.UtcNow, ct);
 
         Assert.Equal(LiveStreamSyncAction.Started, result.Action);
         Assert.True(_segmenter.Jobs.Last().Input.IsPipe);
@@ -512,16 +527,17 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         _guide.Result.Now = Entry(11, item.Id);
         var ct = TestContext.Current.CancellationToken;
 
-        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow);
-        await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(
+            11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow, HttpInputFailedForSlot: true);
+        await CreateCoordinator().SynchronizeAsync(DateTimeOffset.UtcNow, ct);
         Assert.NotNull(_segmenter.Jobs.Last().Input.SftpUrl);
 
-        // Neuer Sendeplatz — die Fehlschlag-Maske gehoert zum Slot und wird verworfen;
-        // der alte Exit eines anderen Slots zaehlt ebenfalls nicht.
+        // Neuer Sendeplatz — die Fehlschlag-Maske gehoert zum Slot des Reports; ein
+        // Report eines anderen Sendeplatzes zaehlt nicht.
         _segmenter.IsRunning = false;
         _segmenter.CurrentSlotId = null;
         _guide.Result.Now = Entry(22, item.Id);
-        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+        var result = await CreateCoordinator().SynchronizeAsync(DateTimeOffset.UtcNow, ct);
 
         Assert.Equal(LiveStreamSyncAction.Started, result.Action);
         Assert.Equal(_streamTokens.UriToReturn, _segmenter.Jobs.Last().Input.HttpUrl);

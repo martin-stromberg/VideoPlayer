@@ -25,9 +25,10 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     // HTTP transport, unsupported-scheme and demux error classification is shared with
     // the live stream segmenter and lives in FfmpegErrorMarkers — for an http(s) input
     // transport markers mean the URI itself cannot be served (UriUnsupported), scheme
-    // markers latch the scheme as unsupported, and demux markers prove a permanently
-    // broken file — but only for a seekable input, since piped input produces the same
-    // messages when the stream aborts early.
+    // markers latch the scheme as unsupported, an sftp transport/I-O abort is transient
+    // like in the segmenter, and demux markers prove a permanently broken file — but only
+    // for a seekable input, since piped input produces the same messages when the stream
+    // aborts early.
 
     private readonly IFfprobeLocator _locator;
     private readonly MediaProbeOptions _options;
@@ -181,6 +182,19 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
                     "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode} und einem HTTP-Transportfehler ({Error}) — es wird auf andere Eingabemethoden zurückgefallen.",
                     displayInput, result.ExitCode, Truncate(stderr));
                 return MediaDurationProbeResult.UriUnsupportedFailure;
+            }
+
+            // For sftp probes transport wins like in the segmenter: a transfer that
+            // aborts mid-way produces the same demux complaints ("Could not find codec
+            // parameters") as a corrupt file — but it is transient, so a permanent
+            // classification must not withdraw the item from retries.
+            if (string.Equals(scheme, "sftp", StringComparison.OrdinalIgnoreCase)
+                && FfmpegErrorMarkers.ContainsSftpInputError(stderr))
+            {
+                _logger.LogWarning(
+                    "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode} und einem sftp-Transportfehler ({Error}) — der Probe wird später erneut versucht.",
+                    displayInput, result.ExitCode, Truncate(stderr));
+                return MediaDurationProbeResult.TransientFailure;
             }
 
             if (seekable && FfmpegErrorMarkers.ContainsUndecodableInputError(stderr))

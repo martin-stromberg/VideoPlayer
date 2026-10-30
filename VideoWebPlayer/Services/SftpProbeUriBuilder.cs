@@ -58,7 +58,7 @@ internal static class SftpProbeUriBuilder
 
     /// <summary>
     /// Resolves the absolute path of <paramref name="item"/> on its SFTP server:
-    /// <see cref="MediaEntry.Path"/> already carries the full remote path recorded at scan
+    /// <see cref="Data.MediaItem.Path"/> already carries the full remote path recorded at scan
     /// time; otherwise collection path and file name are combined like
     /// <see cref="IMediaSourceReader.OpenFileStream"/> does. Returns <see langword="null"/>
     /// when no absolute path can be formed.

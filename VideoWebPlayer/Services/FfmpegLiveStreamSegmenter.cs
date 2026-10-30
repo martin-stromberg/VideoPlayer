@@ -314,6 +314,8 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             return;
         }
 
+        var pumpResult = pumpTask is { IsCompletedSuccessfully: true } ? pumpTask.Result : null;
+
         var httpTransportFailure = job.Input.HttpUrl is not null
             && FfmpegErrorMarkers.ContainsHttpTransportError(maskedTail);
         var sftpUnsupported = job.Input.SftpUrl is not null
@@ -323,15 +325,20 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
         var sftpInputFailure = job.Input.SftpUrl is not null
             && (sftpUnsupported || FfmpegErrorMarkers.ContainsSftpInputError(maskedTail));
         // Transport failures win: when the content was never reached, demux markers in
-        // the tail cannot blame the input itself.
+        // the tail cannot blame the input itself. Neither can a pipe input whose pump
+        // ended in failure (source unavailable, aborted or truncated): demux errors are
+        // then the expected consequence of the incomplete feed — a transient source
+        // problem the coordinator should retry, not a broken file worth skipping the
+        // slot for.
         var undecodableInput = !httpTransportFailure && !sftpInputFailure
-            && FfmpegErrorMarkers.ContainsUndecodableInputError(maskedTail);
+            && FfmpegErrorMarkers.ContainsUndecodableInputError(maskedTail)
+            && (!job.Input.IsPipe
+                || pumpResult is null or { Outcome: SegmenterPumpOutcome.Completed });
 
         _lastUnexpectedExit = new LiveStreamExitInfo(
             job.SlotId, exitCode, httpTransportFailure, _timeProvider.GetUtcNow(),
             UndecodableInput: undecodableInput, SftpInputFailure: sftpInputFailure);
 
-        var pumpResult = pumpTask is { IsCompletedSuccessfully: true } ? pumpTask.Result : null;
         var pumpStats = pumpResult is { } pump
             ? pump.ExpectedBytes is { } expected
                 ? $", Eingabe-Pumpe: {pump.BytesPumped}/{expected} Bytes"

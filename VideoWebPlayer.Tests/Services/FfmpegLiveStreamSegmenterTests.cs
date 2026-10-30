@@ -579,6 +579,52 @@ public sealed class FfmpegLiveStreamSegmenterTests
     }
 
     [Fact]
+    public async Task UnexpectedExit_PipePumpSourceUnavailable_DemuxMarkersNoUndecodableInput()
+    {
+        var segmenter = CreateSegmenter();
+        await segmenter.StartAsync(FileJob() with
+        {
+            Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(null)),
+            RemainingSeconds = 3600
+        }, TestContext.Current.CancellationToken);
+
+        // Erst den Pump-Abschluss abwarten — erst dann fließt sein Ergebnis in die
+        // Exit-Klassifikation ein.
+        await WaitUntilAsync(() => _logger.Entries.Any(e => e.Message.Contains("nicht verfuegbar")));
+
+        var process = _processes.Single();
+        process.StderrPipe.WriteText("Cannot determine format of input 0:0 after EOF\n");
+        process.SimulateExit(183);
+
+        // Die Demux-Marker sind die erwartete Folge der fehlenden Eingabe — eine
+        // transiente Quell-Störung darf nicht als nicht-demuxbares Medium klassifiziert
+        // werden, sonst überspringt der Coordinator den Sendeplatz statt zu wiederholen.
+        await WaitUntilAsync(() => segmenter.LastUnexpectedExit is not null);
+        Assert.False(segmenter.LastUnexpectedExit!.UndecodableInput);
+    }
+
+    [Fact]
+    public async Task UnexpectedExit_PipePumpTruncated_DemuxMarkersNoUndecodableInput()
+    {
+        var segmenter = CreateSegmenter();
+        await segmenter.StartAsync(FileJob() with
+        {
+            Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(
+                new TruncatingReadStream([1, 2, 3], declaredLength: 1000))),
+            RemainingSeconds = 3600
+        }, TestContext.Current.CancellationToken);
+
+        await WaitUntilAsync(() => _logger.Entries.Any(e => e.Message.Contains("unvollständig")));
+
+        var process = _processes.Single();
+        process.StderrPipe.WriteText("stream 0, offset 0x30: partial file\n");
+        process.SimulateExit(183);
+
+        await WaitUntilAsync(() => segmenter.LastUnexpectedExit is not null);
+        Assert.False(segmenter.LastUnexpectedExit!.UndecodableInput);
+    }
+
+    [Fact]
     public async Task StartAsync_SftpInput_UsesUrlArgumentAndNoStdin()
     {
         var segmenter = CreateSegmenter();

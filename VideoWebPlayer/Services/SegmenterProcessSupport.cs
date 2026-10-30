@@ -142,7 +142,12 @@ internal static class SegmenterProcessSupport
     /// A broken pipe while the process ends is expected and counts as completed. The pumped
     /// byte count is compared against the source's declared length (when the stream can
     /// seek), so a source that broke off mid-way shows up as <see cref="SegmenterPumpOutcome.Truncated"/>
-    /// instead of being indistinguishable from a complete delivery.
+    /// instead of being indistinguishable from a complete delivery. Read-side and
+    /// write-side failures are distinguished: an exception out of
+    /// <c>process.StandardInput.WriteAsync</c> is the expected pipe break of an ending
+    /// process, while an exception out of <c>source.ReadAsync</c> (or of opening/disposing
+    /// the source) means the source itself aborted — the delivered bytes are partial
+    /// material then, never <see cref="SegmenterPumpOutcome.Completed"/>.
     /// </summary>
     /// <param name="process">The running segmenter process.</param>
     /// <param name="input">The input to pump (must be a pipe input).</param>
@@ -171,32 +176,43 @@ internal static class SegmenterProcessSupport
                 }
 
                 var buffer = new byte[81920];
-                int read;
-                while ((read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), CancellationToken.None)) > 0)
+                while (true)
                 {
-                    await process.StandardInput.WriteAsync(buffer.AsMemory(0, read), CancellationToken.None);
+                    int read;
+                    try
+                    {
+                        read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), CancellationToken.None);
+                    }
+                    catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
+                    {
+                        return ReportSourceAborted(ex, bytesPumped, expectedBytes, logger, caller);
+                    }
+                    if (read <= 0)
+                        break;
+                    try
+                    {
+                        await process.StandardInput.WriteAsync(buffer.AsMemory(0, read), CancellationToken.None);
+                    }
+                    catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
+                    {
+                        // The process ending or being killed breaks the pipe — expected
+                        // during stops, so only the exception type and short message are
+                        // logged, not the stack trace.
+                        logger.LogDebug("[{Caller}] Eingabe-Pump beendet ({ExceptionType}: {Reason}).",
+                            caller, ex.GetType().Name, ex.Message);
+                        return new SegmenterPumpResult(SegmenterPumpOutcome.Completed, bytesPumped, expectedBytes);
+                    }
                     bytesPumped += read;
                 }
             }
 
-            if (expectedBytes is { } expected && bytesPumped < expected)
-            {
-                logger.LogWarning(
-                    "[{Caller}] Eingabe-Pump unvollständig: {BytesPumped} von {ExpectedBytes} Bytes — Quelle brach vorzeitig ab.",
-                    caller, bytesPumped, expected);
-                return new SegmenterPumpResult(SegmenterPumpOutcome.Truncated, bytesPumped, expectedBytes);
-            }
-
-            logger.LogDebug("[{Caller}] Eingabe-Pump vollständig: {BytesPumped} Bytes.", caller, bytesPumped);
-            return new SegmenterPumpResult(SegmenterPumpOutcome.Completed, bytesPumped, expectedBytes);
+            return ReportCompletion(bytesPumped, expectedBytes, logger, caller);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
         {
-            // The process ending or being killed breaks the pipe — expected during stops,
-            // so only the exception type and short message are logged, not the stack trace.
-            logger.LogDebug("[{Caller}] Eingabe-Pump beendet ({ExceptionType}: {Reason}).",
-                caller, ex.GetType().Name, ex.Message);
-            return new SegmenterPumpResult(SegmenterPumpOutcome.Completed, bytesPumped, expectedBytes);
+            // Opening or disposing the source failed — a source-side abort, not the
+            // expected pipe break of an ending process.
+            return ReportSourceAborted(ex, bytesPumped, expectedBytes, logger, caller);
         }
         catch (Exception ex)
         {
@@ -207,6 +223,48 @@ internal static class SegmenterProcessSupport
         {
             try { process.StandardInput.Close(); } catch (Exception) { }
         }
+    }
+
+    /// <summary>
+    /// Classifies a pump run that reached the source's end by byte accounting: provably
+    /// short against the known source length is <see cref="SegmenterPumpOutcome.Truncated"/>,
+    /// otherwise <see cref="SegmenterPumpOutcome.Completed"/>.
+    /// </summary>
+    private static SegmenterPumpResult ReportCompletion(
+        long bytesPumped, long? expectedBytes, ILogger logger, string caller)
+    {
+        if (expectedBytes is { } expected && bytesPumped < expected)
+        {
+            logger.LogWarning(
+                "[{Caller}] Eingabe-Pump unvollständig: {BytesPumped} von {ExpectedBytes} Bytes — Quelle brach vorzeitig ab.",
+                caller, bytesPumped, expected);
+            return new SegmenterPumpResult(SegmenterPumpOutcome.Truncated, bytesPumped, expectedBytes);
+        }
+
+        logger.LogDebug("[{Caller}] Eingabe-Pump vollständig: {BytesPumped} Bytes.", caller, bytesPumped);
+        return new SegmenterPumpResult(SegmenterPumpOutcome.Completed, bytesPumped, expectedBytes);
+    }
+
+    /// <summary>
+    /// Classifies a source-side abort (<c>source.ReadAsync</c>, opening or disposing the
+    /// source — never the broken stdin pipe of an ending process): the delivered bytes are
+    /// partial material, so a provably short count reports
+    /// <see cref="SegmenterPumpOutcome.Truncated"/> like an early source end, anything else
+    /// <see cref="SegmenterPumpOutcome.Failed"/>.
+    /// </summary>
+    private static SegmenterPumpResult ReportSourceAborted(
+        Exception ex, long bytesPumped, long? expectedBytes, ILogger logger, string caller)
+    {
+        if (expectedBytes is { } expected && bytesPumped < expected)
+        {
+            logger.LogWarning(
+                "[{Caller}] Eingabe-Pump unvollständig: {BytesPumped} von {ExpectedBytes} Bytes — Quelle brach vorzeitig ab.",
+                caller, bytesPumped, expected);
+            return new SegmenterPumpResult(SegmenterPumpOutcome.Truncated, bytesPumped, expectedBytes);
+        }
+
+        logger.LogWarning(ex, "[{Caller}] Fehler beim Pumpen der Eingabe.", caller);
+        return new SegmenterPumpResult(SegmenterPumpOutcome.Failed, bytesPumped, expectedBytes);
     }
 
     /// <summary>

@@ -310,6 +310,32 @@ public sealed class LiveStreamStandbySegmenterTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TranscodeAsync_ReadAbortedPumpInput_KillsProcessAndReturnsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Die Quelle bricht das Lesen mit einem Fehler ab (z. B. SFTP-Verbindungsabbruch)
+        // statt zu enden — auch das ist Teilmaterial und darf nicht übernommen werden.
+        var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(
+            new FailingReadStream([1, 2, 3])));
+        var processes = new List<KillableProcess>();
+        var logger = new ListLogger<LiveStreamStandbySegmenter>(new ConcurrentQueue<string>());
+        var segmenter = CreateSegmenter(startInfo =>
+        {
+            _started.Add(startInfo);
+            var process = new KillableProcess();
+            processes.Add(process);
+            return process;
+        }, transcodeTimeout: TimeSpan.FromSeconds(5), logger: logger);
+
+        var result = await segmenter.TranscodeAsync(input, _cacheDir, ct);
+
+        Assert.Null(result);
+        Assert.True(processes.Single().KillCount >= 1,
+            "Der quellseitig abgebrochene Pump hat den Prozess nicht getötet.");
+        Assert.DoesNotContain(logger.Entries, e => e.Message.Contains("Transcode-Timeout"));
+    }
+
+    [Fact]
     public async Task TranscodeAsync_FfmpegMissing_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;

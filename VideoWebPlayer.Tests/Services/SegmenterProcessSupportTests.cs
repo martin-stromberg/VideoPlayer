@@ -250,6 +250,47 @@ public sealed class SegmenterProcessSupportTests
         Assert.Contains("100", entry.Message);
     }
 
+    [Fact]
+    public async Task PumpInputAsync_ReadAbortedBelowDeclaredLength_ReturnsTruncated()
+    {
+        var logger = new ListLogger<object>(new ConcurrentQueue<string>());
+        var process = new FakePumpProcess();
+        // Seekbare Quelle: 100 Bytes deklariert, nach 3 Bytes bricht der Read ab.
+        var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(
+            new FailingReadStream([1, 2, 3], declaredLength: 100)));
+
+        var result = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
+
+        // Ein Lese-Abbruch der Quelle ist kein Pipe-Bruch: das Teilmaterial muss wie ein
+        // vorzeitig endender Strom als Truncated gemeldet werden, nicht als Completed.
+        Assert.Equal(SegmenterPumpOutcome.Truncated, result.Outcome);
+        Assert.Equal(3, result.BytesPumped);
+        Assert.Equal(100, result.ExpectedBytes);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Contains("unvollständig", entry.Message);
+    }
+
+    [Fact]
+    public async Task PumpInputAsync_ReadAbortedUnknownLength_ReturnsFailedNotCompleted()
+    {
+        var logger = new ListLogger<object>(new ConcurrentQueue<string>());
+        var process = new FakePumpProcess();
+        var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(
+            new FailingReadStream([1, 2, 3])));
+
+        var result = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
+
+        // Ohne deklarierte Länge bleibt der Abbruch ein Fehlschlag — auf keinen Fall
+        // Completed, sonst würde Teilmaterial wie eine vollständige Lieferung behandelt.
+        Assert.Equal(SegmenterPumpOutcome.Failed, result.Outcome);
+        Assert.Equal(3, result.BytesPumped);
+        Assert.Null(result.ExpectedBytes);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.IsType<IOException>(entry.Exception);
+    }
+
     /// <summary>Nicht-seekbare Quell-Attrappe: <see cref="Stream.Length"/> wird nie abgefragt.</summary>
     private sealed class NonSeekableReadStream : MemoryStream
     {

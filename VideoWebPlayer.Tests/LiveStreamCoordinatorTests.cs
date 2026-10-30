@@ -451,4 +451,79 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         Assert.True(job.Input.IsPipe);
         Assert.Null(job.Input.SftpUrl);
     }
+
+    [Fact]
+    public async Task SynchronizeAsync_AlternatingHttpAndSftpFailures_EscalatesToPipe()
+    {
+        var item = await SeedRemoteMediaItemAsync(withCredentials: true);
+        _guide.Result.Now = Entry(11, item.Id);
+        var ct = TestContext.Current.CancellationToken;
+
+        // Tick 1: HTTP-Transportfehler — der naechste Versuch laeuft auf der sftp-Stufe.
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow);
+        var first = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+        Assert.Equal(LiveStreamSyncAction.Started, first.Action);
+        Assert.NotNull(_segmenter.Jobs.Last().Input.SftpUrl);
+
+        // Der Lauf ist inzwischen gestorben — Tick 2: auch der sftp-Eingang scheitert
+        // mit einem Transportfehler.
+        _segmenter.IsRunning = false;
+        _segmenter.CurrentSlotId = null;
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(
+            11, 1, HttpTransportFailure: false, DateTimeOffset.UtcNow, SftpInputFailure: true);
+        var second = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+
+        // Die Fehlschlaege kumulieren pro Sendeplatz: die Kaskade darf nicht zurueck zu
+        // HTTP schwingen, sondern muss die letzte Stufe pipe:0 erreichen.
+        Assert.Equal(LiveStreamSyncAction.Started, second.Action);
+        var job = _segmenter.Jobs.Last();
+        Assert.True(job.Input.IsPipe);
+        Assert.Null(job.Input.HttpUrl);
+        Assert.Null(job.Input.SftpUrl);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_PipeExitAfterHttpFailure_StaysOnPipeInput()
+    {
+        var item = await SeedRemoteMediaItemAsync();
+        _guide.Result.Now = Entry(11, item.Id);
+        var ct = TestContext.Current.CancellationToken;
+
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow);
+        await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+        Assert.True(_segmenter.Jobs.Last().Input.IsPipe);
+
+        // Auch der pipe-Lauf endet unerwartet (kein Transport-Flag) — die HTTP-Stufe
+        // bleibt fuer den Rest des Sendeplatzes gescheitert, statt erneut zu alternieren.
+        _segmenter.IsRunning = false;
+        _segmenter.CurrentSlotId = null;
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: false, DateTimeOffset.UtcNow);
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        Assert.True(_segmenter.Jobs.Last().Input.IsPipe);
+        Assert.Equal(0, _streamTokens.StreamUriCalls);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_InputFailureMemory_ResetsOnSlotChange()
+    {
+        var item = await SeedRemoteMediaItemAsync(withCredentials: true);
+        _guide.Result.Now = Entry(11, item.Id);
+        var ct = TestContext.Current.CancellationToken;
+
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow);
+        await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+        Assert.NotNull(_segmenter.Jobs.Last().Input.SftpUrl);
+
+        // Neuer Sendeplatz — die Fehlschlag-Maske gehoert zum Slot und wird verworfen;
+        // der alte Exit eines anderen Slots zaehlt ebenfalls nicht.
+        _segmenter.IsRunning = false;
+        _segmenter.CurrentSlotId = null;
+        _guide.Result.Now = Entry(22, item.Id);
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, ct);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        Assert.Equal(_streamTokens.UriToReturn, _segmenter.Jobs.Last().Input.HttpUrl);
+    }
 }

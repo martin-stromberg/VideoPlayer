@@ -327,7 +327,8 @@ public sealed class MediaDurationProbeService
         if (source.SourceType == MediaSourceType.Sftp)
         {
             var uri = SftpProbeUriBuilder.TryBuildUri(
-                source.Host, source.Port, source.Username, source.Password, ResolveRemotePath(item));
+                source.Host, source.Port, source.Username, source.Password,
+                SftpProbeUriBuilder.ResolveRemotePath(collection, item));
             if (uri is not null)
             {
                 var uriResult = await _probe.ProbeUriAsync(uri, cancellationToken);
@@ -346,24 +347,6 @@ public sealed class MediaDurationProbeService
         return stream is null
             ? MediaDurationProbeResult.TransientFailure
             : await _probe.ProbeStreamAsync(stream, cancellationToken);
-    }
-
-    /// <summary>
-    /// Resolves the absolute path of <paramref name="item"/> on its SFTP server:
-    /// <see cref="MediaEntry.Path"/> already carries the full remote path recorded at scan time;
-    /// otherwise collection path and file name are combined like
-    /// <see cref="IMediaSourceReader.OpenFileStream"/> does. Returns <see langword="null"/>
-    /// when no absolute path can be formed.
-    /// </summary>
-    private static string? ResolveRemotePath(MediaItem item)
-    {
-        var path = item.Path;
-        if (!string.IsNullOrEmpty(path) && path[0] == '/')
-            return path;
-
-        var combined = SftpProbeUriBuilder.CombinePath(
-            item.MediaCollection.Path, string.IsNullOrEmpty(path) ? item.Name : path);
-        return combined.Length > 0 && combined[0] == '/' ? combined : null;
     }
 
     private void ApplyOutcome(MediaItem item, ProbeOutcome outcome, DateTime probedAt, int maxAttempts)

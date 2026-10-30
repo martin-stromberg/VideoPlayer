@@ -308,7 +308,8 @@ public sealed class LiveStreamStandbyProvider
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var resolver = scope.ServiceProvider.GetRequiredService<LiveStreamMediaResolver>();
-        return await resolver.ResolveAsync(mediaItemId, runDuration: null, useHttpInput: true, cancellationToken);
+        return await resolver.ResolveAsync(mediaItemId, runDuration: null,
+            useHttpInput: true, useSftpInput: true, cancellationToken: cancellationToken);
     }
 
     private string GetCacheDirectory()
@@ -394,8 +395,8 @@ public sealed class LiveStreamStandbyProvider
     }
 
     /// <summary>The stored source descriptor of an input: file path, or a marker word.</summary>
-    private static string SourceDescriptor(LiveStreamInput input)
-        => input.FilePath ?? (input.HttpUrl is not null ? "http" : "stream");
+    internal static string SourceDescriptor(LiveStreamInput input)
+        => input.FilePath ?? (input.HttpUrl is not null ? "http" : input.SftpUrl is not null ? "sftp" : "stream");
 
     private void WriteCacheMarker(string cacheDir, long target, LiveStreamInput input, IReadOnlyList<StandbyTranscodedSegment> segments)
     {

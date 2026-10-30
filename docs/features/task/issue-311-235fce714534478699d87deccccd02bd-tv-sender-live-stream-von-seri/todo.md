@@ -11,8 +11,8 @@ Branch: `task/issue-311-235fce714534478699d87deccccd02bd-tv-sender-live-stream-v
 | [x] | 4 | Bestandsaufnahme (Unteragent) | `inventory.md`, `inventory/` |
 | [x] | 5 | Umsetzungsplanung (Unteragent) | `plan.md` |
 | [x] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
-| [ ] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
-| [ ] | 5c | Planungscommit | – |
+| [x] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
+| [x] | 5c | Planungscommit | – |
 | [ ] | 6 | Implementierung (Unteragent) | Codeänderungen |
 | [ ] | 7 | Plan-Review (Unteragent, bedingt) | `review.md` |
 | [ ] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |

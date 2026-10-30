@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,8 +18,9 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
 {
     private sealed class FakeGuide : IProgramGuideService
     {
+        public DtoProgramGuideNow Result { get; set; } = new();
         public Task<DtoProgramGuideNow> GetNowAsync(DateTimeOffset utcNow, CancellationToken ct = default)
-            => Task.FromResult(new DtoProgramGuideNow());
+            => Task.FromResult(Result);
         public Task<DtoProgramGuideEntry[]> GetUpcomingAsync(DateTimeOffset utcNow, TimeSpan preview, CancellationToken ct = default)
             => Task.FromResult(Array.Empty<DtoProgramGuideEntry>());
     }
@@ -34,7 +36,8 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
         public bool IsRunning => Running;
         public long? CurrentSlotId => null;
         public double? ExpectedPositionSeconds => null;
-        public LiveStreamExitInfo? LastUnexpectedExit => null;
+        public LiveStreamExitInfo? LastUnexpectedExit { get; set; }
+        public bool SftpInputSupported { get; set; } = true;
         public int StopCalls;
         public int StartCalls;
         public Task StartAsync(LiveStreamJob job, CancellationToken ct = default) { StartCalls++; return Task.CompletedTask; }
@@ -187,6 +190,91 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
             Assert.True(segmenter.StopCalls >= 1, "Der Worker hat den laufenden Segmenter nicht gestoppt.");
             Assert.False(segmenter.Running, "Der Segmenter laeuft trotz gesperrtem Sender weiter.");
             Assert.Equal(0, segmenter.StartCalls);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_UndecodableSlotSkips_LogsInputUnplayableOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var guide = new FakeGuide
+        {
+            Result = new DtoProgramGuideNow
+            {
+                Now = new DtoProgramGuideEntry
+                {
+                    SlotId = 11,
+                    MediaItemId = 1,
+                    Title = "Sendung",
+                    StartUtc = DateTimeOffset.UtcNow.AddMinutes(-2),
+                    EndUtc = DateTimeOffset.UtcNow.AddMinutes(30),
+                    PositionSeconds = 100,
+                    RemainingSeconds = 1800
+                }
+            }
+        };
+        var segmenter = new FakeSegmenter
+        {
+            LastUnexpectedExit = new LiveStreamExitInfo(
+                11, 183, HttpTransportFailure: false, DateTimeOffset.UtcNow, UndecodableInput: true)
+        };
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(_fixture.Db);
+        services.AddScoped<ProgramSettingsService>();
+        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
+            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
+        services.AddScoped<LiveStreamSegmentStore>();
+        services.AddSingleton<IProgramGuideService>(guide);
+        services.AddSingleton<ILiveStreamSegmenter>(segmenter);
+        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
+        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
+        services.AddSingleton(local);
+        services.AddSingleton(new SftpMediaSourceReader());
+        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
+            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
+        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
+            new VideoWebPlayer.Configuration.LiveStreamOptions()));
+        services.AddScoped<LiveStreamMediaResolver>();
+        services.AddScoped<LiveStreamCoordinator>();
+        await using var provider = services.BuildServiceProvider();
+
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
+        var logger = new ListLogger<LiveStreamWorker>(new ConcurrentQueue<string>());
+        var timeProvider = new ControllableTimeProvider();
+        var worker = new LiveStreamWorker(scopeFactory, logger, CreateStandby(scopeFactory),
+            signal: null, initialDelay: TimeSpan.Zero, timeProvider: timeProvider);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(30));
+        await worker.StartAsync(cts.Token);
+        try
+        {
+            for (var i = 0; i < 100
+                && !logger.Entries.Any(e => e.Level == LogLevel.Information && e.Message.Contains("nicht lesbar")); i++)
+                await Task.Delay(50, ct);
+
+            // Der Dauerzustand wiederholt sich im Poll-Takt — weitere Ticks über den
+            // steuerbaren Zeitgeber auslösen; nur das erste Ergebnis darf Information sein.
+            for (var i = 0; i < 4; i++)
+            {
+                timeProvider.TickTimers();
+                await Task.Delay(150, ct);
+            }
+
+            var infoCount = logger.Entries.Count(e =>
+                e.Level == LogLevel.Information && e.Message.Contains("nicht lesbar"));
+            var debugCount = logger.Entries.Count(e =>
+                e.Level == LogLevel.Debug && e.Message.Contains("nicht lesbar"));
+            Assert.Equal(1, infoCount);
+            Assert.True(debugCount >= 1,
+                "Wiederholte InputUnplayable-Ticks wurden nicht auf Debug dedupliziert.");
         }
         finally
         {

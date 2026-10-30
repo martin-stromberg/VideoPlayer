@@ -103,6 +103,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     private Task _pumpTask = Task.CompletedTask;
     private DateTimeOffset _startedAt;
     private volatile LiveStreamExitInfo? _lastUnexpectedExit;
+    private volatile bool _sftpInputSupported = true;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FfmpegLiveStreamSegmenter"/> class.
@@ -136,6 +137,9 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
 
     /// <inheritdoc />
     public LiveStreamExitInfo? LastUnexpectedExit => _lastUnexpectedExit;
+
+    /// <inheritdoc />
+    public bool SftpInputSupported => _sftpInputSupported;
 
     /// <summary>
     /// Gets the playback position the running process is expected to have reached, or
@@ -179,10 +183,14 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
                 InternalMediaStreamTokenService.MaskStreamTokenInText(
                     SftpProbeUriBuilder.MaskCredentialsInText(startInfo.Arguments)));
 
-            _ = Task.Run(() => DrainStandardErrorAsync(process, job, _startedAt), CancellationToken.None);
-            _pumpTask = job.Input.IsPipe
+            // The pump task is created first so its result can be handed to the drain's
+            // exit classification — reading the _pumpTask field there would race with a
+            // slot switch overwriting it for the new job.
+            var pumpTask = job.Input.IsPipe
                 ? Task.Run(() => PumpInputAsync(process, job), CancellationToken.None)
-                : Task.CompletedTask;
+                : null;
+            _pumpTask = pumpTask is not null ? pumpTask : Task.CompletedTask;
+            _ = Task.Run(() => DrainStandardErrorAsync(process, job, _startedAt, pumpTask), CancellationToken.None);
         }
         finally
         {
@@ -256,10 +264,14 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     /// <param name="process">The process whose stderr is drained.</param>
     /// <param name="job">The job the process was started for.</param>
     /// <param name="startedAt">When the process was started (premature-exit reference).</param>
-    private async Task DrainStandardErrorAsync(ISegmenterProcess process, LiveStreamJob job, DateTimeOffset startedAt)
+    /// <param name="pumpTask">This job's stdin pump task, or <see langword="null"/> for
+    /// non-pipe inputs — its already-finished result feeds the exit diagnosis.</param>
+    private async Task DrainStandardErrorAsync(
+        ISegmenterProcess process, LiveStreamJob job, DateTimeOffset startedAt,
+        Task<SegmenterPumpResult>? pumpTask)
     {
         var tail = await SegmenterProcessSupport.DrainStandardErrorAsync(process);
-        ReportProcessExit(process, job, startedAt, tail);
+        ReportProcessExit(process, job, startedAt, tail, pumpTask);
     }
 
     /// <summary>
@@ -272,7 +284,11 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     /// <param name="job">The job the process was started for.</param>
     /// <param name="startedAt">When the process was started.</param>
     /// <param name="stderrTail">The captured stderr tail (unmasked).</param>
-    private void ReportProcessExit(ISegmenterProcess process, LiveStreamJob job, DateTimeOffset startedAt, string stderrTail)
+    /// <param name="pumpTask">This job's stdin pump task — an already-finished result
+    /// contributes its byte accounting to the warning line.</param>
+    private void ReportProcessExit(
+        ISegmenterProcess process, LiveStreamJob job, DateTimeOffset startedAt,
+        string stderrTail, Task<SegmenterPumpResult>? pumpTask)
     {
         var maskedTail = InternalMediaStreamTokenService.MaskStreamTokenInText(
             SftpProbeUriBuilder.MaskCredentialsInText(stderrTail));
@@ -300,13 +316,31 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
 
         var httpTransportFailure = job.Input.HttpUrl is not null
             && FfmpegErrorMarkers.ContainsHttpTransportError(maskedTail);
+        var sftpUnsupported = job.Input.SftpUrl is not null
+            && FfmpegErrorMarkers.ContainsUnsupportedSchemeError(maskedTail);
+        if (sftpUnsupported)
+            _sftpInputSupported = false;
+        var sftpInputFailure = job.Input.SftpUrl is not null
+            && (sftpUnsupported || FfmpegErrorMarkers.ContainsSftpInputError(maskedTail));
+        // Transport failures win: when the content was never reached, demux markers in
+        // the tail cannot blame the input itself.
+        var undecodableInput = !httpTransportFailure && !sftpInputFailure
+            && FfmpegErrorMarkers.ContainsUndecodableInputError(maskedTail);
 
         _lastUnexpectedExit = new LiveStreamExitInfo(
-            job.SlotId, exitCode, httpTransportFailure, _timeProvider.GetUtcNow());
+            job.SlotId, exitCode, httpTransportFailure, _timeProvider.GetUtcNow(),
+            UndecodableInput: undecodableInput, SftpInputFailure: sftpInputFailure);
+
+        var pumpResult = pumpTask is { IsCompletedSuccessfully: true } ? pumpTask.Result : null;
+        var pumpStats = pumpResult is { } pump
+            ? pump.ExpectedBytes is { } expected
+                ? $", Eingabe-Pumpe: {pump.BytesPumped}/{expected} Bytes"
+                : $", Eingabe-Pumpe: {pump.BytesPumped} Bytes"
+            : string.Empty;
 
         _logger.LogWarning(
-            "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} beendete sich unerwartet nach {Elapsed:F1}s (Exit-Code {ExitCode}, HTTP-Transportfehler: {HttpTransportFailure}). stderr: {StderrTail}",
-            job.SlotId, elapsed.TotalSeconds, exitCode, httpTransportFailure,
+            "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} beendete sich unerwartet nach {Elapsed:F1}s (Exit-Code {ExitCode}, HTTP-Transportfehler: {HttpTransportFailure}, sftp-Eingangsfehler: {SftpInputFailure}, Eingang nicht demuxbar: {UndecodableInput}{PumpStats}). stderr: {StderrTail}",
+            job.SlotId, elapsed.TotalSeconds, exitCode, httpTransportFailure, sftpInputFailure, undecodableInput, pumpStats,
             string.IsNullOrWhiteSpace(maskedTail) ? "(leer)" : maskedTail.Trim());
     }
 
@@ -324,12 +358,13 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
         }
     }
 
-    private async Task PumpInputAsync(ISegmenterProcess process, LiveStreamJob job)
+    private async Task<SegmenterPumpResult> PumpInputAsync(ISegmenterProcess process, LiveStreamJob job)
     {
-        var outcome = await SegmenterProcessSupport.PumpInputAsync(
+        var result = await SegmenterProcessSupport.PumpInputAsync(
             process, job.Input, _logger, $"FfmpegLiveStreamSegmenter (Slot {job.SlotId})");
-        if (outcome == SegmenterPumpOutcome.SourceUnavailable)
+        if (result.Outcome == SegmenterPumpOutcome.SourceUnavailable)
             _logger.LogWarning("[FfmpegLiveStreamSegmenter] Eingabe-Stream fuer Sendeplatz {SlotId} nicht verfuegbar.", job.SlotId);
+        return result;
     }
 
     /// <summary>

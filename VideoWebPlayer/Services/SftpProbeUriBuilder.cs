@@ -57,6 +57,25 @@ internal static class SftpProbeUriBuilder
     }
 
     /// <summary>
+    /// Resolves the absolute path of <paramref name="item"/> on its SFTP server:
+    /// <see cref="MediaEntry.Path"/> already carries the full remote path recorded at scan
+    /// time; otherwise collection path and file name are combined like
+    /// <see cref="IMediaSourceReader.OpenFileStream"/> does. Returns <see langword="null"/>
+    /// when no absolute path can be formed.
+    /// </summary>
+    /// <param name="collection">The item's media collection (path source).</param>
+    /// <param name="item">The media item to resolve.</param>
+    internal static string? ResolveRemotePath(Data.MediaCollection collection, Data.MediaItem item)
+    {
+        var path = item.Path;
+        if (!string.IsNullOrEmpty(path) && path[0] == '/')
+            return path;
+
+        var combined = CombinePath(collection.Path, string.IsNullOrEmpty(path) ? item.Name : path);
+        return combined.Length > 0 && combined[0] == '/' ? combined : null;
+    }
+
+    /// <summary>
     /// Combines a remote directory path and file name the way
     /// <see cref="SftpMediaSourceReader"/> resolves streamed files.
     /// </summary>

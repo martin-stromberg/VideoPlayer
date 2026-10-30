@@ -71,7 +71,12 @@ public sealed class LiveStreamMediaResolver
     /// <param name="useHttpInput">
     /// Whether the range-capable HTTP input may be used for remote sources. Callers pass
     /// <see langword="false"/> after an HTTP transport failure so the next attempt uses the
-    /// piped stream again.
+    /// next stage (sftp or piped stream) instead.
+    /// </param>
+    /// <param name="useSftpInput">
+    /// Whether the direct <c>sftp://</c> input may be used for SFTP sources. Callers pass
+    /// <see langword="false"/> after an sftp input failure or once the ffmpeg build proved
+    /// to lack the sftp protocol.
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The resolved input, or <see langword="null"/>.</returns>
@@ -79,6 +84,7 @@ public sealed class LiveStreamMediaResolver
         long mediaItemId,
         TimeSpan? runDuration = null,
         bool useHttpInput = true,
+        bool useSftpInput = true,
         CancellationToken cancellationToken = default)
     {
         var item = await _db.MediaItems
@@ -119,7 +125,16 @@ public sealed class LiveStreamMediaResolver
             return LiveStreamInput.ForFile(path);
         }
 
-        if (useHttpInput && _liveStreamOptions.UseHttpInput)
+        string httpFallbackNote;
+        if (!_liveStreamOptions.UseHttpInput)
+        {
+            httpFallbackNote = "HTTP-Eingang deaktiviert (LiveStream:UseHttpInput)";
+        }
+        else if (!useHttpInput)
+        {
+            httpFallbackNote = "HTTP-Transportfehler im vorherigen Lauf";
+        }
+        else
         {
             var lifetime = runDuration is { } duration
                 ? duration + StreamTokenLifetimeMargin
@@ -127,8 +142,36 @@ public sealed class LiveStreamMediaResolver
             var uri = _streamTokens.TryCreateStreamUri(item.Id, lifetime);
             if (uri is not null)
                 return LiveStreamInput.ForHttp(uri);
+
+            httpFallbackNote = "keine http-Basis-URL auflösbar — MediaProbe:HttpProbeBaseUrl, gebundene Adressen und Kestrel:Endpoints geprüft";
         }
 
-        return LiveStreamInput.ForStream(_ => Task.FromResult(_reader.OpenFileStream(collection, fileName)));
+        string? sftpNote = null;
+        if (collection.MediaSource.SourceType == MediaSourceType.Sftp)
+        {
+            if (useSftpInput && _liveStreamOptions.UseSftpInput)
+            {
+                var sftpUri = SftpProbeUriBuilder.TryBuildUri(
+                    collection.MediaSource.Host, collection.MediaSource.Port,
+                    collection.MediaSource.Username, collection.MediaSource.Password,
+                    SftpProbeUriBuilder.ResolveRemotePath(collection, item));
+                if (sftpUri is not null)
+                    return LiveStreamInput.ForSftp(sftpUri, httpFallbackNote);
+
+                sftpNote = "keine sftp://-URI bildbar (fehlende Credentials oder kein absoluter Remote-Pfad)";
+            }
+            else if (!_liveStreamOptions.UseSftpInput)
+            {
+                sftpNote = "LiveStream:UseSftpInput deaktiviert";
+            }
+            else
+            {
+                sftpNote = "sftp-Eingang nicht verfügbar (vorheriger sftp-Fehlschlag oder ffmpeg ohne sftp-Protokoll erkannt)";
+            }
+        }
+
+        return LiveStreamInput.ForStream(
+            _ => Task.FromResult(_reader.OpenFileStream(collection, fileName)),
+            sftpNote is null ? httpFallbackNote : $"{httpFallbackNote}; {sftpNote}");
     }
 }

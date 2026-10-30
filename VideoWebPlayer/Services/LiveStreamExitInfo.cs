@@ -15,4 +15,19 @@ namespace VideoWebPlayer.Services;
 /// (endpoint unreachable or rejecting) — only then does a fallback to <c>pipe:0</c> help.
 /// </param>
 /// <param name="OccurredAtUtc">When the exit was detected.</param>
-public sealed record LiveStreamExitInfo(long SlotId, int ExitCode, bool HttpTransportFailure, DateTimeOffset OccurredAtUtc);
+/// <param name="UndecodableInput">
+/// Whether stderr classified the input itself as undemuxable (corrupt file or a container
+/// layout the input kind cannot deliver, e.g. an MP4 moov atom at the end of a non-seekable
+/// pipe) — no retry on any input helps, so the coordinator skips the slot until its end.
+/// </param>
+/// <param name="SftpInputFailure">
+/// Whether stderr classified the exit as a transport/authentication failure of an
+/// <c>sftp://</c> input — the next attempt falls back to <c>pipe:0</c>.
+/// </param>
+public sealed record LiveStreamExitInfo(
+    long SlotId,
+    int ExitCode,
+    bool HttpTransportFailure,
+    DateTimeOffset OccurredAtUtc,
+    bool UndecodableInput = false,
+    bool SftpInputFailure = false);

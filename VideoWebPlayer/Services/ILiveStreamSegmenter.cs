@@ -36,6 +36,14 @@ public interface ILiveStreamSegmenter
     LiveStreamExitInfo? LastUnexpectedExit { get; }
 
     /// <summary>
+    /// Gets a value indicating whether the ffmpeg build accepts <c>sftp://</c> inputs —
+    /// starts <see langword="true"/> and latches to <see langword="false"/> once an
+    /// <c>sftp://</c> run failed on the missing protocol, so the coordinator can skip the
+    /// sftp stage process-wide.
+    /// </summary>
+    bool SftpInputSupported { get; }
+
+    /// <summary>
     /// Starts a segmentation job. Any previously running job is stopped first.
     /// </summary>
     /// <param name="job">The job to run.</param>

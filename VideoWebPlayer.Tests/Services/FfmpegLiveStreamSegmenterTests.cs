@@ -519,6 +519,138 @@ public sealed class FfmpegLiveStreamSegmenterTests
     }
 
     [Fact]
+    public async Task UnexpectedExit_PipeDemuxMarkers_SetsUndecodableInput()
+    {
+        var segmenter = CreateSegmenter();
+        await segmenter.StartAsync(FileJob() with
+        {
+            Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new MemoryStream())),
+            RemainingSeconds = 3600
+        }, TestContext.Current.CancellationToken);
+
+        var process = _processes.Single();
+        process.StderrPipe.WriteText(
+            "[mov,mp4,m4a,3gp,3g2,mj2 @ 0x55] stream 0, offset 0x30: partial file\n"
+            + "Could not find codec parameters for stream 0: unspecified pixel format\n"
+            + "Cannot determine format of input 0:0 after EOF\n");
+        process.SimulateExit(183);
+
+        await WaitUntilAsync(() => _logger.Entries.Any(e => e.Level == LogLevel.Warning));
+        Assert.True(segmenter.LastUnexpectedExit!.UndecodableInput);
+        Assert.False(segmenter.LastUnexpectedExit.HttpTransportFailure);
+    }
+
+    [Fact]
+    public async Task UnexpectedExit_FileInputDemuxMarkers_SetsUndecodableInput()
+    {
+        var segmenter = CreateSegmenter();
+        await segmenter.StartAsync(FileJob() with { RemainingSeconds = 3600 },
+            TestContext.Current.CancellationToken);
+
+        var process = _processes.Single();
+        process.StderrPipe.WriteText("/media/movie.mkv: Invalid data found when processing input\n");
+        process.SimulateExit(1);
+
+        await WaitUntilAsync(() => _logger.Entries.Any(e => e.Level == LogLevel.Warning));
+        Assert.True(segmenter.LastUnexpectedExit!.UndecodableInput);
+    }
+
+    [Fact]
+    public async Task UnexpectedExit_PipeInput_IncludesPumpStatsInWarning()
+    {
+        var segmenter = CreateSegmenter();
+        await segmenter.StartAsync(FileJob() with
+        {
+            Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new MemoryStream([1, 2, 3, 4]))),
+            RemainingSeconds = 3600
+        }, TestContext.Current.CancellationToken);
+
+        // Erst den Pump-Abschluss abwarten — erst dann trägt die Exit-Diagnose die
+        // Bytezählung in die Warnzeile ein.
+        await WaitUntilAsync(() => _logger.Entries.Any(e => e.Message.Contains("vollständig")));
+
+        var process = _processes.Single();
+        process.StderrPipe.WriteText("Cannot determine format of input 0:0 after EOF\n");
+        process.SimulateExit(183);
+
+        await WaitUntilAsync(() => _logger.Entries.Any(e => e.Level == LogLevel.Warning));
+        var warning = Assert.Single(_logger.Entries, e => e.Level == LogLevel.Warning);
+        Assert.Contains("Eingabe-Pumpe: 4/4 Bytes", warning.Message);
+    }
+
+    [Fact]
+    public async Task StartAsync_SftpInput_UsesUrlArgumentAndNoStdin()
+    {
+        var segmenter = CreateSegmenter();
+        var url = "sftp://user:pass@host:22/remote/movie.mkv";
+        await segmenter.StartAsync(FileJob() with { Input = LiveStreamInput.ForSftp(url) },
+            TestContext.Current.CancellationToken);
+
+        var args = _started.Single().Arguments;
+        Assert.Contains($"-i \"{url}\"", args);
+        Assert.Contains("-nostdin", args);
+        Assert.False(_started.Single().RedirectStandardInput);
+        Assert.True(segmenter.SftpInputSupported);
+    }
+
+    [Fact]
+    public async Task UnexpectedExit_SftpInputTransportMarkers_SetsSftpInputFailure()
+    {
+        var segmenter = CreateSegmenter();
+        await segmenter.StartAsync(FileJob() with
+        {
+            Input = LiveStreamInput.ForSftp("sftp://user:pass@host:22/remote/movie.mkv"),
+            RemainingSeconds = 3600
+        }, TestContext.Current.CancellationToken);
+
+        var process = _processes.Single();
+        process.StderrPipe.WriteText("sftp://user:pass@host:22/remote/movie.mkv: Connection refused\n");
+        process.SimulateExit(1);
+
+        await WaitUntilAsync(() => _logger.Entries.Any(e => e.Level == LogLevel.Warning));
+        Assert.True(segmenter.LastUnexpectedExit!.SftpInputFailure);
+        Assert.False(segmenter.LastUnexpectedExit.HttpTransportFailure);
+        Assert.False(segmenter.LastUnexpectedExit.UndecodableInput);
+        Assert.True(segmenter.SftpInputSupported); // Transport-Fehler latches nicht
+    }
+
+    [Fact]
+    public async Task UnexpectedExit_SftpSchemeMarkers_LatchesSftpInputSupportedFalse()
+    {
+        var segmenter = CreateSegmenter();
+        await segmenter.StartAsync(FileJob() with
+        {
+            Input = LiveStreamInput.ForSftp("sftp://user:pass@host:22/remote/movie.mkv"),
+            RemainingSeconds = 3600
+        }, TestContext.Current.CancellationToken);
+
+        var process = _processes.Single();
+        process.StderrPipe.WriteText("sftp://user:pass@host:22/remote/movie.mkv: Protocol not found\n");
+        process.SimulateExit(1);
+
+        await WaitUntilAsync(() => _logger.Entries.Any(e => e.Level == LogLevel.Warning));
+        Assert.True(segmenter.LastUnexpectedExit!.SftpInputFailure);
+        Assert.False(segmenter.SftpInputSupported);
+    }
+
+    [Fact]
+    public async Task UnexpectedExit_SftpInput_MasksCredentialsInStderr()
+    {
+        var segmenter = CreateSegmenter();
+        var url = "sftp://streamer:geheimwort@host:22/remote/movie.mkv";
+        await segmenter.StartAsync(FileJob() with { Input = LiveStreamInput.ForSftp(url), RemainingSeconds = 3600 },
+            TestContext.Current.CancellationToken);
+
+        var process = _processes.Single();
+        process.StderrPipe.WriteText($"{url}: Connection refused\n");
+        process.SimulateExit(1);
+
+        await WaitUntilAsync(() => _logger.Entries.Any(e => e.Level == LogLevel.Warning));
+        Assert.DoesNotContain(_logger.Entries, e => e.Message.Contains("geheimwort"));
+        Assert.Contains("sftp://***@", _logger.Entries.Single(e => e.Level == LogLevel.Warning).Message);
+    }
+
+    [Fact]
     public async Task StartAsync_SlotSwitch_CollectsPreviousPump()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -111,9 +111,9 @@ public sealed class SegmenterProcessSupportTests
         var process = new FakePumpProcess { StandardInput = stdin };
         var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new MemoryStream([1, 2, 3])));
 
-        var outcome = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
+        var result = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
 
-        Assert.Equal(SegmenterPumpOutcome.Completed, outcome);
+        Assert.Equal(SegmenterPumpOutcome.Completed, result.Outcome);
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Debug, entry.Level);
         Assert.Contains("TestCaller", entry.Message);
@@ -138,9 +138,9 @@ public sealed class SegmenterProcessSupportTests
         var process = new FakePumpProcess { StandardInput = new ThrowingWriteStream(exception) };
         var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new MemoryStream([1, 2, 3])));
 
-        var outcome = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
+        var result = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
 
-        Assert.Equal(SegmenterPumpOutcome.Completed, outcome);
+        Assert.Equal(SegmenterPumpOutcome.Completed, result.Outcome);
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Debug, entry.Level);
         Assert.Contains("TestCaller", entry.Message);
@@ -160,9 +160,9 @@ public sealed class SegmenterProcessSupportTests
         };
         var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new MemoryStream([1, 2, 3])));
 
-        var outcome = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
+        var result = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
 
-        Assert.Equal(SegmenterPumpOutcome.Failed, outcome);
+        Assert.Equal(SegmenterPumpOutcome.Failed, result.Outcome);
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.Contains("TestCaller", entry.Message);
@@ -177,9 +177,9 @@ public sealed class SegmenterProcessSupportTests
         var process = new FakePumpProcess { StandardInput = stdin };
         var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(null));
 
-        var outcome = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
+        var result = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
 
-        Assert.Equal(SegmenterPumpOutcome.SourceUnavailable, outcome);
+        Assert.Equal(SegmenterPumpOutcome.SourceUnavailable, result.Outcome);
         Assert.Empty(logger.Entries); // die Warnung liegt beim Aufrufer, nicht im Helper
         Assert.Equal(1, stdin.CloseCount); // stdin wird trotzdem geschlossen
     }
@@ -192,12 +192,86 @@ public sealed class SegmenterProcessSupportTests
         var process = new FakePumpProcess { StandardInput = stdin };
         var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new MemoryStream([1, 2, 3])));
 
-        var outcome = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
+        var result = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
 
-        Assert.Equal(SegmenterPumpOutcome.Completed, outcome);
+        Assert.Equal(SegmenterPumpOutcome.Completed, result.Outcome);
         Assert.Equal([1, 2, 3], stdin.Written);
         Assert.Equal(1, stdin.CloseCount);
-        Assert.Empty(logger.Entries);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Debug, entry.Level);
+        Assert.Contains("vollständig", entry.Message);
+    }
+
+    [Fact]
+    public async Task PumpInputAsync_Success_ReportsPumpedAndExpectedBytes()
+    {
+        var logger = new ListLogger<object>(new ConcurrentQueue<string>());
+        var process = new FakePumpProcess();
+        var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new MemoryStream([1, 2, 3, 4, 5])));
+
+        var result = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
+
+        Assert.Equal(SegmenterPumpOutcome.Completed, result.Outcome);
+        Assert.Equal(5, result.BytesPumped);
+        Assert.Equal(5, result.ExpectedBytes);
+    }
+
+    [Fact]
+    public async Task PumpInputAsync_NonSeekableSource_CompletedWithoutExpectedBytes()
+    {
+        var logger = new ListLogger<object>(new ConcurrentQueue<string>());
+        var process = new FakePumpProcess();
+        var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new NonSeekableReadStream([1, 2, 3])));
+
+        var result = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
+
+        Assert.Equal(SegmenterPumpOutcome.Completed, result.Outcome);
+        Assert.Equal(3, result.BytesPumped);
+        Assert.Null(result.ExpectedBytes);
+    }
+
+    [Fact]
+    public async Task PumpInputAsync_ShortStream_ReturnsTruncated()
+    {
+        var logger = new ListLogger<object>(new ConcurrentQueue<string>());
+        var process = new FakePumpProcess();
+        var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(
+            new TruncatingReadStream([1, 2, 3], declaredLength: 100)));
+
+        var result = await SegmenterProcessSupport.PumpInputAsync(process, input, logger, "TestCaller");
+
+        Assert.Equal(SegmenterPumpOutcome.Truncated, result.Outcome);
+        Assert.Equal(3, result.BytesPumped);
+        Assert.Equal(100, result.ExpectedBytes);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Contains("unvollständig", entry.Message);
+        Assert.Contains("3", entry.Message);
+        Assert.Contains("100", entry.Message);
+    }
+
+    /// <summary>Nicht-seekbare Quell-Attrappe: <see cref="Stream.Length"/> wird nie abgefragt.</summary>
+    private sealed class NonSeekableReadStream : MemoryStream
+    {
+        public NonSeekableReadStream(byte[] payload) : base(payload) { }
+        public override bool CanSeek => false;
+        public override long Length => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public void InputSpec_SftpUrl_ReturnsQuotedUrl()
+    {
+        var input = LiveStreamInput.ForSftp("sftp://u:p@host:22/remote/f.mkv");
+
+        Assert.Equal("\"sftp://u:p@host:22/remote/f.mkv\"", SegmenterProcessSupport.InputSpec(input));
+    }
+
+    [Fact]
+    public void NoStdinArg_SftpInput_ReturnsNostdin()
+    {
+        var input = LiveStreamInput.ForSftp("sftp://u:p@host:22/remote/f.mkv");
+
+        Assert.Equal("-nostdin ", SegmenterProcessSupport.NoStdinArg(input));
     }
 
     [Fact]

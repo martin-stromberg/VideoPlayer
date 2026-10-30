@@ -38,6 +38,7 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         public long? CurrentSlotId { get; set; }
         public double? ExpectedPositionSeconds { get; set; }
         public LiveStreamExitInfo? LastUnexpectedExit { get; set; }
+        public bool SftpInputSupported { get; set; } = true;
         public List<LiveStreamJob> Jobs { get; } = [];
         public int StopCalls { get; private set; }
 
@@ -120,7 +121,7 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         await Task.CompletedTask;
     }
 
-    private async Task<MediaItem> SeedRemoteMediaItemAsync(string fileName = "remote.mkv")
+    private async Task<MediaItem> SeedRemoteMediaItemAsync(string fileName = "remote.mkv", bool withCredentials = false)
     {
         var ct = TestContext.Current.CancellationToken;
         var source = new MediaSource
@@ -129,7 +130,9 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
             Path = "/remote",
             SourceType = MediaSourceType.Sftp,
             Host = "h",
-            Port = 22
+            Port = 22,
+            Username = withCredentials ? "streamer" : null,
+            Password = withCredentials ? "geheim" : null
         };
         _fixture.Db.MediaSources.Add(source);
         await _fixture.Db.SaveChangesAsync(ct);
@@ -337,5 +340,115 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
 
         Assert.Equal(LiveStreamSyncAction.Started, result.Action);
         Assert.Equal(_streamTokens.UriToReturn, Assert.Single(_segmenter.Jobs).Input.HttpUrl);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_UndecodableInputSameSlot_SkipsSlotUntilEnd()
+    {
+        var item = await SeedLocalMediaItemAsync();
+        _guide.Result.Now = Entry(11, item.Id);
+        _segmenter.IsRunning = true;
+        _segmenter.CurrentSlotId = 11;
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(
+            11, 183, HttpTransportFailure: false, DateTimeOffset.UtcNow, UndecodableInput: true);
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.InputUnplayable, result.Action);
+        Assert.Equal(_guide.Result.Now.EndUtc, result.WakeAtUtc);
+        Assert.Empty(_segmenter.Jobs);
+        Assert.True(_segmenter.StopCalls >= 1);
+        Assert.Contains("nicht lesbar", result.Detail);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_UndecodableInputOtherSlot_IgnoresFailure()
+    {
+        var item = await SeedLocalMediaItemAsync();
+        _guide.Result.Now = Entry(11, item.Id);
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(
+            99, 183, HttpTransportFailure: false, DateTimeOffset.UtcNow, UndecodableInput: true);
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        Assert.Single(_segmenter.Jobs);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_RemotePipeFallback_StartedDetailNamesInputKindAndNote()
+    {
+        _streamTokens.UriToReturn = null;
+        var item = await SeedRemoteMediaItemAsync();
+        _guide.Result.Now = Entry(11, item.Id);
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        Assert.True(Assert.Single(_segmenter.Jobs).Input.IsPipe);
+        Assert.Contains("pipe:0", result.Detail);
+        Assert.Contains("keine http-Basis-URL", result.Detail);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_RemoteMedia_StartedDetailNamesHttpInput()
+    {
+        var item = await SeedRemoteMediaItemAsync();
+        _guide.Result.Now = Entry(11, item.Id);
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        Assert.Contains("Eingang: HTTP", result.Detail);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_HttpTransportFailureSameSlotWithCredentials_FallsBackToSftp()
+    {
+        var item = await SeedRemoteMediaItemAsync(withCredentials: true);
+        _guide.Result.Now = Entry(11, item.Id);
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow);
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        var job = Assert.Single(_segmenter.Jobs);
+        Assert.NotNull(job.Input.SftpUrl);
+        Assert.False(job.Input.IsPipe);
+        Assert.Equal(0, _streamTokens.StreamUriCalls);
+        Assert.Contains("sftp", result.Detail);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_SftpFailureSameSlot_FallsBackToPipe()
+    {
+        var item = await SeedRemoteMediaItemAsync(withCredentials: true);
+        _guide.Result.Now = Entry(11, item.Id);
+        _streamTokens.UriToReturn = null; // keine http-Basis-URL → HTTP-Stufe greift nicht
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(
+            11, 1, HttpTransportFailure: false, DateTimeOffset.UtcNow, SftpInputFailure: true);
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        var job = Assert.Single(_segmenter.Jobs);
+        Assert.True(job.Input.IsPipe);
+        Assert.Null(job.Input.SftpUrl);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_SftpUnsupported_SkipsSftpInput()
+    {
+        var item = await SeedRemoteMediaItemAsync(withCredentials: true);
+        _guide.Result.Now = Entry(11, item.Id);
+        _streamTokens.UriToReturn = null;
+        _segmenter.SftpInputSupported = false;
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        var job = Assert.Single(_segmenter.Jobs);
+        Assert.True(job.Input.IsPipe);
+        Assert.Null(job.Input.SftpUrl);
     }
 }

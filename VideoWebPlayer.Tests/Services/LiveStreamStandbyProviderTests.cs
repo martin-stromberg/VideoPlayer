@@ -413,6 +413,14 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
     }
 
     [Fact]
+    public void SourceDescriptor_SftpInput_ReturnsSftpDescriptor()
+    {
+        var input = LiveStreamInput.ForSftp("sftp://u:p@host:22/remote/clip.mkv");
+
+        Assert.Equal("sftp", LiveStreamStandbyProvider.SourceDescriptor(input));
+    }
+
+    [Fact]
     public void TransitionFlag_NoteAndConsume()
     {
         var provider = CreateProvider(loadDefaultSet: () => TestSet());

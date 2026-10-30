@@ -40,6 +40,7 @@ public sealed class LiveStreamStandbySegmenterTests : IAsyncLifetime
         public int ExitCode => HasExited ? _exitCode : -1;
         public Stream StandardInput { get; } = new MemoryStream();
         public Stream StandardError { get; } = new MemoryStream();
+        public int KillCount { get; private set; }
 
         public Task WaitForExitAsync(CancellationToken cancellationToken)
         {
@@ -48,7 +49,12 @@ public sealed class LiveStreamStandbySegmenterTests : IAsyncLifetime
             return Task.CompletedTask;
         }
 
-        public void Kill() => HasExited = true;
+        public void Kill()
+        {
+            KillCount++;
+            HasExited = true;
+        }
+
         public void Dispose() { }
     }
 
@@ -280,6 +286,30 @@ public sealed class LiveStreamStandbySegmenterTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TranscodeAsync_TruncatedPumpInput_KillsProcessAndReturnsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Die Quelle meldet 1000 Bytes, liefert aber nur 3 — der Pump erkennt den
+        // vorzeitigen Abbruch (Truncated) und darf kein Teilmaterial übernehmen.
+        var input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(
+            new TruncatingReadStream([1, 2, 3], declaredLength: 1000)));
+        var processes = new List<KillableProcess>();
+        var segmenter = CreateSegmenter(startInfo =>
+        {
+            _started.Add(startInfo);
+            // Der Prozess läuft, bis der Pump ihn killt — erst dann endet das Warten.
+            var process = new KillableProcess();
+            processes.Add(process);
+            return process;
+        });
+
+        var result = await segmenter.TranscodeAsync(input, _cacheDir, ct);
+
+        Assert.Null(result);
+        Assert.True(processes.Single().KillCount >= 1, "Der Truncated-Pump hat den Prozess nicht getötet.");
+    }
+
+    [Fact]
     public async Task TranscodeAsync_FfmpegMissing_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -287,6 +317,31 @@ public sealed class LiveStreamStandbySegmenterTests : IAsyncLifetime
             new MissingFfmpegLocator(), new FakeFfprobeLocator(), NullLogger<LiveStreamStandbySegmenter>.Instance);
 
         Assert.Null(await segmenter.TranscodeAsync(LiveStreamInput.ForFile("/x.mkv"), _cacheDir, ct));
+    }
+
+    /// <summary>Prozess-Attrappe, die erst beim Kill „beendet" ist — modelliert einen
+    /// ffmpeg-Lauf, dessen einziger Ausgang der Kill durch den abgebrochenen Pump ist.</summary>
+    private sealed class KillableProcess : ISegmenterProcess
+    {
+        private readonly TaskCompletionSource _exited = new();
+
+        public bool HasExited { get; private set; }
+        public int ExitCode => HasExited ? 1 : -1;
+        public Stream StandardInput { get; } = new MemoryStream();
+        public Stream StandardError { get; } = new MemoryStream();
+        public int KillCount { get; private set; }
+
+        public Task WaitForExitAsync(CancellationToken cancellationToken)
+            => _exited.Task.WaitAsync(cancellationToken);
+
+        public void Kill()
+        {
+            KillCount++;
+            HasExited = true;
+            _exited.TrySetResult();
+        }
+
+        public void Dispose() { }
     }
 
     private sealed class MissingFfmpegLocator : IFfmpegLocator

@@ -21,8 +21,26 @@ internal enum SegmenterPumpOutcome
     SourceUnavailable,
 
     /// <summary>An unexpected error occurred while pumping (already logged by the helper).</summary>
-    Failed
+    Failed,
+
+    /// <summary>The source ended before its known file size was reached — the input was
+    /// cut off mid-way and the process received only partial material.</summary>
+    Truncated
 }
+
+/// <summary>
+/// The result of pumping a stream input into a segmenter process's standard input:
+/// the outcome plus the byte accounting that distinguishes „source broke mid-way" from
+/// „fully delivered" in the diagnosis logs.
+/// </summary>
+/// <param name="Outcome">How the pump ended.</param>
+/// <param name="BytesPumped">The number of bytes written into the process's stdin.</param>
+/// <param name="ExpectedBytes">The source's declared length, or <see langword="null"/>
+/// when the stream cannot report one.</param>
+internal sealed record SegmenterPumpResult(
+    SegmenterPumpOutcome Outcome,
+    long BytesPumped,
+    long? ExpectedBytes);
 
 /// <summary>
 /// Shared plumbing of the ffmpeg segmenter processes (<see cref="FfmpegLiveStreamSegmenter"/>
@@ -63,15 +81,17 @@ internal static class SegmenterProcessSupport
     }
 
     /// <summary>
-    /// The ffmpeg <c>-i</c> argument value of an input: quoted file path, quoted HTTP URL
-    /// or <c>pipe:0</c> for a piped stream.
+    /// The ffmpeg <c>-i</c> argument value of an input: quoted file path, quoted HTTP or
+    /// <c>sftp://</c> URL, or <c>pipe:0</c> for a piped stream.
     /// </summary>
     internal static string InputSpec(LiveStreamInput input)
         => input.FilePath is { } path
             ? $"\"{path}\""
-            : input.HttpUrl is { } url
-                ? $"\"{url}\""
-                : "pipe:0";
+            : input.HttpUrl is { } httpUrl
+                ? $"\"{httpUrl}\""
+                : input.SftpUrl is { } sftpUrl
+                    ? $"\"{sftpUrl}\""
+                    : "pipe:0";
 
     /// <summary>
     /// <c>-nostdin </c> (with trailing space) for file/URL inputs so ffmpeg cannot read the
@@ -119,27 +139,56 @@ internal static class SegmenterProcessSupport
     /// <summary>
     /// Pumps a piped <see cref="LiveStreamInput"/> into the process's standard input until
     /// the source ends; the stdin handle is always closed afterwards so ffmpeg sees EOF.
-    /// A broken pipe while the process ends is expected and counts as completed.
+    /// A broken pipe while the process ends is expected and counts as completed. The pumped
+    /// byte count is compared against the source's declared length (when the stream can
+    /// seek), so a source that broke off mid-way shows up as <see cref="SegmenterPumpOutcome.Truncated"/>
+    /// instead of being indistinguishable from a complete delivery.
     /// </summary>
     /// <param name="process">The running segmenter process.</param>
     /// <param name="input">The input to pump (must be a pipe input).</param>
     /// <param name="logger">Logger for pump diagnostics.</param>
     /// <param name="caller">Log prefix identifying the calling segmenter (and its context).</param>
-    internal static async Task<SegmenterPumpOutcome> PumpInputAsync(
+    internal static async Task<SegmenterPumpResult> PumpInputAsync(
         ISegmenterProcess process, LiveStreamInput input, ILogger logger, string caller)
     {
+        long bytesPumped = 0;
+        long? expectedBytes = null;
         try
         {
             var source = await input.OpenStreamAsync!(CancellationToken.None);
             if (source is null)
-                return SegmenterPumpOutcome.SourceUnavailable;
+                return new SegmenterPumpResult(SegmenterPumpOutcome.SourceUnavailable, 0, null);
 
             await using (source)
             {
-                await source.CopyToAsync(process.StandardInput, CancellationToken.None);
+                try
+                {
+                    if (source.CanSeek)
+                        expectedBytes = source.Length;
+                }
+                catch (Exception)
+                {
+                }
+
+                var buffer = new byte[81920];
+                int read;
+                while ((read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), CancellationToken.None)) > 0)
+                {
+                    await process.StandardInput.WriteAsync(buffer.AsMemory(0, read), CancellationToken.None);
+                    bytesPumped += read;
+                }
             }
 
-            return SegmenterPumpOutcome.Completed;
+            if (expectedBytes is { } expected && bytesPumped < expected)
+            {
+                logger.LogWarning(
+                    "[{Caller}] Eingabe-Pump unvollständig: {BytesPumped} von {ExpectedBytes} Bytes — Quelle brach vorzeitig ab.",
+                    caller, bytesPumped, expected);
+                return new SegmenterPumpResult(SegmenterPumpOutcome.Truncated, bytesPumped, expectedBytes);
+            }
+
+            logger.LogDebug("[{Caller}] Eingabe-Pump vollständig: {BytesPumped} Bytes.", caller, bytesPumped);
+            return new SegmenterPumpResult(SegmenterPumpOutcome.Completed, bytesPumped, expectedBytes);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
         {
@@ -147,12 +196,12 @@ internal static class SegmenterProcessSupport
             // so only the exception type and short message are logged, not the stack trace.
             logger.LogDebug("[{Caller}] Eingabe-Pump beendet ({ExceptionType}: {Reason}).",
                 caller, ex.GetType().Name, ex.Message);
-            return SegmenterPumpOutcome.Completed;
+            return new SegmenterPumpResult(SegmenterPumpOutcome.Completed, bytesPumped, expectedBytes);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "[{Caller}] Fehler beim Pumpen der Eingabe.", caller);
-            return SegmenterPumpOutcome.Failed;
+            return new SegmenterPumpResult(SegmenterPumpOutcome.Failed, bytesPumped, expectedBytes);
         }
         finally
         {

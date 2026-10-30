@@ -169,6 +169,54 @@ public sealed class FfmpegLiveStreamSegmenterTests
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
+    /// <summary>Quell-Stream, dessen Leseaufruf erst nach <see cref="Release"/> Daten
+    /// liefert — modelliert eine Pumpe, die das stderr-Ende des Prozesses ueberlebt und
+    /// dann doch noch ein (unvollstaendiges) Ergebnis abliefert.</summary>
+    private sealed class GatedReadStream : Stream
+    {
+        private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly byte[] _payload;
+        private int _position;
+
+        public GatedReadStream(byte[] payload, long declaredLength)
+        {
+            _payload = payload;
+            Length = declaredLength;
+        }
+
+        public void Release() => _gate.TrySetResult();
+
+        public override bool CanRead => true;
+        public override bool CanSeek => true;
+        public override bool CanWrite => false;
+        public override long Length { get; }
+        public override long Position { get => _position; set => _position = (int)value; }
+
+        public override void Flush() { }
+
+        public override int Read(byte[] buffer, int offset, int count)
+            => ReadAsync(buffer.AsMemory(offset, count)).AsTask().GetAwaiter().GetResult();
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await _gate.Task;
+            var remaining = _payload.Length - _position;
+            if (remaining <= 0)
+                return 0;
+            var n = Math.Min(buffer.Length, remaining);
+            _payload.AsMemory(_position, n).CopyTo(buffer);
+            _position += n;
+            return n;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     private sealed class FakeSegmenterProcess : ISegmenterProcess
     {
         private int? _exitCode;
@@ -618,6 +666,55 @@ public sealed class FfmpegLiveStreamSegmenterTests
 
         var process = _processes.Single();
         process.StderrPipe.WriteText("stream 0, offset 0x30: partial file\n");
+        process.SimulateExit(183);
+
+        await WaitUntilAsync(() => segmenter.LastUnexpectedExit is not null);
+        Assert.False(segmenter.LastUnexpectedExit!.UndecodableInput);
+    }
+
+    [Fact]
+    public async Task UnexpectedExit_PipePumpFinishesAfterStderrEof_DemuxMarkersNoUndecodableInput()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = new GatedReadStream([1, 2, 3], declaredLength: 1000);
+        var segmenter = CreateSegmenter();
+        await segmenter.StartAsync(FileJob() with
+        {
+            Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(source)),
+            RemainingSeconds = 3600
+        }, ct);
+
+        // Der Prozess endet, waehrend die Pumpe noch auf die Quelle wartet — die
+        // Klassifikation muss das Pump-Ergebnis einholen, statt mit „Pump unbekannt"
+        // den Sendeplatz als nicht-demuxbar zu ueberspringen. Das spaete Ergebnis ist
+        // Truncated (3 von 1000 Bytes) — die Demux-Marker sind seine Folge, nicht
+        // die Ursache.
+        var process = _processes.Single();
+        process.StderrPipe.WriteText("stream 0, offset 0x30: partial file\n");
+        process.SimulateExit(183);
+        await Task.Delay(300, ct);
+        source.Release();
+
+        await WaitUntilAsync(() => segmenter.LastUnexpectedExit is not null);
+        Assert.False(segmenter.LastUnexpectedExit!.UndecodableInput);
+    }
+
+    [Fact]
+    public async Task UnexpectedExit_PipePumpOutcomeUnknownPastBound_DemuxMarkersNoUndecodableInput()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var segmenter = CreateSegmenter(pumpDrainTimeout: TimeSpan.FromMilliseconds(200));
+        await segmenter.StartAsync(FileJob() with
+        {
+            Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new NeverEndingReadStream())),
+            RemainingSeconds = 3600
+        }, ct);
+
+        // Die Pumpe bleibt in source.ReadAsync haengen und wird nach der Schranke
+        // verwaist — ihr unbekannter Ausgang darf die Demux-Marker nicht als
+        // „Eingang nicht lesbar" werten lassen (Retry statt Slot-Skip).
+        var process = _processes.Single();
+        process.StderrPipe.WriteText("Cannot determine format of input 0:0 after EOF\n");
         process.SimulateExit(183);
 
         await WaitUntilAsync(() => segmenter.LastUnexpectedExit is not null);

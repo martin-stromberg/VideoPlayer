@@ -265,13 +265,13 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     /// <param name="job">The job the process was started for.</param>
     /// <param name="startedAt">When the process was started (premature-exit reference).</param>
     /// <param name="pumpTask">This job's stdin pump task, or <see langword="null"/> for
-    /// non-pipe inputs — its already-finished result feeds the exit diagnosis.</param>
+    /// non-pipe inputs — its result (awaited bounded) feeds the exit diagnosis.</param>
     private async Task DrainStandardErrorAsync(
         ISegmenterProcess process, LiveStreamJob job, DateTimeOffset startedAt,
         Task<SegmenterPumpResult>? pumpTask)
     {
         var tail = await SegmenterProcessSupport.DrainStandardErrorAsync(process);
-        ReportProcessExit(process, job, startedAt, tail, pumpTask);
+        await ReportProcessExit(process, job, startedAt, tail, pumpTask);
     }
 
     /// <summary>
@@ -284,9 +284,9 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     /// <param name="job">The job the process was started for.</param>
     /// <param name="startedAt">When the process was started.</param>
     /// <param name="stderrTail">The captured stderr tail (unmasked).</param>
-    /// <param name="pumpTask">This job's stdin pump task — an already-finished result
-    /// contributes its byte accounting to the warning line.</param>
-    private void ReportProcessExit(
+    /// <param name="pumpTask">This job's stdin pump task — its result is awaited bounded
+    /// before the classification so a failed pump cannot be mistaken for a clean feed.</param>
+    private async Task ReportProcessExit(
         ISegmenterProcess process, LiveStreamJob job, DateTimeOffset startedAt,
         string stderrTail, Task<SegmenterPumpResult>? pumpTask)
     {
@@ -314,7 +314,16 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             return;
         }
 
-        var pumpResult = pumpTask is { IsCompletedSuccessfully: true } ? pumpTask.Result : null;
+        // The pump usually ended with the process or is just breaking on the pipe — a
+        // still-running one is awaited bounded (once ffmpeg exited it can only be waiting
+        // on the pipe break or a stalled source read). An unknown pump state must not let
+        // demux markers blame the input: a retry is safer than skipping the slot on a
+        // diagnosis the pump result could have disproved.
+        var pumpResult = pumpTask is null
+            ? null
+            : await SegmenterProcessSupport.AwaitDrainObservingFaultsAsync(
+                pumpTask, _pumpDrainTimeout, _logger,
+                $"[FfmpegLiveStreamSegmenter] Eingabe-Pumpe (Sendeplatz {job.SlotId})");
 
         var httpTransportFailure = job.Input.HttpUrl is not null
             && FfmpegErrorMarkers.ContainsHttpTransportError(maskedTail);
@@ -326,14 +335,14 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             && (sftpUnsupported || FfmpegErrorMarkers.ContainsSftpInputError(maskedTail));
         // Transport failures win: when the content was never reached, demux markers in
         // the tail cannot blame the input itself. Neither can a pipe input whose pump
-        // ended in failure (source unavailable, aborted or truncated): demux errors are
-        // then the expected consequence of the incomplete feed — a transient source
-        // problem the coordinator should retry, not a broken file worth skipping the
-        // slot for.
+        // ended in failure (source unavailable, aborted or truncated) or whose outcome
+        // stayed unknown past the bounded wait: demux errors are then the expected
+        // consequence of the incomplete feed — a transient source problem the
+        // coordinator should retry, not a broken file worth skipping the slot for.
         var undecodableInput = !httpTransportFailure && !sftpInputFailure
             && FfmpegErrorMarkers.ContainsUndecodableInputError(maskedTail)
             && (!job.Input.IsPipe
-                || pumpResult is null or { Outcome: SegmenterPumpOutcome.Completed });
+                || pumpResult is { Outcome: SegmenterPumpOutcome.Completed });
 
         _lastUnexpectedExit = new LiveStreamExitInfo(
             job.SlotId, exitCode, httpTransportFailure, _timeProvider.GetUtcNow(),

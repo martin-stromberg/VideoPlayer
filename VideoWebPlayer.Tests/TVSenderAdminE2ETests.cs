@@ -277,14 +277,16 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
         await Expect(Page.Locator(".tvsender-rule-row")).ToHaveCountAsync(0);
 
         // Sendeplan-Karte: geplanter und verdrängter Sendeplatz werden mit Status-Chip angezeigt.
+        DateTime seedSlotStart;
         {
             using var scope = Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
             var channel = await db.TVChannels.FirstAsync(TestContext.Current.CancellationToken);
+            seedSlotStart = DateTime.UtcNow.AddHours(2);
             db.ProgramSlots.Add(new VideoWebPlayer.Data.ProgramSlot
             {
                 TVChannelId = channel.Id,
-                Start = DateTime.UtcNow.AddHours(2),
+                Start = seedSlotStart,
                 End = DateTime.UtcNow.AddHours(3),
                 MediaItemId = 1,
                 MovieId = 1,
@@ -306,6 +308,13 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
         await Page.GotoAsync($"{ServerUrl}/admin/tv-sender");
         await Page.WaitForSelectorAsync("#tvsender-tab-sendeplan");
         await SwitchTabAsync("#tvsender-tab-sendeplan", "#tab-sendeplan");
+        // Seit Issue #306 zeigt die Ansicht pro Tag nur einen Kalendertag über die
+        // Auswahlleiste; vorausgewählt ist der erste Plantag ab heute. Liegt der
+        // Seed-Sendeplatz (Ortszeit) auf einem anderen Tag — etwa nach 21 Uhr —, muss
+        // dieser Tag in der Leiste gewählt werden, sonst bleibt die Karte unsichtbar.
+        var seedDay = seedSlotStart.ToLocalTime().Date;
+        await Page.WaitForSelectorAsync("#tvsender-day-bar");
+        await Page.Locator($"#tvsender-day-bar .tvsender-day-btn[data-day='{seedDay:yyyy-MM-dd}']").ClickAsync();
         var displacedRow = Page.Locator(".tvsender-slot-row.tvsender-slot-displaced");
         await displacedRow.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(displacedRow).ToContainTextAsync("Verdrängt");

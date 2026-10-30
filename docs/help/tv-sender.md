@@ -573,9 +573,11 @@ hinterlegten Zugangsdaten als Mittelstufe eine direkte `sftp://`-Eingangs-URI (s
 über libssh, vorausgesetzt der `ffmpeg`-Build bringt das Protokoll mit — prüfbar über
 `ffmpeg -protocols`); erkennt der erste Lauf, dass `sftp` nicht unterstützt wird, bleibt
 die Stufe prozessweit deaktiviert. Scheitert ein Lauf am Transport der jeweiligen Stufe,
-versucht der nächste Takt die nachfolgende. Letzter Ausweg ist die bisherige Methode, die
-den Inhalt in die Standardeingabe des Prozesses pumpt (`pipe:0`). Der gewählte Eingang
-samt Grund steht einmalig je Job in der `Started`-Logzeile.
+versucht der nächste Takt die nachfolgende — eine auf diesem Sendeplatz einmal
+gescheiterte Stufe bleibt für dessen Rest deaktiviert, sodass die Kette auch bei
+abwechselnd fehlschlagenden Stufen bis zur letzten durchläuft. Letzter Ausweg ist die
+bisherige Methode, die den Inhalt in die Standardeingabe des Prozesses pumpt (`pipe:0`).
+Der gewählte Eingang samt Grund steht einmalig je Job in der `Started`-Logzeile.
 
 Zwei Schalter steuern die Kette: `LiveStream:UseHttpInput` (Standard `true`) schaltet den
 HTTP-Eingang ab, `LiveStream:UseSftpInput` (Standard `true`) die `sftp`-Stufe — Letztere
@@ -585,8 +587,11 @@ Zugangsdaten in der Prozess-Kommandozeile trägt (in Logzeilen bleiben sie maski
 Kann `ffmpeg` den Eingang nicht demuxen (z. B. eine korrupte Datei oder ein MP4 mit
 `moov`-Atom am Ende über `pipe:0`), wird der betroffene Sendeplatz bis zu seinem Ende
 übersprungen, statt im 30-Sekunden-Takt neu gestartet zu werden — der nächste Sendeplatz
-beginnt regulär. Die einmalige Fehlerdiagnose (stderr-Ausschnitt samt gepumpter Bytezahl)
-steht in der Warnung des Segmentierers.
+beginnt regulär. Bei gepumpten Eingaben gilt das Überspringen nur, wenn die Quelle
+nachweislich vollständig geliefert wurde: Bricht sie vorzeitig ab oder bleibt ihre
+Bytebilanz unklar, gilt der Ausfall als vorübergehendes Quellproblem und wird im Takt
+erneut versucht, statt den Sendeplatz zu sperren. Die einmalige Fehlerdiagnose
+(stderr-Ausschnitt samt gepumpter Bytezahl) steht in der Warnung des Segmentierers.
 
 Drei Einstellungen der Karte „Segmentierung" im Tab „Einstellungen" steuern die Ausgabe:
 

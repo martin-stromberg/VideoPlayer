@@ -1,10 +1,12 @@
 # TV-Sender — Technischer Ablauf
 
-Technische Abläufe des automatischen TV-Senders in fünf Teilen: „Clip-Gruppen und
+Technische Abläufe des automatischen TV-Senders in sechs Teilen: „Clip-Gruppen und
 Restzeit-Auffüllung" beschreibt die Sendeplan-Generierung mit Platzhalter-Clips,
 „Standby-Stream des Live-Streams" die Auslieferung der Warm-up-Phase und aller Zustände
 ohne produzierte Segmente, „Geordneter Stop der Live-Stream-Segmentierung" das
 zeitgebundene Einholen der Eingabe-Pumpe beim Sendeplatz-Wechsel,
+„Eingangskaskade und Exit-Klassifikation des Live-Streams" die Stufenwahl des
+ffmpeg-Eingangs samt Fallback-, Skip- und Diagnose-Logik,
 „Jugendschutzfenster" die altersgerechten Sendezeiten und
 „Stabile Neu-Bewertung des Sendeplans" die Lauf-zu-Lauf-Idempotenz der Re-Bewertung.
 
@@ -334,7 +336,13 @@ weiterzählte.
   `LiveStreamStandbySegmenter.TranscodeAsync`: Offline-Lauf ohne `-re` (`-f segment`,
   `-segment_time 4`, `-t 60` als harte Kappe gegen falsch gewählte lange Inhalte,
   Laufzeit-Timeout 2×60 s gegen stallende Eingaben), Segmentdauern per `ffprobe`
-  (Nominal-Fallback). Die gemerkte Fehlschlag-Id (`_failedMediaItemId`) verhindert
+  (Nominal-Fallback). Scheitert der Transkodierlauf auf einem seekfähigen Eingang,
+  kaskadiert die Vorbereitung wie der Live-Pfad des Koordinators weiter: Die
+  gescheiterte Stufe (`useHttpInput`/`useSftpInput` auf `false`) wird für die nächste
+  Auflösung deaktiviert und `ResolveAsync` erneut gerufen, bis der `pipe:0`-Eingang
+  erreicht ist — ein Scheitern auf Datei- oder Pipe-Eingang (oder eine
+  `null`-Auflösung) gilt erst dann als Endstand. Die gemerkte Fehlschlag-Id
+  (`_failedMediaItemId`) verhindert
   einen Retry-Sturm je Playlist-Poll; sie resettet nur bei Erfolg oder anderem Ziel.
 
 ### Auswahl in der Administration
@@ -377,9 +385,10 @@ Sendeplatzes.
 #### 1. Start mit Pipe-Eingabe
 
 `StartAsync` startet den Pump bei `job.Input.IsPipe` weiterhin per `Task.Run`, legt
-die Referenz aber neu im Feld `_pumpTask` ab — bei Datei-/HTTP-Eingaben
-(`LiveStreamInput.ForFile`/`ForHttp`) steht dort `Task.CompletedTask`, weil keine
-Pumpe läuft. `_pumpTask` wird ausschließlich unter `_gate` gelesen und geschrieben.
+die Referenz aber neu im Feld `_pumpTask` ab — bei Datei-/URL-Eingaben
+(`LiveStreamInput.ForFile`/`ForHttp`/`ForSftp`) steht dort `Task.CompletedTask`,
+weil keine Pumpe läuft. `_pumpTask` wird ausschließlich unter `_gate` gelesen und
+geschrieben.
 
 Beteiligte Komponenten:
 
@@ -446,9 +455,13 @@ sondern wird als Warnung protokolliert und toleriert (der stderr-Tail entfällt 
   Unterschied und meldet `SegmenterPumpResult` mit `Outcome = Truncated`,
   `BytesPumped` und `ExpectedBytes` — `LiveStreamStandbySegmenter` behandelt das
   wie einen Fehlschlag und tötet ffmpeg, damit kein Teilmaterial in den Cache
-  gerät. Bei nicht-seekbaren Quellen bleibt `ExpectedBytes` leer; die Bytezählung
-  wandert als „Eingabe-Pumpe: n/m Bytes" in die Warnung über den unerwarteten
-  ffmpeg-Exit, sofern der Pump zum Exitzeitpunkt bereits abgeschlossen war.
+  gerät. Bei nicht-seekbaren Quellen bleibt `ExpectedBytes` leer. `ReportProcessExit`
+  holt das Pump-Ergebnis des beendeten Jobs vor der Exit-Klassifikation zeitgebunden
+  ein (`_pumpDrainTimeout`; nach dem Prozessende wartet der Pump nur noch auf den
+  Pipe-Bruch oder einen stallenden Quell-Read) — die Bytezählung steht damit
+  regelmäßig als „Eingabe-Pumpe: n/m Bytes" in der Warnung über den unerwarteten
+  ffmpeg-Exit; nur ein innerhalb der Schranke nicht eingeholter Pump liefert keine
+  Angabe.
 - **Nicht demuxbarer Eingang:** erkennt die stderr-Diagnose Demux-Marker
   (`partial file`, `Invalid data found`, `Could not find codec parameters`,
   `Cannot determine format`, `moov atom not found`), setzt der Segmentierer
@@ -459,7 +472,13 @@ sondern wird als Warnung protokolliert und toleriert (der stderr-Tail entfällt 
   (nächster Versuch ohne HTTP-Eingang), bei `sftp`-Eingängen
   Transport-/Auth-Marker → `SftpInputFailure` (nächster Versuch ohne `sftp`-Stufe)
   bzw. fehlendes Protokoll („Protocol not found" u. ä.) → zusätzlich prozessweiter
-  `SftpInputSupported`-Latch.
+  `SftpInputSupported`-Latch. Auf `pipe:0`-Eingängen greift die Erkennung zudem nur
+  bei sauber geliefertem Feed: Ein `Failed`-/`Truncated`-/`SourceUnavailable`- oder
+  innerhalb der Schranke unbekannt gebliebenes Pump-Ergebnis macht die Demux-Marker
+  zur erwarteten Folge des unvollständigen Feeds — ein transientes Quellproblem,
+  das der Koordinator erneut versucht, statt den Sendeplatz zu sperren. Erst
+  `SegmenterPumpOutcome.Completed` beweist, dass ffmpeg den vollständigen Inhalt
+  nicht demuxen konnte.
 - **Stallende Quelle** (`source.ReadAsync` kehrt trotz Pipe-Bruch nicht zurück;
   die Pump-Schleife läuft ohne `CancellationToken`): `StopAsync` kehrt spätestens nach
   `_pumpDrainTimeout` zurück; der verwaiste Pump bleibt fachlich harmlos, weil er nur
@@ -469,6 +488,116 @@ sondern wird als Warnung protokolliert und toleriert (der stderr-Tail entfällt 
   `ReportProcessExit` (`Warning` samt `LastUnexpectedExit` für den Input-Fallback des
   `LiveStreamCoordinator`). Der stderr-Drain bleibt bewusst Fire-and-forget — seine
   „wurde angehalten"-Meldung kann weiterhin nach „beendet" erscheinen.
+
+## Eingangskaskade und Exit-Klassifikation des Live-Streams
+
+### Übersicht
+
+Entfernte Medienquellen reicht der `LiveStreamCoordinator` dem Segmentierer über eine
+vierstufige Kaskade zu: lokaler Dateipfad (seekbar), interner HTTP-Range-Endpunkt
+(seekbar), direkter `sftp://`-Eingang (seekbar über libssh, nur für
+`MediaSourceType.Sftp`) und — als letzte Stufe — der gepumpte `pipe:0`-Stream.
+Welche Stufen ein Sendeplatz noch versuchen darf, entscheidet die Exit-Klassifikation
+des `FfmpegLiveStreamSegmenter`: Transport- und Schema-Fehler einer Stufe deaktivieren
+sie für den Rest des Sendeplatzes, ein als nicht demuxbar erkannter Eingang
+überspringt den Sendeplatz ganz. Die Basis-URL-Erkennung des HTTP-Eingangs teilt der
+`InternalMediaStreamTokenService` mit dem ffprobe-Laufzeit-Probe (Abschnitt in
+`docs/help/videolaufzeit.md`): `MediaProbe:HttpProbeBaseUrl` →
+`IServerAddressesFeature.Addresses` → konfigurierte `Kestrel:Endpoints` (`http`-URL
+mit Port > 0, `Protocols` ohne `Http1`/`Http2` übersprungen). Die Erkennung läuft
+unter `_baseUrlLock` (Singleton, parallele Aufrufe aus Probe und Koordinator); nur
+positive Ergebnisse werden gecacht — ein `null`-Ergebnis (z. B. Startup-Race auf
+`Addresses`) wird beim nächsten Aufruf erneut versucht.
+
+### Ablauf
+
+#### 1. Stufenwahl (`LiveStreamMediaResolver.ResolveAsync`)
+
+`ResolveAsync(mediaItemId, runDuration, useHttpInput, useSftpInput, ct)` lädt
+`MediaItem`/`MediaCollection`/`MediaSource` und wählt:
+
+1. `MediaSourceType.LocalDirectory` → `LiveStreamInput.ForFile` (unverändert).
+2. Entfernte Quelle mit `useHttpInput && LiveStreamOptions.UseHttpInput` →
+   `IInternalMediaStreamTokenService.TryCreateStreamUri` → `ForHttp` (Token-TTL =
+   Restlaufzeit + `StreamTokenLifetimeMargin` 15 min, Mindest-TTL 60 s,
+   `DefaultStreamTokenLifetime` 45 min ohne bekannte Restdauer).
+3. `MediaSourceType.Sftp` mit `useSftpInput && LiveStreamOptions.UseSftpInput` →
+   `SftpProbeUriBuilder.ResolveRemotePath` + `TryBuildUri` → `ForSftp` mit der
+   HTTP-Begründung als `ResolutionNote`.
+4. Sonst → `ForStream` über `IMediaSourceReader.OpenFileStream`; die
+   `ResolutionNote` nennt alle zutreffenden Gründe („HTTP-Eingang deaktiviert
+   (`LiveStream:UseHttpInput`)", „HTTP-Transportfehler im vorherigen Lauf",
+   „keine http-Basis-URL auflösbar — `MediaProbe:HttpProbeBaseUrl`, gebundene
+   Adressen und `Kestrel:Endpoints` geprüft", „`LiveStream:UseSftpInput`
+   deaktiviert", „keine sftp://-URI bildbar (fehlende Credentials oder kein
+   absoluter Remote-Pfad)", „sftp-Eingang nicht verfügbar (vorheriger
+   sftp-Fehlschlag oder ffmpeg ohne sftp-Protokoll erkannt)").
+
+`LiveStreamInput`-Instanzen entstehen ausschließlich über die Fabrikmethoden
+(`ForFile`/`ForHttp`/`ForSftp`/`ForStream`), damit Eingangsart und Payload nie
+inkonsistent sind; `ToString` maskiert Token und `sftp`-Zugangsdaten. Schalter:
+`LiveStream:UseHttpInput` und `LiveStream:UseSftpInput` (`LiveStreamOptions`,
+Standard jeweils `true`).
+
+#### 2. Fallback-Gedächtnis je Sendeplatz (`LiveStreamCoordinator`)
+
+Der Koordinator kumuliert die Fehlschlag-Flags des `LastUnexpectedExit` pro
+`SlotId` (`_inputFailureSlotId`, `_slotHttpInputFailed`, `_slotSftpInputFailed`;
+beim Slotwechsel verworfen): `useHttpInput`/`useSftpInput` bleiben für den Rest
+des Sendeplatzes gesperrt, sobald ihre Stufe dort einmal gescheitert ist — erst
+die Kumulierung über die Ticks lässt die Kaskade auch bei abwechselnden
+Fehlschlägen bis `pipe:0` durchlaufen. Zusätzlich senkt der prozessweite
+`ILiveStreamSegmenter.SftpInputSupported`-Latch (Schema-Marker im stderr eines
+`sftp`-Laufs) `useSftpInput` dauerhaft. `UndecodableInput` am selben Slot greift
+**vor** der Auflösung: `StopAsync` + `LiveStreamSyncResult(InputUnplayable,
+now.EndUtc, Detail)` — kein neuer Job bis zum nächsten Sendeplatz, keine eigene
+Koordinator-Warnung (die Diagnose steht in der Segmentierer-Warnung).
+
+#### 3. Exit-Klassifikation (`FfmpegLiveStreamSegmenter.ReportProcessExit`)
+
+Nach stderr-EOF und den geplant-Prüfungen (expliziter Stop, planmäßiges
+`-t`-Slotende) wird eingestuft — das Pump-Ergebnis des beendeten Jobs wird dafür
+zeitgebunden eingeholt (`_pumpDrainTimeout`, per Parameter an
+`DrainStandardErrorAsync` weitergereicht, damit kein Sendeplatz-Wechsel das
+`_pumpTask`-Feld bereits überschrieben hat):
+
+- `job.Input.HttpUrl` + `FfmpegErrorMarkers.ContainsHttpTransportError` →
+  `HttpTransportFailure` (nächster Versuch ohne HTTP-Stufe).
+- `job.Input.SftpUrl` + `ContainsUnsupportedSchemeError` → `SftpInputFailure` und
+  der prozessweite Latch `SftpInputSupported = false`; `ContainsSftpInputError`
+  (Transport-/Auth-Marker) → `SftpInputFailure` ohne Latch.
+- `FfmpegErrorMarkers.ContainsUndecodableInputError` (Demux-Marker auf jedem
+  Eingang) → `UndecodableInput` — aber nur, wenn kein Transport-Flag gesetzt ist
+  **und** bei Pipe-Eingängen das Pump-Ergebnis `SegmenterPumpOutcome.Completed`
+  trug: Ein `Failed`-/`Truncated`-/`SourceUnavailable`- oder unbekannt
+  gebliebenes Pump-Ergebnis macht die Demux-Klagen zur erwarteten Folge des
+  unvollständigen Feeds (transienter Retry statt Slot-Skip).
+- Die `Warning`-Zeile führt Exit-Code, alle drei Flags und — sofern eingeholt —
+  die Pump-Bilanz „Eingabe-Pumpe: n/m Bytes"; stderr-Tail und ffmpeg-Argumente
+  laufen durch `MaskStreamTokenInText` und `MaskCredentialsInText`.
+
+#### 4. Log-Seite (`LiveStreamWorker`)
+
+Das `Started`-`Detail` trägt `InputKindLabel` (Datei/HTTP/`sftp`/`pipe:0`) und die
+`ResolutionNote` — einmal je Job auf `Information`. `MediaUnavailable`- und
+`InputUnplayable`-Dauerzustände dedupliziert der Singleton-Worker über
+`_lastPersistentResult` (erstes Auftreten `Information`, identische
+Folgeergebnisse `Debug`); jedes andere Sync-Ergebnis (z. B. `Started` oder
+`Stopped` in einer Sendelücke) setzt den Merker zurück, damit ein gleichartiger
+Fehlschlag eines späteren Sendeplatzes wieder als `Information` erscheint.
+
+### Fehlerbehandlung
+
+- Pump-Ergebnisse `Completed`/`Truncated`/`Failed`/`SourceUnavailable` und deren
+  Log-Semantik: Abschnitt „Geordneter Stop der Live-Stream-Segmentierung
+  (Eingabe-Pumpe)".
+- Die Standby-Vorbereitung kaskadiert mit demselben Mechanismus bis `pipe:0`:
+  Abschnitt „Standby-Stream des Live-Streams" (`LiveStreamStandbyProvider.
+  PrepareAsync`).
+- Freischalteschalter: Beim Sperren des TV-Senders beantwortet der interne
+  Stream-Endpunkt Folge-Anfragen mit `404` — ein dadurch abgebrochener
+  ffmpeg-HTTP-Lauf klassifiziert als `HttpTransportFailure`, der nächste Versuch
+  nutzt die nachfolgende Stufe.
 
 ## Jugendschutzfenster (altersgerechte Sendezeiten)
 

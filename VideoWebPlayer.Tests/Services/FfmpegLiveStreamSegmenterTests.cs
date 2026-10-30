@@ -934,5 +934,9 @@ public sealed class FfmpegLiveStreamSegmenterTests
         Assert.Null(segmenter.LastUnexpectedExit);
         Assert.DoesNotContain(_logger.Entries, e =>
             e.Level == LogLevel.Warning && e.Message.Contains("Sendeplatz 42 beendete sich unerwartet"));
+
+        // Der zweite Fake-Prozess läuft noch — sonst bleibt sein stderr-Drain als
+        // verwaister Task im StderrPipe-Read haengen (Aufräumen wie in den anderen Tests).
+        await segmenter.StopAsync(ct);
     }
 }

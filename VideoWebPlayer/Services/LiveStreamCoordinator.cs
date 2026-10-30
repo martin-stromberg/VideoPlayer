@@ -108,11 +108,15 @@ public sealed class LiveStreamCoordinator
                 "Sendelücke — keine laufende Sendung.");
         }
 
+        // The segmenter's drain task can replace LastUnexpectedExit between two reads —
+        // evaluate all classifications below against one consistent exit diagnosis.
+        var lastExit = _segmenter.LastUnexpectedExit;
+
         // An input that already failed to demux on this slot fails on every input kind
         // and every retry — skip the rest of the slot instead of restart-looping. The
         // one-time diagnosis (stderr tail + pump statistics) sits in the segmenter's
         // ReportProcessExit warning, so this branch only reports via its Detail.
-        if (_segmenter.LastUnexpectedExit is { SlotId: var undecodableSlot, UndecodableInput: true }
+        if (lastExit is { SlotId: var undecodableSlot, UndecodableInput: true }
             && undecodableSlot == now.SlotId)
         {
             await _segmenter.StopAsync(cancellationToken);
@@ -123,12 +127,12 @@ public sealed class LiveStreamCoordinator
         // An HTTP input whose last run died of a transport failure retries on the piped
         // stream — other failures keep the (better) seekable input; the stream token must
         // outlive the slot's remaining air time.
-        var useHttpInput = _segmenter.LastUnexpectedExit is not { SlotId: var failedSlot, HttpTransportFailure: true }
+        var useHttpInput = lastExit is not { SlotId: var failedSlot, HttpTransportFailure: true }
             || failedSlot != now.SlotId;
         // A failed or unsupported sftp input drops the seekable sftp stage for the next
         // attempt on this slot — the piped stream is the last resort.
         var useSftpInput = _segmenter.SftpInputSupported
-            && (_segmenter.LastUnexpectedExit is not { SlotId: var sftpFailedSlot, SftpInputFailure: true }
+            && (lastExit is not { SlotId: var sftpFailedSlot, SftpInputFailure: true }
                 || sftpFailedSlot != now.SlotId);
         var runDuration = now.RemainingSeconds is { } remaining
             ? TimeSpan.FromSeconds(remaining)

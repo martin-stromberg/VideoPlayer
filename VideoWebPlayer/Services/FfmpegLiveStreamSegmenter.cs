@@ -353,24 +353,21 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
 
         // Re-check under the start/stop gate right before publishing: the bounded pump
         // await above can span a StopCoreAsync/StartAsync that already replaced this
-        // process — a late classification must not overwrite the new job's state with
-        // the stale diagnosis (deliberate stops clear _process first).
+        // process (deliberate stops clear _process first). The sftp latch and the
+        // slot-keyed escalation memory describe the failed job — both stay correct
+        // even when the re-check finds the process already replaced, so they are
+        // applied before it; only publishing the report must not overwrite the new
+        // job's state with the stale diagnosis.
         await _gate.WaitAsync(CancellationToken.None);
         try
         {
-            if (!ReferenceEquals(_process, process))
-            {
-                _logger.LogDebug(
-                    "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} wurde angehalten (Exit-Code {ExitCode}).",
-                    job.SlotId, exitCode);
-                return;
-            }
-
             if (sftpUnsupported)
                 _sftpInputSupported = false;
 
             // Fold this exit into the slot's escalation memory — the cumulative flags
-            // travel with the report because the coordinator lives only one tick.
+            // travel with the report because the coordinator lives only one tick. The
+            // mask is keyed to the failed job's slot, so a late classification of a
+            // replaced process still counts toward that slot's escalation.
             if (_inputFailureSlotId != job.SlotId)
             {
                 _inputFailureSlotId = job.SlotId;
@@ -379,6 +376,14 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             }
             _slotHttpInputFailed |= httpTransportFailure;
             _slotSftpInputFailed |= sftpInputFailure;
+
+            if (!ReferenceEquals(_process, process))
+            {
+                _logger.LogDebug(
+                    "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} wurde angehalten (Exit-Code {ExitCode}).",
+                    job.SlotId, exitCode);
+                return;
+            }
 
             _lastUnexpectedExit = new LiveStreamExitInfo(
                 job.SlotId, exitCode, httpTransportFailure, _timeProvider.GetUtcNow(),

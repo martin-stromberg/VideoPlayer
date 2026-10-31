@@ -13,9 +13,9 @@
 
 | Lauf | Befehl inkl. Filter | Arbeitsverzeichnis | Exit-Code | Erfolgreich | Fehlgeschlagen | Übersprungen | Nachweis |
 |------|--------------------|--------------------|-----------|-------------|----------------|--------------|----------|
-| 1 | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category!=E2E"` | Repo-Root | 0 | 1.552 | 0 | 0 | [TRX](test-results/test-results-non-e2e.trx), [Konsole](test-results/console-non-e2e.log) |
-| 2 | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=Integration"` | Repo-Root | 0 | 0 | 0 | 0 | [TRX](test-results/test-results-integration.trx), [Konsole](test-results/console-integration.log) — **kein Test entsprach dem Filter** |
-| 3 | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=E2E"` | Repo-Root | 0 | 208 | 0 | 1 | [TRX](test-results/test-results-e2e.trx), [Konsole](test-results/console-e2e.log) |
+| 1 | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category!=E2E"` | Repo-Root | 0 | 1.552 | 0 | 0 | `TRX` (`test-results/test-results-non-e2e.trx`), `Konsole` (`test-results/console-non-e2e.log`) |
+| 2 | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=Integration"` | Repo-Root | 0 | 0 | 0 | 0 | `TRX` (`test-results/test-results-integration.trx`), `Konsole` (`test-results/console-integration.log`) — **kein Test entsprach dem Filter** |
+| 3 | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=E2E"` | Repo-Root | 0 | 208 | 0 | 1 | `TRX` (`test-results/test-results-e2e.trx`), `Konsole` (`test-results/console-e2e.log`) |
 
 **Gesamt: 1.760 bestanden, 0 fehlgeschlagen, 1 übersprungen** (Laufzeiten: ~60 s / <1 s / ~3,9 min). Es wurden keine Tests geändert, deaktiviert oder repariert.
 

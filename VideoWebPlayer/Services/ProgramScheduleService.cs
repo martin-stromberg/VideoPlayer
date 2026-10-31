@@ -596,7 +596,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         RuleState State,
         HashSet<DateTime> OccurrenceStarts,
         List<(DateTime StartUtc, int Priority)> BoundStarts,
-        IReadOnlyList<Interval> OccupiedEvidence,
+        IReadOnlyList<(DateTime StartUtc, DateTime EndUtc, int? Priority)> OccupiedEvidence,
         TimeSpan MinStartRemain,
         ProgramScheduleAgeWindowRule AgeRule,
         Dictionary<(int Offset, DateTime AfterStart), bool> Memo)
@@ -639,7 +639,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return ids;
     }
 
-    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, IReadOnlyList<Interval> occupiedEvidence, TimeSpan minStartRemain, ProgramScheduleAgeWindowRule ageRule, out AiringInvalidReason invalidReason)
+    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, IReadOnlyList<(DateTime StartUtc, DateTime EndUtc, int? Priority)> occupiedEvidence, TimeSpan minStartRemain, ProgramScheduleAgeWindowRule ageRule, out AiringInvalidReason invalidReason)
     {
         var clipIds = ClipMediaItemIds(state);
         var effective = airing;
@@ -808,7 +808,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 // nominal start whose end is exactly the real start — otherwise the earlier
                 // anchor would rescue stale airings (e.g. after the rule's time-of-day changed).
                 if (occurrenceStart < airingStart
-                    && !ShiftProvable(occurrenceStart, airingStart, occupiedEvidence))
+                    && !ShiftProvable(occurrenceStart, airingStart, rule.Priority, occupiedEvidence))
                 {
                     context.NoteFailure(AiringInvalidReason.AnchorWithoutInvaderEvidence);
                     continue;
@@ -868,8 +868,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // links ending at or before the real start take part: the evidence set is grown history
     // (Scheduled ∪ displaced rows) and may contain intervals reaching past it — they must not
     // push the proven end beyond the observed start.
-    private static bool ShiftProvable(DateTime occurrenceStart, DateTime airingStart, IReadOnlyList<Interval> occupiedEvidence)
-        => ShiftPastInvaders(occurrenceStart, occupiedEvidence.Where(i => i.End <= airingStart)) == airingStart;
+    private static bool ShiftProvable(DateTime occurrenceStart, DateTime airingStart, int rulePriority, IReadOnlyList<(DateTime StartUtc, DateTime EndUtc, int? Priority)> occupiedEvidence)
+    {
+        var occupied = occupiedEvidence.Where(i => i.EndUtc <= airingStart).ToList();
+        return ShiftPastInvaders(occurrenceStart,
+            occupied.Select(i => new Interval(i.StartUtc, i.EndUtc)),
+            occupied.Where(i => i.Priority > rulePriority).Select(i => new Interval(i.StartUtc, i.EndUtc))) == airingStart;
+    }
 
     // Interleaved counterpart of <see cref="AiringReproducible"/> for multi-strand states: the
     // occurrence's picks rotate over the strands, so the check hypothesizes the number p of
@@ -1076,7 +1081,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
                     if (occurrenceStart > simStart
                         || (occurrenceStart < simStart
-                            && !ShiftProvable(occurrenceStart, simStart, occupiedEvidence)))
+                            && !ShiftProvable(occurrenceStart, simStart, rule.Priority, occupiedEvidence)))
                     {
                         context.NoteFailure(AiringInvalidReason.AnchorWithoutInvaderEvidence);
                         continue; // shift requires an occupied chain ending exactly at the real start
@@ -1225,7 +1230,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public List<(List<List<ProgramSlot>> Ordered, int FirstInvalid)> InvalidGroups { get; private set; } = [];
         public bool HasRescuableInvalid { get; private set; }
 
-        private List<Interval> _occupiedEvidence = [];
+        private List<(DateTime StartUtc, DateTime EndUtc, int? Priority)> _occupiedEvidence = [];
         private Dictionary<long, HashSet<DateTime>> _occurrenceStarts = [];
 
         // Sets the load-window edge together with the freshly loaded slots and atomically
@@ -1249,7 +1254,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             // provable after the invader itself is displaced.
             _occupiedEvidence = Scheduled
                 .Concat(displacedEvidence)
-                .Select(s => new Interval(s.Start, s.End))
+                .Select(s => (s.Start, s.End,
+                    s.ProgramRuleId is { } rid && rulesById.TryGetValue(rid, out var rule) ? rule.Priority : (int?)null))
                 .ToList();
 
             var reconcileLookback = coverageStart - loadFrom;
@@ -1340,7 +1346,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         if (state.Items.Count == 0)
             return null;
 
-        var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked);
+        // Beside overshooting tails, intervals of strictly-higher-priority airings (kept or
+        // freshly materialized) push a displaced occurrence behind their occupying chain —
+        // they took its window over (Issue #314).
+        var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked,
+            keptSlots.Concat(newSlots)
+                .Where(s => s.ProgramRuleId is { } pid
+                    && states.TryGetValue(pid, out var st) && st.Rule.Priority > occurrence.Rule.Priority)
+                .Select(s => new Interval(s.Start, s.End)).ToList());
 
         var selection = SelectItems(state, occurrence.Rule, airingStart, bound, ageRule);
         var taken = selection.Taken;
@@ -1657,7 +1670,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             ? (int)((((startUtc.Date - DateTime.UnixEpoch).Days) % strandCount) + strandCount) % strandCount
             : 0;
 
-    private static DateTime ShiftPastInvaders(DateTime startUtc, IEnumerable<Interval> occupied)
+    private static DateTime ShiftPastInvaders(DateTime startUtc, IEnumerable<Interval> occupied, IEnumerable<Interval>? outranked = null)
     {
         var moved = true;
         while (moved)
@@ -1669,6 +1682,22 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 {
                     startUtc = i.End;
                     moved = true;
+                }
+            }
+            // Intervals of strictly-higher-priority airings additionally bound the point when
+            // they merely touch it: a displaced occurrence slides behind the whole occupying
+            // chain of the rule that took its window over (Issue #314). Equal-priority
+            // occupants keep the strict-containment semantics — a coinciding start stays a
+            // conflict the id tie-break decides.
+            if (outranked is not null)
+            {
+                foreach (var i in outranked)
+                {
+                    if (i.Start <= startUtc && i.End > startUtc)
+                    {
+                        startUtc = i.End;
+                        moved = true;
+                    }
                 }
             }
         }
@@ -1784,6 +1813,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     /// schedule — the configured window schema plus the behavior for material without a
     /// known rating.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The effective age-window rule.</returns>
     private async Task<ProgramScheduleAgeWindowRule> LoadAgeRuleAsync(CancellationToken cancellationToken)
         => new(
             await _settings.GetProgramScheduleAgeWindowsAsync(cancellationToken),
@@ -1847,7 +1878,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         // A slot already occupying the occurrence start is a begun airing's overshooting tail —
         // it always airs to the end, so this airing starts behind it ("verschiebt sich").
-        var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked);
+        // Strictly-higher-priority airings of this very run additionally slide a displaced
+        // occurrence behind their whole occupying chain — they took the window over.
+        var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked,
+            newSlots.Where(s => s.ProgramRuleId is { } pid
+                    && states.TryGetValue(pid, out var st) && st.Rule.Priority > occurrence.Rule.Priority)
+                .Select(s => new Interval(s.Start, s.End)).ToList());
 
         var selection = SelectItems(state, occurrence.Rule, airingStart, bound, ageRule);
         var taken = selection.Taken;
@@ -2068,8 +2104,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return new InterleavedSelection(picks, scanned, blockedByWindow);
     }
 
-    // Boundary ownership: every occurrence owns [StartUtc, next occurrence start of any
-    // item-bearing rule). An item is placed whenever it can still START inside the window
+    // Boundary ownership: every occurrence owns [StartUtc, next occurrence start of an
+    // item-bearing rule it does not outrank). An item is placed whenever it can still START
+    // inside the window
     // (<paramref name="minStartRemain"/> before the boundary) — and it always airs to the end:
     // items are indivisible, so a started item may legitimately overshoot a soft boundary and
     // shifts the following airing behind its real end. Against a hard boundary (higher-priority
@@ -2136,8 +2173,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     }
 
     // Sorted start times of all occurrences whose rule currently expands to schedulable items —
-    // every such start bounds the airing before it: a begun item always airs to the end, so the
-    // boundary governs whether an item may still START, not how long it may run.
+    // every such start bounds the airing before it unless that airing's rule outranks it (a
+    // begun item always airs to the end, so the boundary governs whether an item may still
+    // START, not how long it may run).
     private static List<(DateTime StartUtc, int Priority)> BoundStarts(List<Occurrence> occurrences, Dictionary<long, RuleState> states)
         => occurrences
             .Where(o => states[o.Rule.Id].Items.Count > 0)
@@ -2146,16 +2184,21 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .OrderBy(s => s.StartUtc)
             .ToList();
 
-    // First bound occurrence start strictly after <paramref name="afterUtc"/> — the end of the
-    // window the airing owns. Two flavors: a soft bound (equal-or-lower priority) only gates
-    // whether an item may still start — a started item overshoots and completes, shifting the
-    // next airing behind it. A hard bound (strictly higher priority) additionally requires the
-    // item to END before it — that window can never be won, so an item that would not complete
-    // waits for the rule's next occurrence instead of being scheduled and killed.
+    // First bound occurrence start strictly after <paramref name="afterUtc"/> that the airing's
+    // rule does not outrank — the end of the window the airing owns. A strictly-lower-priority
+    // occurrence owns nothing against this airing: the higher-priority rule takes its window
+    // over and fills its own slot right through it; the displaced occurrence shifts behind
+    // the real end of this airing or — when the shifted start lands past its own window —
+    // defers to its next occurrence (Issue #314). Two flavors of remaining bounds: a soft
+    // bound (equal priority) only gates whether an item may still start — a started item
+    // overshoots and completes, shifting the next airing behind it. A hard bound (strictly
+    // higher priority) additionally requires the item to END before it — that window can
+    // never be won, so an item that would not complete waits for the rule's next occurrence
+    // instead of being scheduled and killed.
     private static (DateTime StartUtc, bool Hard)? BoundaryAfter(List<(DateTime StartUtc, int Priority)> boundStarts, DateTime afterUtc, int priority)
     {
         foreach (var (start, p) in boundStarts)
-            if (start > afterUtc)
+            if (start > afterUtc && p >= priority)
                 return (start, p > priority);
         return null;
     }

@@ -302,7 +302,13 @@ public sealed class ProgramScheduleServiceTests_Reconcile
 
         var service = fixture.CreateService();
         await service.EnsureCoverageAsync(now, ct);
-        Assert.DoesNotContain(await fixture.SlotsAsync(ct), s => s.ProgramRuleId == ruleB.Id && s.RuleType == ProgramRuleType.MoviePrimeTime);
+        // Niedriger priorisiert verliert B sein 20:00-Fenster an A — die Occurrence wird
+        // aber nicht verworfen, sondern hinter As Ausstrahlung geschoben (Issue #314).
+        var bShifted = (await ScheduledAsync(fixture, ct))
+            .Where(s => s.ProgramRuleId == ruleB.Id && s.RuleType == ProgramRuleType.MoviePrimeTime).ToList();
+        Assert.NotEmpty(bShifted);
+        Assert.All(bShifted, s => Assert.Equal(movieB.Id, s.MovieId));
+        Assert.Equal(LocalUtc(2026, 10, 24, 21, 0), bShifted[0].Start);
 
         ruleB.Priority = 9;
         await fixture.SaveDiagAsync();
@@ -310,7 +316,10 @@ public sealed class ProgramScheduleServiceTests_Reconcile
 
         Assert.True(summary.SlotsDisplaced > 0);
         var displaced = await DisplacedAsync(fixture, ct);
-        Assert.All(displaced, s => Assert.Equal(ruleA.Id, s.ProgramRuleId));
+        // Neben As Ausstrahlungen werden auch Bs zuvor verschobene Slots verdrängt — B
+        // materialisiert nach der Prio-Erhöhung neu auf seinem 20:00-Fenster.
+        Assert.All(displaced, s => Assert.True(s.ProgramRuleId == ruleA.Id || s.ProgramRuleId == ruleB.Id));
+        Assert.Contains(displaced, s => s.ProgramRuleId == ruleA.Id);
         var bSlots = (await ScheduledAsync(fixture, ct)).Where(s => s.ProgramRuleId == ruleB.Id).ToList();
         Assert.NotEmpty(bSlots);
         Assert.All(bSlots, s => Assert.Equal(movieB.Id, s.MovieId));

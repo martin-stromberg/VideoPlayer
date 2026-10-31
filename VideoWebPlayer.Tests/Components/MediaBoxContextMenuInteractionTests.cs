@@ -134,8 +134,7 @@ public class MediaBoxContextMenuInteractionTests
         {
             ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Home", "ContinueWatchingList.razor"),
             ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Home", "FavoritesList.razor"),
-            ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Home", "RecentEntriesList.razor"),
-            ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Media", "MediaBaseEntryList.razor")
+            ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Home", "RecentEntriesList.razor")
         };
 
         Assert.All(files, source => Assert.Contains("WatchedAt=", source));

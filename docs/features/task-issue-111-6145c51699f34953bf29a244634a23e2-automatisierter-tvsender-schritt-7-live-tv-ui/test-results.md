@@ -6,8 +6,8 @@
 |------|--------|----------|----------|
 | Build Debug | `dotnet build VideoPlayer.sln -c Debug` | 0 Fehler | Konsole |
 | Build Release | `dotnet build VideoPlayer.sln -c Release` | 0 Fehler | Konsole |
-| Volle Suite (final) | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj` | **1965/1966 bestanden, 0 Fehler, 1 Skip** (~4,8 Min) | [final-dotnet-test.log](inventory/test-results/final-dotnet-test.log) |
-| Volle Suite (Baseline, vor Implementierung) | gleiche Kommandozeile | 1952/1954, 1 Flake (`TVSenderAdminE2ETests`, Einzelretry grün), 1 Skip | [baseline-dotnet-test.log](inventory/test-results/baseline-dotnet-test.log) |
+| Volle Suite (final) | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj` | **1965/1966 bestanden, 0 Fehler, 1 Skip** (~4,8 Min) | `final-dotnet-test.log` (`inventory/test-results/final-dotnet-test.log`) |
+| Volle Suite (Baseline, vor Implementierung) | gleiche Kommandozeile | 1952/1954, 1 Flake (`TVSenderAdminE2ETests`, Einzelretry grün), 1 Skip | `baseline-dotnet-test.log` (`inventory/test-results/baseline-dotnet-test.log`) |
 
 ## Neue Tests (12, alle grün)
 

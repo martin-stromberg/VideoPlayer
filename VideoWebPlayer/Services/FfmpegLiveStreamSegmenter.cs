@@ -151,6 +151,43 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     public bool SftpInputSupported => _sftpInputSupported;
 
     /// <summary>
+    /// Removes a stale <c>#EXT-X-ENDLIST</c> line from the on-disk playlist. A cleanly finished
+    /// run leaves it behind until ffmpeg's <c>append_list</c> rewrites the file at the first
+    /// new segment — a client polling in that window reads an ended VOD playlist and stops
+    /// requesting (the permanent loading spinner after a mid-airing slot switch, Issue #315).
+    /// The rewrite keeps the playlist live; readers hold the file shared, so both directions
+    /// are opened with <see cref="FileShare.ReadWrite"/>.
+    /// </summary>
+    /// <param name="segmentDirectory">Directory containing <see cref="PlaylistFileName"/>.</param>
+    internal void StripEndlistFromPlaylist(string segmentDirectory)
+    {
+        var path = Path.Combine(segmentDirectory, PlaylistFileName);
+        try
+        {
+            if (!File.Exists(path))
+                return;
+            string[] lines;
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var reader = new StreamReader(stream))
+                lines = reader.ReadToEnd().Split('\n');
+            var kept = lines.Where(l => l.TrimEnd('\r').Trim() != "#EXT-X-ENDLIST").ToArray();
+            if (kept.Length == lines.Length)
+                return;
+            using var write = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+            using var writer = new StreamWriter(write);
+            writer.Write(string.Join('\n', kept));
+        }
+        catch (IOException ex)
+        {
+            _logger.LogDebug(ex, "[FfmpegLiveStreamSegmenter] ENDLIST-Bereinigung der Playlist fehlgeschlagen.");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogDebug(ex, "[FfmpegLiveStreamSegmenter] ENDLIST-Bereinigung der Playlist fehlgeschlagen.");
+        }
+    }
+
+    /// <summary>
     /// Gets the playback position the running process is expected to have reached, or
     /// <see langword="null"/> when no job is running.
     /// </summary>
@@ -165,6 +202,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
         try
         {
             await StopCoreAsync(cancellationToken);
+            StripEndlistFromPlaylist(job.SegmentDirectory);
 
             var startInfo = new ProcessStartInfo
             {
@@ -320,6 +358,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             _logger.LogDebug(
                 "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} endete planmaessig (Exit-Code {ExitCode}).",
                 job.SlotId, exitCode);
+            StripEndlistFromPlaylist(job.SegmentDirectory);
             return;
         }
 

@@ -160,7 +160,7 @@ public sealed class LiveStreamWorker : BackgroundService
                 }
                 else
                 {
-                    var signalTask = _signal.WaitAsync(stoppingToken).AsTask();
+                    var signalTask = _signal.WaitLiveAsync(stoppingToken).AsTask();
                     await Task.WhenAny(delayTask, signalTask);
                     if (signalTask.IsCompleted)
                         await signalTask;

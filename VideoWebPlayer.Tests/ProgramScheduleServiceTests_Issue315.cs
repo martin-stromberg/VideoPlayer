@@ -84,5 +84,107 @@ public sealed class ProgramScheduleServiceTests_Issue315
         Assert.DoesNotContain(messages, m => m.Contains("HeadPickInconsistent"));
     }
 
+    // Already aired slots are never re-evaluated or re-planned: a running airing whose
+    // tail is displaced for a real reason (rule deactivated) leaves the fully aired
+    // history bit-identical, and the merged survivor+new-tail layout stays stable over
+    // repeated reconciles (no churn).
+    [Fact]
+    public async Task Reconcile_AiredHistoryUntouched_MergedTailStaysStable()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (fixture, rule) = await SeedInterleavedClipRuleAsync("i315-merge", ct);
+        using var _ = fixture;
+        var service = fixture.CreateService();
 
+        await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0)), ct);
+
+        var t1 = LocalUtc(2026, 10, 24, 21, 0);
+        var aired = (await fixture.SlotsAsync(ct))
+            .Where(s => s.End <= t1 && s.Status == ProgramSlotStatus.Scheduled)
+            .Select(s => (s.Start, s.End, s.MediaItemId, s.TVShowEpisodeId))
+            .ToList();
+
+        // Real change mid-airing: deactivate → tail displaced → reactivate → tail rebuilt.
+        rule.IsActive = false;
+        await fixture.SaveDiagAsync();
+        var displaced = await service.ReconcileAsync(new DateTimeOffset(t1), ct);
+        Assert.True(displaced.SlotsDisplaced > 0);
+        rule.IsActive = true;
+        await fixture.SaveDiagAsync();
+
+        var failures = new List<string>();
+        for (var i = 0; i < 8; i++)
+        {
+            var t = t1.AddMinutes(15 * (i + 1));
+            var summary = await service.ReconcileAsync(new DateTimeOffset(t), ct);
+            await service.EnsureCoverageAsync(new DateTimeOffset(t), ct);
+            if (summary.SlotsDisplaced > 0)
+                failures.Add($"t={t:dd.HH:mm} displaced={summary.SlotsDisplaced}");
+        }
+
+        var airedAfter = (await fixture.SlotsAsync(ct))
+            .Where(s => s.End <= t1 && s.Status == ProgramSlotStatus.Scheduled)
+            .Select(s => (s.Start, s.End, s.MediaItemId, s.TVShowEpisodeId))
+            .ToList();
+        Assert.Equal(aired, airedAfter); // history untouched — never re-evaluated
+        Assert.Empty(failures); // no oscillation of the merged survivor+tail layout
+    }
+
+    // The slot carrying the playback position is never cut mid-air: a real invalidation
+    // (rule deactivated) displaces the airing's future, but the running slot plays to
+    // its end — the only legitimate kill is a tightened age restriction.
+    [Fact]
+    public async Task Reconcile_InvalidAiring_RunningSlotRunsToItsEnd()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (fixture, rule) = await SeedInterleavedClipRuleAsync("i315-running", ct);
+        using var _ = fixture;
+        var service = fixture.CreateService();
+
+        await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0)), ct);
+
+        var t1 = LocalUtc(2026, 10, 24, 21, 0);
+        var running = (await fixture.SlotsAsync(ct))
+            .Single(s => s.Start < t1 && s.End > t1);
+
+        rule.IsActive = false;
+        await fixture.SaveDiagAsync();
+        var summary = await service.ReconcileAsync(new DateTimeOffset(t1), ct);
+
+        Assert.True(summary.SlotsDisplaced > 0);
+        var runningAfter = await fixture.Db.ProgramSlots.AsNoTracking().SingleAsync(s => s.Id == running.Id, ct);
+        Assert.Equal(ProgramSlotStatus.Scheduled, runningAfter.Status); // never cut mid-air
+    }
+
+    // The only legitimate kill mid-air: the current age-window settings already forbid
+    // the running item at its own slot start (restrictions tightened).
+    [Fact]
+    public async Task Reconcile_RunningSlot_AgeWindowBlocksAtOwnStart_IsDisplaced()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("i315-agekill", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Unrated-Film", duration: TimeSpan.FromMinutes(90));
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Film", ProgramRuleType.MoviePrimeTime,
+            ProgramRuleRecurrence.Daily, new TimeOnly(12, 0), ProgramRuleMaterialType.Movie, movie.Id);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 8, 0)), ct);
+
+        var t1 = LocalUtc(2026, 10, 24, 13, 0);
+        var running = (await fixture.SlotsAsync(ct))
+            .Single(s => s.ProgramRuleId == rule.Id && s.Start < t1 && s.End > t1);
+
+        // Restrictions tightened: unrated content may only air inside the night window —
+        // at 12:00 the running item is forbidden at its own start and is legitimately
+        // killed mid-air.
+        await new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance)
+            .UpdateProgramScheduleUnknownRatingModeAsync(ProgramScheduleUnknownRatingMode.RestrictToNightWindow, ct);
+
+        var summary = await service.ReconcileAsync(new DateTimeOffset(t1), ct);
+
+        var runningAfter = await fixture.Db.ProgramSlots.AsNoTracking().SingleAsync(s => s.Id == running.Id, ct);
+        Assert.Equal(ProgramSlotStatus.Displaced, runningAfter.Status);
+        Assert.True(summary.SlotsDisplaced > 0);
+    }
 }

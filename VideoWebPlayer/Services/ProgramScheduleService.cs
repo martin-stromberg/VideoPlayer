@@ -261,10 +261,29 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var displaced = new List<ProgramSlot>();
         var displacedRuleIds = new HashSet<long>();
 
+        // The age minimum of a slot's content for the running-slot guard: resolved through the
+        // producing rule's expansion (clip-fill slots carry no rating → null → governed by the
+        // unknown-rating mode). Unresolvable content stays unrestricted as well — a missing
+        // rating is not a reason to kill the running title mid-air.
+        int? SlotMinAge(ProgramSlot slot)
+        {
+            if (slot.ProgramRuleId is not { } rid || !states.TryGetValue(rid, out var st))
+                return null;
+            var idx = FindItemIndex(st.Items, slot);
+            return idx >= 0 ? st.Items[idx].AgeRatingMinAge : null;
+        }
+
+        // The slot carrying the playback position is never cut mid-air: it runs to its end
+        // unless the current age-window settings already forbid it at its own slot start —
+        // a tightened restriction is the only legitimate kill (Issue #315).
+        bool Protected(ProgramSlot slot)
+            => slot.Start < coverageStart && slot.End > coverageStart
+                && ProgramScheduleAgeWindow.IsAllowedAt(SlotMinAge(slot), slot.Start, ageRule);
+
         void Displace(ProgramSlot slot)
         {
-            if (slot.End <= coverageStart)
-                return; // fully aired — stays part of history
+            if (slot.End <= coverageStart || Protected(slot))
+                return; // fully aired stays part of history — the running slot finishes
             slot.Status = ProgramSlotStatus.Displaced;
             displaced.Add(slot);
         }
@@ -318,7 +337,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             {
                 foreach (var slot in airing)
                 {
-                    if (slot.End <= coverageStart || slot.Status != ProgramSlotStatus.Scheduled)
+                    if (slot.End <= coverageStart || slot.Status != ProgramSlotStatus.Scheduled || Protected(slot))
                         continue;
                     slot.Status = ProgramSlotStatus.Displaced;
                     displaced.Add(slot);
@@ -327,7 +346,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 }
             }
 
-            foreach (var slot in window.FillerSlots.Where(s => s.ProgramRuleId == ruleId && s.Start >= fromStartUtc && s.Status == ProgramSlotStatus.Scheduled))
+            foreach (var slot in window.FillerSlots.Where(s => s.ProgramRuleId == ruleId && s.Start >= fromStartUtc && s.Status == ProgramSlotStatus.Scheduled && !Protected(s)))
             {
                 slot.Status = ProgramSlotStatus.Displaced;
                 displaced.Add(slot);
@@ -341,6 +360,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         bool Evicts(ProgramRule winner, ProgramSlot kept)
         {
+            // A protected running slot can never lose: the competing occurrence drops or is
+            // scheduled behind it instead (Issue #315).
+            if (Protected(kept))
+                return false;
             if (kept.RuleType == ProgramRuleType.Filler)
                 return true;
             var loser = kept.ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
@@ -370,7 +393,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     {
                         DisplaceRuleFuture(loserRuleId, airing[0].Start);
                     }
-                    else if (loser.Status == ProgramSlotStatus.Scheduled && loser.End > coverageStart)
+                    else if (loser.Status == ProgramSlotStatus.Scheduled && loser.End > coverageStart && !Protected(loser))
                     {
                         // Ungrouped loser (filler slot): displaced individually — filler has no
                         // sequence context that would justify suffix displacement.
@@ -570,14 +593,21 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // ---- reconcile internals ----
 
     // Groups ordered slots into airings: maximal runs of the same producing rule where each slot
-    // starts exactly at the previous slot's end.
-    private static List<List<ProgramSlot>> GroupAirings(List<ProgramSlot> orderedSlots)
+    // starts exactly at the previous slot's end. With <paramref name="coverageBoundary"/> the
+    // chain additionally breaks before the first slot reaching past the boundary: fully aired
+    // history stays its own group while the slot carrying the playback position heads the
+    // future group — the tail check tolerates an unwritten head prefix but never a truncated
+    // tail, and clip slots spanning the boundary keep their group's clip-time projection
+    // intact (Issue #315).
+    private static List<List<ProgramSlot>> GroupAirings(List<ProgramSlot> orderedSlots, DateTime? coverageBoundary = null)
     {
         var airings = new List<List<ProgramSlot>>();
         foreach (var slot in orderedSlots)
         {
             var last = airings.Count > 0 ? airings[^1] : null;
-            if (last is not null && last[^1].ProgramRuleId == slot.ProgramRuleId && last[^1].End == slot.Start)
+            var crossesBoundary = coverageBoundary is { } boundary
+                && last is not null && last[^1].End <= boundary && slot.End > boundary;
+            if (last is not null && last[^1].ProgramRuleId == slot.ProgramRuleId && last[^1].End == slot.Start && !crossesBoundary)
             {
                 last.Add(slot);
             }
@@ -1275,8 +1305,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             BoundStarts = ProgramScheduleService.BoundStarts(Occurrences, states);
 
             // Non-filler slots group into airings (maximal contiguous runs of the same producing
-            // rule); filler slots are validated individually.
-            Airings = GroupAirings(Scheduled.Where(s => s.RuleType != ProgramRuleType.Filler).ToList());
+            // rule, split at the coverage boundary so already aired history forms its own group);
+            // filler slots are validated individually.
+            Airings = GroupAirings(Scheduled.Where(s => s.RuleType != ProgramRuleType.Filler).ToList(), coverageStart);
             FillerSlots = Scheduled.Where(s => s.RuleType == ProgramRuleType.Filler).ToList();
         }
 

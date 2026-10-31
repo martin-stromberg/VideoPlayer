@@ -713,9 +713,14 @@ public class MediaDurationProbeServiceTests : IDisposable
 
         public void NotifyScheduleChanged() => NotifyCalls++;
 
+        public void NotifyLiveScheduleChanged() { }
+
         public IDisposable BeginScan() => new NoOpDisposable();
 
         public ValueTask WaitAsync(CancellationToken cancellationToken)
+            => new(Task.Delay(Timeout.Infinite, cancellationToken));
+
+        public ValueTask WaitLiveAsync(CancellationToken cancellationToken)
             => new(Task.Delay(Timeout.Infinite, cancellationToken));
 
         private sealed class NoOpDisposable : IDisposable

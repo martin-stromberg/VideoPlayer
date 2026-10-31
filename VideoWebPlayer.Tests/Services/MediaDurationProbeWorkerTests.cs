@@ -305,7 +305,11 @@ public class MediaDurationProbeWorkerTests : IDisposable
             return new HeldScope(this, _inner.BeginScan());
         }
 
+        public void NotifyLiveScheduleChanged() => _inner.NotifyLiveScheduleChanged();
+
         public ValueTask WaitAsync(CancellationToken cancellationToken) => _inner.WaitAsync(cancellationToken);
+
+        public ValueTask WaitLiveAsync(CancellationToken cancellationToken) => _inner.WaitLiveAsync(cancellationToken);
 
         private sealed class HeldScope : IDisposable
         {

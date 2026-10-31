@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using VideoWebPlayer.Configuration;
@@ -53,13 +54,19 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
     private readonly MediaProbeOptions _options;
     private readonly ILogger<InternalMediaStreamTokenService> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IConfiguration _configuration;
 
     // The bound addresses never change after startup — resolve once, log once. A negative
     // result is NOT cached: at startup Addresses can still be empty, and retrying on the
     // next probe is cheap, while permanently disabling HTTP probing would be wrong.
+    // All fields are guarded by _baseUrlLock: the service is a singleton and is called
+    // concurrently (duration probe + live stream resolution) — unsynchronized, a torn
+    // read could hand out null for an already-resolved URL or log a warning twice.
+    private readonly object _baseUrlLock = new();
     private string? _resolvedBaseUrl;
     private bool _baseUrlResolved;
     private bool _noAddressWarned;
+    private bool _invalidConfigWarned;
 
     private sealed record TokenEntry(long MediaItemId, DateTimeOffset ExpiresAt);
 
@@ -70,16 +77,20 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
     /// <param name="options">Media probe options.</param>
     /// <param name="logger">Logger instance.</param>
     /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
+    /// <param name="configuration">Optional application configuration, used to read the
+    /// configured <c>Kestrel:Endpoints</c> as the last base-URL detection stage.</param>
     public InternalMediaStreamTokenService(
         IServer? server,
         IOptions<MediaProbeOptions> options,
         ILogger<InternalMediaStreamTokenService> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IConfiguration? configuration = null)
     {
         _server = server;
         _options = options.Value;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _configuration = configuration ?? new ConfigurationBuilder().Build();
     }
 
     /// <summary>The shortest lifetime a stream token is ever issued with.</summary>
@@ -140,17 +151,25 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
     /// <see cref="MediaProbeOptions.HttpProbeBaseUrl"/> wins, otherwise the first bound
     /// <c>http://</c> address of the running server is normalized so ffprobe reaches this
     /// same process — a wildcard binding becomes <c>127.0.0.1</c>, a concrete address is
-    /// kept (the machine can always reach its own bound address). Returns
-    /// <see langword="null"/> when no <c>http</c> address exists; an HTTPS-only server is not
-    /// usable for self-probes (ffprobe would fail TLS verification on dev/self-signed
-    /// certificates), so the caller falls back to the other probe paths.
+    /// kept (the machine can always reach its own bound address). As a final stage the
+    /// configured <c>Kestrel:Endpoints</c> are enumerated, because endpoints declared only
+    /// in configuration never appear in <see cref="IServerAddressesFeature.Addresses"/>.
+    /// Returns <see langword="null"/> when no <c>http</c> address exists; an HTTPS-only
+    /// server is not usable for self-probes (ffprobe would fail TLS verification on
+    /// dev/self-signed certificates), so the caller falls back to the other probe paths.
     /// </summary>
     private string? ResolveBaseUrl()
     {
+        lock (_baseUrlLock)
+        {
+            return ResolveBaseUrlCore();
+        }
+    }
+
+    private string? ResolveBaseUrlCore()
+    {
         if (_baseUrlResolved)
             return _resolvedBaseUrl;
-
-        _baseUrlResolved = true;
 
         var configured = _options.HttpProbeBaseUrl;
         if (!string.IsNullOrWhiteSpace(configured))
@@ -159,12 +178,17 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
             if (normalized is not null)
             {
                 _resolvedBaseUrl = normalized;
+                _baseUrlResolved = true;
                 return _resolvedBaseUrl;
             }
 
-            _logger.LogWarning(
-                "MediaProbe:HttpProbeBaseUrl '{BaseUrl}' ist keine gültige http(s)-Basis-URL — die HTTP-Laufzeitermittlung versucht die automatische Erkennung.",
-                configured);
+            if (!_invalidConfigWarned)
+            {
+                _invalidConfigWarned = true;
+                _logger.LogWarning(
+                    "MediaProbe:HttpProbeBaseUrl '{BaseUrl}' ist keine gültige http(s)-Basis-URL — die HTTP-Laufzeitermittlung versucht die automatische Erkennung.",
+                    configured);
+            }
         }
 
         var addresses = _server?.Features.Get<IServerAddressesFeature>()?.Addresses;
@@ -176,8 +200,35 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
                 if (normalized is not null)
                 {
                     _resolvedBaseUrl = normalized;
+                    _baseUrlResolved = true;
                     return _resolvedBaseUrl;
                 }
+            }
+        }
+
+        // Last resort: the configured Kestrel endpoints. Endpoint names are free-form, so
+        // every child is inspected; an endpoint restricted to protocols without
+        // Http1/Http2 (e.g. pure Http3 over UDP) cannot serve the loopback TCP probe.
+        foreach (var endpoint in _configuration.GetSection("Kestrel:Endpoints").GetChildren())
+        {
+            var protocols = endpoint["Protocols"];
+            if (!string.IsNullOrEmpty(protocols)
+                && !protocols.Contains("Http1", StringComparison.OrdinalIgnoreCase)
+                && !protocols.Contains("Http2", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var url = endpoint["Url"];
+            if (string.IsNullOrEmpty(url))
+                continue;
+
+            var normalized = TryNormalizeServerAddress(url);
+            if (normalized is not null)
+            {
+                _resolvedBaseUrl = normalized;
+                _baseUrlResolved = true;
+                return _resolvedBaseUrl;
             }
         }
 
@@ -188,7 +239,7 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
         {
             _noAddressWarned = true;
             _logger.LogWarning(
-                "Keine erreichbare http-Adresse der eigenen Instanz gefunden — die HTTP-Laufzeitermittlung pausiert und Remote-Dateien fallen vorerst auf sftp:///pipe:0-Probes zurück (MediaProbe:HttpProbeBaseUrl kann die Adresse explizit setzen).");
+                "Keine erreichbare http-Adresse der eigenen Instanz gefunden — die HTTP-Laufzeitermittlung und der Live-Stream-HTTP-Eingang pausieren und Remote-Dateien fallen vorerst auf sftp:///pipe:0 zurück (geprüft: MediaProbe:HttpProbeBaseUrl, gebundene Server-Adressen und Kestrel:Endpoints; MediaProbe:HttpProbeBaseUrl kann die Adresse explizit setzen).");
         }
 
         return null;
@@ -249,6 +300,10 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
                 host = hostPort;
             }
         }
+
+        // A dynamic port binding (":0") can never serve as the loopback base URL.
+        if (port <= 0)
+            return null;
 
         var normalizedHost = IsWildcardOrLoopback(host) ? LoopbackHost : host;
         return $"{httpPrefix}{normalizedHost}:{port}";

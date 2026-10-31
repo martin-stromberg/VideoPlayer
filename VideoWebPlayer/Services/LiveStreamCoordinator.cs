@@ -17,7 +17,10 @@ public enum LiveStreamSyncAction
     /// <summary>ffmpeg could not be resolved — no segmentation possible.</summary>
     FfmpegUnavailable,
     /// <summary>The current broadcast's media could not be resolved to an input.</summary>
-    MediaUnavailable
+    MediaUnavailable,
+    /// <summary>The current broadcast's media resolves, but its input proved undecodable
+    /// for ffmpeg — the slot is skipped until its end instead of restart-looping.</summary>
+    InputUnplayable
 }
 
 /// <summary>
@@ -105,27 +108,43 @@ public sealed class LiveStreamCoordinator
                 "Sendelücke — keine laufende Sendung.");
         }
 
-        // An HTTP input whose last run died of a transport failure retries on the piped
-        // stream — other failures keep the (better) seekable input; the stream token must
-        // outlive the slot's remaining air time.
-        var useHttpInput = _segmenter.LastUnexpectedExit is not { SlotId: var failedSlot, HttpTransportFailure: true }
-            || failedSlot != now.SlotId;
+        // The segmenter's drain task can replace LastUnexpectedExit between two reads —
+        // evaluate all classifications below against one consistent exit diagnosis.
+        var lastExit = _segmenter.LastUnexpectedExit;
+
+        // An input that already failed to demux on this slot fails on every input kind
+        // and every retry — skip the rest of the slot instead of restart-looping. The
+        // one-time diagnosis (stderr tail + pump statistics) sits in the segmenter's
+        // ReportProcessExit warning, so this branch only reports via its Detail.
+        if (lastExit is { SlotId: var undecodableSlot, UndecodableInput: true }
+            && undecodableSlot == now.SlotId)
+        {
+            await _segmenter.StopAsync(cancellationToken);
+            return new LiveStreamSyncResult(LiveStreamSyncAction.InputUnplayable, now.EndUtc,
+                $"Sendeplatz {now.SlotId} ({now.Title}): Eingang für ffmpeg nicht lesbar — Sendeplatz wird bis zum Slotende übersprungen.");
+        }
+
+        // Input stages that already failed on this slot stay dropped for its remainder.
+        // The per-slot failure flags accumulate on the exit report (this coordinator is
+        // resolved per tick in a fresh scope — only the singleton segmenter can carry the
+        // memory across ticks): accumulating, not just the last exit, is what lets the
+        // cascade HTTP → sftp → pipe:0 reach the piped stream when the seekable stages
+        // keep failing alternately. The stream token must outlive the slot's remaining
+        // air time.
+        var slotExit = lastExit?.SlotId == now.SlotId ? lastExit : null;
+        var useHttpInput = !(slotExit is { HttpTransportFailure: true } or { HttpInputFailedForSlot: true });
+        var useSftpInput = _segmenter.SftpInputSupported
+            && !(slotExit is { SftpInputFailure: true } or { SftpInputFailedForSlot: true });
         var runDuration = now.RemainingSeconds is { } remaining
             ? TimeSpan.FromSeconds(remaining)
             : (TimeSpan?)null;
-        var input = await _mediaResolver.ResolveAsync(now.MediaItemId, runDuration, useHttpInput, cancellationToken);
+        var input = await _mediaResolver.ResolveAsync(now.MediaItemId, runDuration,
+            useHttpInput, useSftpInput, cancellationToken: cancellationToken);
         if (input is null)
         {
             await _segmenter.StopAsync(cancellationToken);
             return new LiveStreamSyncResult(LiveStreamSyncAction.MediaUnavailable, now.EndUtc,
                 $"Medium {now.MediaItemId} des laufenden Sendeplatzes nicht auflösbar.");
-        }
-
-        if (!useHttpInput)
-        {
-            _logger.LogInformation(
-                "[LiveStreamCoordinator] Letzter ffmpeg-Lauf für Sendeplatz {SlotId} scheiterte am HTTP-Transport — dieser Versuch nutzt wieder den Pipe-Eingang.",
-                now.SlotId);
         }
 
         // The process state is not persisted: a crashed or drifted run restarts at the
@@ -156,7 +175,9 @@ public sealed class LiveStreamCoordinator
             ffmpegPath);
 
         await _segmenter.StartAsync(job, cancellationToken);
-        return new LiveStreamSyncResult(LiveStreamSyncAction.Started, now.EndUtc,
-            $"Sendeplatz {now.SlotId} ({now.Title}) bei {job.PositionSeconds:F1}s.");
+        var detail = $"Sendeplatz {now.SlotId} ({now.Title}) bei {job.PositionSeconds:F1}s — Eingang: {input.InputKindLabel}";
+        if (input.ResolutionNote is { } note)
+            detail += $" ({note})";
+        return new LiveStreamSyncResult(LiveStreamSyncAction.Started, now.EndUtc, detail);
     }
 }

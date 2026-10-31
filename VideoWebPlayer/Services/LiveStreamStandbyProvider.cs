@@ -38,6 +38,20 @@ internal sealed record StandbySegmentSet(int Generation, long? MediaItemId, IRea
 }
 
 /// <summary>
+/// Resolves a standby media item to its ffmpeg input.
+/// </summary>
+/// <param name="mediaItemId">The media item to resolve.</param>
+/// <param name="useHttpInput">Whether the range-capable HTTP input may be used —
+/// <see langword="false"/> on the retry after a failed HTTP transcode so the resolver
+/// continues on the next stage (sftp or streamed pipe input).</param>
+/// <param name="useSftpInput">Whether the direct <c>sftp://</c> input may be used —
+/// <see langword="false"/> on the retry after a failed sftp transcode so the resolver
+/// falls back to the streamed pipe input.</param>
+/// <param name="cancellationToken">Cancellation token.</param>
+internal delegate Task<LiveStreamInput?> StandbyMediaInputResolver(
+    long mediaItemId, bool useHttpInput, bool useSftpInput, CancellationToken cancellationToken);
+
+/// <summary>
 /// Holds the warm-up standby stream in memory: while no real <c>live.m3u8</c> with a
 /// referenced segment exists, the controller serves this provider's rotating live playlist
 /// and its generation-prefixed segments instead of answering 404. The default set is the
@@ -78,7 +92,7 @@ public sealed class LiveStreamStandbyProvider
     private readonly TimeProvider _timeProvider;
     private readonly DateTimeOffset _origin;
     private readonly StandbySegmentSet? _defaultSet;
-    private readonly Func<long, CancellationToken, Task<LiveStreamInput?>> _resolveMediaInputAsync;
+    private readonly StandbyMediaInputResolver _resolveMediaInputAsync;
     private readonly Func<LiveStreamInput, string, CancellationToken, Task<IReadOnlyList<StandbyTranscodedSegment>?>> _transcodeAsync;
     private readonly SemaphoreSlim _prepareGate = new(1, 1);
     private readonly object _prepareTriggerLock = new();
@@ -115,7 +129,7 @@ public sealed class LiveStreamStandbyProvider
         ILogger<LiveStreamStandbyProvider> logger,
         TimeProvider? timeProvider,
         Func<StandbySegmentSet?>? loadDefaultSet,
-        Func<long, CancellationToken, Task<LiveStreamInput?>>? resolveMediaInputAsync,
+        StandbyMediaInputResolver? resolveMediaInputAsync,
         Func<LiveStreamInput, string, CancellationToken, Task<IReadOnlyList<StandbyTranscodedSegment>?>>? transcodeAsync)
     {
         _environment = environment;
@@ -225,7 +239,9 @@ public sealed class LiveStreamStandbyProvider
             // vorhandenem Cache-Marker darf nicht weiter ausgeliefert werden, sondern
             // faellt auf den bisherigen Satz (Default) zurueck — die Aufloesung ist zudem
             // die Quell-Referenz fuer die Cache-Invalidierung (Pfad + Aenderungsstempel).
-            var input = await _resolveMediaInputAsync(target, cancellationToken);
+            var useHttpInput = true;
+            var useSftpInput = true;
+            var input = await _resolveMediaInputAsync(target, useHttpInput, useSftpInput, cancellationToken);
             if (input is null)
             {
                 _logger.LogWarning("[LiveStreamStandbyProvider] Standby-MediaItem {MediaItemId} konnte nicht aufgeloest werden — bisheriger Satz bleibt aktiv.", target);
@@ -233,33 +249,67 @@ public sealed class LiveStreamStandbyProvider
                 return;
             }
 
-            if (await TryLoadFromCacheAsync(target, input, cancellationToken))
-                return;
-
-            var cacheDir = GetCacheDirectory();
-            Directory.CreateDirectory(cacheDir);
-            var segments = await _transcodeAsync(input, cacheDir, cancellationToken);
-            if (segments is null || segments.Count == 0)
+            // Ein scheiternder Eingang darf das Item nicht dauerhaft sperren — die
+            // Kaskade laeuft wie im Live-Pfad des Koordinators bis zum gestreamten
+            // pipe:0-Eingang durch (HTTP → sftp → pipe:0): jede gescheiterte Stufe
+            // wird fuer den naechsten Aufloesungsversuch deaktiviert.
+            while (true)
             {
-                _logger.LogWarning("[LiveStreamStandbyProvider] Standby-MediaItem {MediaItemId} konnte nicht transkodiert werden — bisheriger Satz bleibt aktiv.", target);
-                _failedMediaItemId = target;
-                return;
-            }
+                if (await TryLoadFromCacheAsync(target, input, cancellationToken))
+                    return;
 
-            var set = await LoadSetFromDirectoryAsync(cacheDir, target, segments, cancellationToken);
-            if (set is null)
-            {
-                _logger.LogWarning("[LiveStreamStandbyProvider] Standby-Segmente fuer MediaItem {MediaItemId} konnten nicht aus dem Cache geladen werden.", target);
-                _failedMediaItemId = target;
-                return;
-            }
+                var cacheDir = GetCacheDirectory();
+                Directory.CreateDirectory(cacheDir);
+                var segments = await _transcodeAsync(input, cacheDir, cancellationToken);
+                if (segments is { Count: > 0 })
+                {
+                    var set = await LoadSetFromDirectoryAsync(cacheDir, target, segments, cancellationToken);
+                    if (set is null)
+                    {
+                        _logger.LogWarning("[LiveStreamStandbyProvider] Standby-Segmente fuer MediaItem {MediaItemId} konnten nicht aus dem Cache geladen werden.", target);
+                        _failedMediaItemId = target;
+                        return;
+                    }
 
-            WriteCacheMarker(cacheDir, target, input, segments);
-            _activeSet = set;
-            _failedMediaItemId = null;
-            _logger.LogInformation(
-                "[LiveStreamStandbyProvider] Standby-Clip von MediaItem {MediaItemId} vorbereitet ({Count} Segmente, Generation {Generation}).",
-                target, set.Segments.Count, set.Generation);
+                    WriteCacheMarker(cacheDir, target, input, segments);
+                    _activeSet = set;
+                    _failedMediaItemId = null;
+                    _logger.LogInformation(
+                        "[LiveStreamStandbyProvider] Standby-Clip von MediaItem {MediaItemId} vorbereitet ({Count} Segmente, Generation {Generation}).",
+                        target, set.Segments.Count, set.Generation);
+                    return;
+                }
+
+                // Datei- und pipe:0-Eingaenge haben keine weitere Stufe — erst hier
+                // wird die Fehlschlag-ID gemerkt. Liefert die Aufloesung entgegen den
+                // Flags erneut dieselbe Stufe, gilt das ebenfalls als Endstufe.
+                if (input.HttpUrl is not null && useHttpInput)
+                {
+                    useHttpInput = false;
+                }
+                else if (input.SftpUrl is not null && useSftpInput)
+                {
+                    useSftpInput = false;
+                }
+                else
+                {
+                    _logger.LogWarning("[LiveStreamStandbyProvider] Standby-MediaItem {MediaItemId} konnte nicht transkodiert werden — bisheriger Satz bleibt aktiv.", target);
+                    _failedMediaItemId = target;
+                    return;
+                }
+
+                var fallback = await _resolveMediaInputAsync(target, useHttpInput, useSftpInput, cancellationToken);
+                if (fallback is null)
+                {
+                    _logger.LogWarning("[LiveStreamStandbyProvider] Standby-MediaItem {MediaItemId} konnte nicht aufgeloest werden — bisheriger Satz bleibt aktiv.", target);
+                    _failedMediaItemId = target;
+                    return;
+                }
+                _logger.LogInformation(
+                    "[LiveStreamStandbyProvider] {FailedKind}-Eingang von MediaItem {MediaItemId} scheiterte — Fallback auf Eingang {InputKind}.",
+                    input.InputKindLabel, target, fallback.InputKindLabel);
+                input = fallback;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -304,11 +354,13 @@ public sealed class LiveStreamStandbyProvider
         }
     }
 
-    private async Task<LiveStreamInput?> ResolveMediaInputDefaultAsync(long mediaItemId, CancellationToken cancellationToken)
+    private async Task<LiveStreamInput?> ResolveMediaInputDefaultAsync(
+        long mediaItemId, bool useHttpInput, bool useSftpInput, CancellationToken cancellationToken)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var resolver = scope.ServiceProvider.GetRequiredService<LiveStreamMediaResolver>();
-        return await resolver.ResolveAsync(mediaItemId, runDuration: null, useHttpInput: true, cancellationToken);
+        return await resolver.ResolveAsync(mediaItemId, runDuration: null,
+            useHttpInput: useHttpInput, useSftpInput: useSftpInput, cancellationToken: cancellationToken);
     }
 
     private string GetCacheDirectory()
@@ -394,8 +446,8 @@ public sealed class LiveStreamStandbyProvider
     }
 
     /// <summary>The stored source descriptor of an input: file path, or a marker word.</summary>
-    private static string SourceDescriptor(LiveStreamInput input)
-        => input.FilePath ?? (input.HttpUrl is not null ? "http" : "stream");
+    internal static string SourceDescriptor(LiveStreamInput input)
+        => input.FilePath ?? (input.HttpUrl is not null ? "http" : input.SftpUrl is not null ? "sftp" : "stream");
 
     private void WriteCacheMarker(string cacheDir, long target, LiveStreamInput input, IReadOnlyList<StandbyTranscodedSegment> segments)
     {

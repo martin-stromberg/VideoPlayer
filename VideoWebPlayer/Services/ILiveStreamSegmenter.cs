@@ -31,9 +31,18 @@ public interface ILiveStreamSegmenter
     /// Gets the diagnosis of the last segmentation process that ended prematurely on its own,
     /// or <see langword="null"/> when the last exit was expected or a new job has since been
     /// started. The coordinator uses it to fall back to a different input method after an
-    /// HTTP transport failure.
+    /// HTTP transport failure — its per-slot cumulative flags carry the input-stage
+    /// escalation memory that the per-tick-scoped coordinator cannot hold itself.
     /// </summary>
     LiveStreamExitInfo? LastUnexpectedExit { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the ffmpeg build accepts <c>sftp://</c> inputs —
+    /// starts <see langword="true"/> and latches to <see langword="false"/> once an
+    /// <c>sftp://</c> run failed on the missing protocol, so the coordinator can skip the
+    /// sftp stage process-wide.
+    /// </summary>
+    bool SftpInputSupported { get; }
 
     /// <summary>
     /// Starts a segmentation job. Any previously running job is stopped first.

@@ -254,13 +254,14 @@ public sealed class LiveStreamStandbySegmenter
 
     private async Task PumpInputAsync(ISegmenterProcess process, LiveStreamInput input)
     {
-        var outcome = await SegmenterProcessSupport.PumpInputAsync(
+        var result = await SegmenterProcessSupport.PumpInputAsync(
             process, input, _logger, "LiveStreamStandbySegmenter");
-        if (outcome == SegmenterPumpOutcome.Completed)
+        if (result.Outcome == SegmenterPumpOutcome.Completed)
             return;
-        if (outcome == SegmenterPumpOutcome.SourceUnavailable)
+        if (result.Outcome == SegmenterPumpOutcome.SourceUnavailable)
             _logger.LogWarning("[LiveStreamStandbySegmenter] Eingabe-Stream nicht verfuegbar.");
-        // Ohne (vollstaendige) Eingabe haenge ffmpeg wuerde ewig auf stdin warten — toeten.
+        // Ohne (vollstaendige) Eingabe haenge ffmpeg wuerde ewig auf stdin warten — toeten;
+        // ein abgebrochener Pump (Truncated) darf ebenso kein Teilmaterial übernehmen.
         try { process.Kill(); } catch (Exception) { }
     }
 

@@ -205,6 +205,153 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
     }
 
     /// <summary>
+    /// The production failure of Issue #311: an MP4 whose moov atom sits at the end fed
+    /// through <c>pipe:0</c> — ffmpeg dies on its own with demux markers, which the
+    /// segmenter must classify as <see cref="LiveStreamExitInfo.UndecodableInput"/> so the
+    /// coordinator skips the slot instead of restart-looping.
+    /// </summary>
+    [Fact]
+    public async Task RealFfmpeg_MoovAtEndPipeInput_FlagsUndecodableInput()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var ffmpeg = E2EBinaryLocator.Find("ffmpeg");
+        if (ffmpeg is null)
+            return;
+
+        var dir = Path.Combine(Path.GetTempPath(), $"vwp-e2e-moov-{Guid.NewGuid():N}");
+        var video = Path.Combine(dir, "input.mp4"); // lavfi-mp4 ohne faststart: moov am Ende
+        var segDir = Path.Combine(dir, "live");
+        Directory.CreateDirectory(segDir);
+
+        try
+        {
+            await GenerateVideoAsync(ffmpeg, video, ct);
+            if (!File.Exists(video))
+                return;
+
+            var segmenter = new FfmpegLiveStreamSegmenter(NullLogger<FfmpegLiveStreamSegmenter>.Instance);
+            var job = new LiveStreamJob(
+                SlotId: 55,
+                Input: LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(
+                    new FileStream(video, FileMode.Open, FileAccess.Read, FileShare.Read))),
+                PositionSeconds: 0,
+                RemainingSeconds: 60,
+                SegmentSeconds: 2,
+                SegmentDirectory: segDir,
+                FfmpegPath: ffmpeg);
+
+            await segmenter.StartAsync(job, ct);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            while (segmenter.LastUnexpectedExit is null && !timeout.IsCancellationRequested)
+                await Task.Delay(200, CancellationToken.None);
+
+            Assert.NotNull(segmenter.LastUnexpectedExit);
+            Assert.True(segmenter.LastUnexpectedExit.UndecodableInput,
+                $"Erwartet: UndecodableInput — tatsächlich: {segmenter.LastUnexpectedExit}");
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// The counterpart: the same moov-at-end MP4 as a seekable file input with a start
+    /// offset (<c>-ss</c>) — the actual fixed path — must produce segments.
+    /// </summary>
+    [Fact]
+    public async Task RealFfmpeg_MoovAtEndFileInputWithOffset_ProducesSegments()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var ffmpeg = E2EBinaryLocator.Find("ffmpeg");
+        if (ffmpeg is null)
+            return;
+
+        var dir = Path.Combine(Path.GetTempPath(), $"vwp-e2e-moovfile-{Guid.NewGuid():N}");
+        var video = Path.Combine(dir, "input.mp4");
+        var segDir = Path.Combine(dir, "live");
+        Directory.CreateDirectory(segDir);
+
+        try
+        {
+            await GenerateVideoAsync(ffmpeg, video, ct);
+            if (!File.Exists(video))
+                return;
+
+            var segmenter = new FfmpegLiveStreamSegmenter(NullLogger<FfmpegLiveStreamSegmenter>.Instance);
+            var job = new LiveStreamJob(
+                SlotId: 56,
+                Input: LiveStreamInput.ForFile(video),
+                PositionSeconds: 2,
+                RemainingSeconds: 4,
+                SegmentSeconds: 2,
+                SegmentDirectory: segDir,
+                FfmpegPath: ffmpeg);
+
+            await segmenter.StartAsync(job, ct);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(45));
+            while (segmenter.IsRunning && !timeout.IsCancellationRequested)
+                await Task.Delay(100, CancellationToken.None);
+
+            Assert.True(File.Exists(Path.Combine(segDir, "live.m3u8")),
+                $"Playlist wurde nicht erzeugt (Exit: {segmenter.LastUnexpectedExit?.ExitCode})");
+            Assert.NotEmpty(Directory.GetFiles(segDir, "seg_*.ts"));
+            Assert.Null(segmenter.LastUnexpectedExit);
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// An <c>sftp://</c> input against an unreachable port must die fast and classify as
+    /// <see cref="LiveStreamExitInfo.SftpInputFailure"/> — either a transport failure
+    /// (libssh present) or an unsupported scheme (build without libssh, which also latches
+    /// <see cref="FfmpegLiveStreamSegmenter.SftpInputSupported"/>).
+    /// </summary>
+    [Fact]
+    public async Task RealFfmpeg_SftpInputUnreachable_SetsSftpInputFailure()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var ffmpeg = E2EBinaryLocator.Find("ffmpeg");
+        if (ffmpeg is null)
+            return;
+
+        var segDir = Path.Combine(Path.GetTempPath(), $"vwp-e2e-sftp-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(segDir);
+
+        try
+        {
+            var segmenter = new FfmpegLiveStreamSegmenter(NullLogger<FfmpegLiveStreamSegmenter>.Instance);
+            var job = new LiveStreamJob(
+                SlotId: 57,
+                Input: LiveStreamInput.ForSftp("sftp://user:pass@127.0.0.1:1/remote/input.mp4"),
+                PositionSeconds: 0,
+                RemainingSeconds: 60,
+                SegmentSeconds: 2,
+                SegmentDirectory: segDir,
+                FfmpegPath: ffmpeg);
+
+            await segmenter.StartAsync(job, ct);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            while (segmenter.LastUnexpectedExit is null && !timeout.IsCancellationRequested)
+                await Task.Delay(200, CancellationToken.None);
+
+            Assert.NotNull(segmenter.LastUnexpectedExit);
+            Assert.True(segmenter.LastUnexpectedExit.SftpInputFailure,
+                $"Erwartet: SftpInputFailure — tatsächlich: {segmenter.LastUnexpectedExit}");
+        }
+        finally
+        {
+            try { Directory.Delete(segDir, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
     /// FileStream-Hülle, die Lesezugriffe drosselt (~33 KB/s), damit die Eingabe-Pumpe
     /// beim geplanten Stop noch aktiv ist — ffmpeg entleert die Pipe sonst schneller,
     /// als die kurze Testdatei gepumpt werden kann, und der Pipe-Bruch fiele nie an.

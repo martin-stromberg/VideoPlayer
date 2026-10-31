@@ -23,6 +23,7 @@ public sealed class LiveStreamWorker : BackgroundService
     private readonly TimeSpan _initialDelay;
     private readonly TimeProvider _timeProvider;
     private DateTimeOffset _lastFfmpegWarning = DateTimeOffset.MinValue;
+    private (LiveStreamSyncAction Action, string? Detail) _lastPersistentResult;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LiveStreamWorker"/> class.
@@ -109,10 +110,29 @@ public sealed class LiveStreamWorker : BackgroundService
                         var coordinator = scope.ServiceProvider.GetRequiredService<LiveStreamCoordinator>();
                         var result = await coordinator.SynchronizeAsync(_timeProvider.GetUtcNow(), stoppingToken);
 
+                        // Nur unmittelbar aufeinanderfolgende Gleichergebnisse duerfen
+                        // dedupliziert werden — ein Zwischenzustand (z. B. Started oder
+                        // eine Sendelücke) macht das naechste MediaUnavailable wieder zu
+                        // einem neuen Ereignis, nicht zu einer Wiederholung.
+                        if (result.Action is not (LiveStreamSyncAction.MediaUnavailable or LiveStreamSyncAction.InputUnplayable))
+                            _lastPersistentResult = default;
+
                         if (result.Action == LiveStreamSyncAction.FfmpegUnavailable)
                             LogFfmpegUnavailableThrottled(result.Detail);
-                        else if (result.Action is LiveStreamSyncAction.Started or LiveStreamSyncAction.MediaUnavailable)
+                        else if (result.Action == LiveStreamSyncAction.Started)
                             _logger.LogInformation("[LiveStreamWorker] {Detail}", result.Detail);
+                        else if (result.Action is LiveStreamSyncAction.MediaUnavailable or LiveStreamSyncAction.InputUnplayable)
+                        {
+                            // Dauerzustände (z. B. ein übersprungener Sendeplatz) wiederholen
+                            // sich im Poll-Takt — nur das erste Auftreten ist Information,
+                            // unveränderte Folgeergebnisse gehen auf Debug.
+                            var key = (result.Action, result.Detail);
+                            if (key.Equals(_lastPersistentResult))
+                                _logger.LogDebug("[LiveStreamWorker] {Detail}", result.Detail);
+                            else
+                                _logger.LogInformation("[LiveStreamWorker] {Detail}", result.Detail);
+                            _lastPersistentResult = key;
+                        }
 
                         if (result.WakeAtUtc is { } wakeAt)
                         {

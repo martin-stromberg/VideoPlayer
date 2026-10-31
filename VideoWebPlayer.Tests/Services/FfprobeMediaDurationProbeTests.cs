@@ -140,6 +140,9 @@ public class FfprobeMediaDurationProbeTests
     [Theory]
     [InlineData("moov atom not found")]
     [InlineData("Invalid data found when processing input")]
+    [InlineData("partial file")]
+    [InlineData("Could not find codec parameters")]
+    [InlineData("Cannot determine format")]
     public async Task ProbeUriAsync_PermanentErrorMarker_ReturnsPermanentFailure(string error)
     {
         var probe = CreateProbe((path, args, stdin, timeout, ct) =>
@@ -175,14 +178,17 @@ public class FfprobeMediaDurationProbeTests
         Assert.True(result.Transient);
     }
 
-    [Fact]
-    public async Task ProbeUriAsync_ProtocolNotFound_ReturnsUriUnsupported_AndSkipsLaterInvocations()
+    [Theory]
+    [InlineData("Protocol not found")]
+    [InlineData("Unknown protocol")]
+    [InlineData("Protocol not on whitelist 'file,crypto'")]
+    public async Task ProbeUriAsync_UnsupportedSchemeMarker_ReturnsUriUnsupported_AndSkipsLaterInvocations(string error)
     {
         var calls = 0;
         var probe = CreateProbe((path, args, stdin, timeout, ct) =>
         {
             calls++;
-            return Task.FromResult(new FfprobeInvocationResult(1, string.Empty, "sftp://u:p@host/x.mp4: Protocol not found", false));
+            return Task.FromResult(new FfprobeInvocationResult(1, string.Empty, $"sftp://u:p@host/x.mp4: {error}", false));
         });
 
         var ct = TestContext.Current.CancellationToken;
@@ -227,6 +233,24 @@ public class FfprobeMediaDurationProbeTests
         // HTTP-Schicht-Fehler — nicht als UriUnsupported fehlinterpretieren.
         var probe = CreateProbe((path, args, stdin, timeout, ct) =>
             Task.FromResult(new FfprobeInvocationResult(1, string.Empty, "sftp://u:p@host/x.mp4: Connection refused", false)));
+
+        var result = await probe.ProbeUriAsync("sftp://u:p@host/x.mp4", TestContext.Current.CancellationToken);
+        Assert.Null(result.Duration);
+        Assert.True(result.Transient);
+        Assert.False(result.UriUnsupported);
+    }
+
+    [Theory]
+    [InlineData("sftp://u:p@host/x.mp4: I/O error")]
+    [InlineData("sftp://u:p@host/x.mp4: Connection timed out")]
+    public async Task ProbeUriAsync_SftpTransportErrorWithDemuxMarker_RemainsTransientFailure(string transportError)
+    {
+        // Ein mittendrin abbrechender sftp-Transfer erzeugt dieselben Demux-Klagen wie
+        // eine kaputte Datei — der Transport-Vorrang muss das Item vor der dauerhaften
+        // Klassifikation bewahren (Retry statt PermanentFailure).
+        var probe = CreateProbe((path, args, stdin, timeout, ct) =>
+            Task.FromResult(new FfprobeInvocationResult(1, string.Empty,
+                $"{transportError}\nCould not find codec parameters for stream 0", false)));
 
         var result = await probe.ProbeUriAsync("sftp://u:p@host/x.mp4", TestContext.Current.CancellationToken);
         Assert.Null(result.Duration);

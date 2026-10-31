@@ -84,6 +84,30 @@ public sealed class LiveStreamMediaResolverTests : IAsyncLifetime
         return item;
     }
 
+    private async Task<MediaItem> SeedSftpWithCredentialsAsync(string fileName)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = new MediaSource
+        {
+            Name = $"S-{Guid.NewGuid():N}",
+            Path = "/remote",
+            SourceType = MediaSourceType.Sftp,
+            Host = "sftp.example.local",
+            Port = 22,
+            Username = "streamer",
+            Password = "geheim"
+        };
+        _fixture.Db.MediaSources.Add(source);
+        await _fixture.Db.SaveChangesAsync(ct);
+        var collection = new MediaCollection { Name = "C", MediaSourceId = source.Id, Path = "/remote", CreatedAt = DateTime.UtcNow };
+        _fixture.Db.MediaCollections.Add(collection);
+        await _fixture.Db.SaveChangesAsync(ct);
+        var item = new MediaItem { Name = fileName, Path = $"/remote/{fileName}", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow };
+        _fixture.Db.MediaItems.Add(item);
+        await _fixture.Db.SaveChangesAsync(ct);
+        return item;
+    }
+
     [Fact]
     public async Task ResolveAsync_LocalSource_ReturnsFilePath()
     {
@@ -173,5 +197,100 @@ public sealed class LiveStreamMediaResolverTests : IAsyncLifetime
     public async Task ResolveAsync_UnknownItem_ReturnsNull()
     {
         Assert.Null(await _resolver.ResolveAsync(99999, cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ResolveAsync_PipeFallback_ResolutionNoteNamesCause()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _streamTokens.UriToReturn = null;
+        var item = await SeedAsync(MediaSourceType.Sftp, "r6.mkv");
+
+        var input = await _resolver.ResolveAsync(item.Id, cancellationToken: ct);
+
+        Assert.True(input!.IsPipe);
+        Assert.Contains("keine http-Basis-URL", input.ResolutionNote);
+
+        var transportFallback = await _resolver.ResolveAsync(item.Id, useHttpInput: false, cancellationToken: ct);
+        Assert.Contains("HTTP-Transportfehler", transportFallback!.ResolutionNote);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_PipeFallback_OptionDisabled_NotesOptionCause()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _options.UseHttpInput = false;
+        var item = await SeedAsync(MediaSourceType.Sftp, "r7.mkv");
+
+        var input = await _resolver.ResolveAsync(item.Id, cancellationToken: ct);
+
+        Assert.True(input!.IsPipe);
+        Assert.Contains("UseHttpInput", input.ResolutionNote);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_RemoteSourceCredentialsNoHttpUri_ReturnsSftpUrl()
+    {
+        _streamTokens.UriToReturn = null;
+        var item = await SeedSftpWithCredentialsAsync("s1.mkv");
+
+        var input = await _resolver.ResolveAsync(item.Id, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.NotNull(input);
+        Assert.False(input!.IsPipe);
+        Assert.StartsWith("sftp://streamer:geheim@sftp.example.local:22/remote/s1.mkv", input.SftpUrl);
+        Assert.Contains("keine http-Basis-URL", input.ResolutionNote);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_UseHttpInputFalseWithCredentials_ReturnsSftpUrl()
+    {
+        var item = await SeedSftpWithCredentialsAsync("s2.mkv");
+
+        var input = await _resolver.ResolveAsync(item.Id, useHttpInput: false,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.NotNull(input!.SftpUrl);
+        Assert.Contains("HTTP-Transportfehler", input.ResolutionNote);
+        Assert.Equal(0, _streamTokens.StreamUriCalls);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_UseSftpInputFalse_SkipsSftp()
+    {
+        _streamTokens.UriToReturn = null;
+        var item = await SeedSftpWithCredentialsAsync("s3.mkv");
+
+        var input = await _resolver.ResolveAsync(item.Id, useSftpInput: false,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(input!.IsPipe);
+        Assert.Null(input.SftpUrl);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_SftpOptionDisabled_SkipsSftp()
+    {
+        _streamTokens.UriToReturn = null;
+        _options.UseSftpInput = false;
+        var item = await SeedSftpWithCredentialsAsync("s4.mkv");
+
+        var input = await _resolver.ResolveAsync(item.Id, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(input!.IsPipe);
+        Assert.Contains("UseSftpInput", input.ResolutionNote);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_SftpMissingCredentials_FallsBackToPipe()
+    {
+        _streamTokens.UriToReturn = null;
+        var item = await SeedAsync(MediaSourceType.Sftp, "s5.mkv");
+
+        var input = await _resolver.ResolveAsync(item.Id, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(input!.IsPipe);
+        Assert.Null(input.SftpUrl);
+        Assert.Contains("sftp", input.ResolutionNote);
     }
 }

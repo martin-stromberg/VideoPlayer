@@ -61,4 +61,4 @@
 ## Noch offen (DoD)
 
 - Feature-Verzeichnis-Aufräumen zum Abschluss, PR-Beschreibung aktualisieren
-- Residual: `-re`+`-ss`-Seek-Latenz bei nicht-suchbaren Containern (Folgeissue)
+- Offen: `-re`+`-ss`-Seek-Latenz bei nicht-suchbaren Containern (Folgeissue)

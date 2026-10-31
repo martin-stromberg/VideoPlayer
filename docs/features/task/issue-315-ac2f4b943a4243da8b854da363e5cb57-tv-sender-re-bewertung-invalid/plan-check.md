@@ -28,7 +28,7 @@ der Plan wurde entsprechend korrigiert:
 
 ## Hinweise
 
-- Residual bewusst dokumentiert: `-re`/`-ss`-Seek-Latenz (Folgeissue-Kandidat);
+- Offener Punkt bewusst dokumentiert: `-re`/`-ss`-Seek-Latenz (Folgeissue-Kandidat);
   Evict-vs.-Running-Slot-Verhalten („Occurrence fällt statt laufender Slot").
 - Bestandstests mit geändertem Erwartungsbild (laufender Slot bleibt):
   `Reconcile_LongAiring_*`, `Reconcile_WorkerLoop_*`, weitere laut Bericht —

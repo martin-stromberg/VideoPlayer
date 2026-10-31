@@ -79,7 +79,7 @@ Befund Inventur Block A — Umsetzung (nach Plan-Check Befunde 7-8 korrigiert):
    oder eigener Signal-Dienst), den nur der LiveStreamWorker konsumiert;
    `ProgramScheduleWorker` feuert ihn nach Reconcile/Coverage bei
    tatsächlichen Änderungen (`SlotsDisplaced > 0 || SlotsCreated > 0`).
-3. **Residual (dokumentiert, nicht geändert):** `-re` + Input-`-ss` kann bei
+3. **Offener Punkt (dokumentiert, nicht geändert):** `-re` + Input-`-ss` kann bei
    nicht-suchbaren Containern den Seek-Discard auf Echtzeit drosseln —
    ggf. Folgeissue; `ExpectedPositionSeconds` ist Wanduhr-Projektion, der
    Drift-Wächter sieht den hängenden Seek nicht.

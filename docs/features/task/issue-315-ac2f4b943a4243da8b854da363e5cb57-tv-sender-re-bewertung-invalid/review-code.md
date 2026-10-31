@@ -41,7 +41,7 @@ LiveStreamWorker.cs, FfmpegLiveStreamSegmenter.cs + Tests.
 - Alle vier `Status = Displaced`-Schreibstellen hinter Guards; der
   „Tail-Invader"-Pfad ist defensiver Dead-Code (kein Überschreib-Pfad gefunden).
 - Veto-Drop ist atomar: geschützter Slot mitten in einer Occurrence verwirft deren
-  ganze Nachmaterialisierung — das Fenster geht an Filler (gewollte Degradation).
+  ganze Nachmaterialisierung — das Fenster geht an Filler (bewusster Kompromiss).
 - `StripEndlistFromPlaylist`: FileShare konsistent zum Controller-Leser; ffmpeg an
   beiden Call-Sites tot/noch nicht gestartet. Restrisiko: externer Reader ohne
   Write-Share lässt den Strip scheitern (Debug-Log, gebundenes Fenster).

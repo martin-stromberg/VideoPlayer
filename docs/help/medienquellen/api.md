@@ -4,7 +4,7 @@
 
 ## Übersicht
 
-Das Feature exponiert keine neuen HTTP-Endpunkte und erweitert das Client-DTO `DtoMediaSource` bewusst nicht (kein Consumer benötigt den Quelltyp). Die relevante Schnittstelle ist die interne Code-Abstraktion `IMediaSourceReader`, über die sämtlicher Dateizugriff auf Medienquellen läuft.
+Das Feature exponiert keine neuen HTTP-Endpunkte. Das Client-DTO `DtoMediaSource` enthält bewusst keinen Quelltyp (kein Consumer benötigt ihn), wurde aber um das Merkmal `HiddenInMenu` erweitert (siehe `SourcesController` unten). Die zentrale Schnittstelle ist die interne Code-Abstraktion `IMediaSourceReader`, über die sämtlicher Dateizugriff auf Medienquellen läuft.
 
 ## Authentifizierung
 
@@ -42,8 +42,46 @@ Nicht relevant.
 | Reparse Point / Verzeichnis als Dateiziel (nur `LocalMediaSourceReader`) | `null`/`false` |
 | `DirectoryNotFoundException`, `UnauthorizedAccessException`, `IOException` bei `ReadDirectoryEntries` | Exception an den Aufrufer — `MediaSourceScanner` fängt sie pro Collection ab und terminiert `ScanDueAt` neu |
 
+### `ITmdbAgeRatingService` (`VideoWebPlayer/Services/ITmdbAgeRatingService.cs`)
+
+**Beschreibung:** Optionale Online-Quelle für Altersfreigaben, implementiert von `TmdbAgeRatingService` (Singleton, named `HttpClient` „Tmdb" via `IHttpClientFactory`). Der Service ist immer registriert, bleibt aber ohne `Tmdb:Enabled` und `Tmdb:ApiKey` inert und liefert dann `null`.
+
+**Methoden:**
+
+| Name | Signatur | Beschreibung |
+|------|----------|--------------|
+| `GetMovieAgeRatingAsync` | `Task<TmdbAgeRating?> GetMovieAgeRatingAsync(string title, int? year, string? tmdbId, CancellationToken)` | Filme: direkter Lookup per TMDB-ID aus `uniqueid[@type='tmdb']`/`<tmdbid>`, sonst Titelsuche mit Jahr → `release_dates` |
+| `GetTVShowAgeRatingAsync` | `Task<TmdbAgeRating?> GetTVShowAgeRatingAsync(string title, int? year, string? tmdbId, CancellationToken)` | Serien: analog über `content_ratings` bzw. Titelsuche |
+
+**Rückgabe-Konvention:** `TmdbAgeRating(Country, Certification)` oder `null`. Länderwahl: `TmdbOptions.PreferredCountry` (Default „DE") → „US" → erste Angabe. Jeglicher Fehler (deaktiviert, fehlender `ApiKey`, HTTP-Status, Timeout, `HttpRequestException`, Parsefehler) → `null` + `LogDebug`/`LogWarning`, kein Exception-Pfad, kein Retry.
+
+**Konfiguration (`Tmdb`-Abschnitt, `TmdbOptions`):**
+
+| Parameter | Typ | Standardwert | Beschreibung |
+|-----------|-----|--------------|--------------|
+| `Tmdb:Enabled` | `bool` | `false` | Online-Ergänzung aktiviert |
+| `Tmdb:ApiKey` | `string?` | `null` | TMDB-API-Key — nicht im Repository; Ablage via `appsettings.Local.json`/Umgebungsvariable/User Secrets (`docs/SECRETS_MANAGEMENT.md`); in `AutoUpdate:ProtectedFiles`-`JsonKeys` eingetragen |
+| `Tmdb:BaseUrl` | `string` | `https://api.themoviedb.org/3` | API-Basis-URL (überschreibbar für Tests/Mirror) |
+| `Tmdb:PreferredCountry` | `string` | `DE` | Bevorzugte Länderfreigabe (Fallback „US", dann erste Angabe) |
+| `Tmdb:TimeoutSeconds` | `int` | `10` | Timeout je TMDB-Aufruf (≤ 0 ⇒ Default) |
+
+### `AgeRatingNormalizer` (`VideoWebPlayer/Utils/AgeRatingNormalizer.cs`)
+
+Statische Hilfsklasse: `Normalize(string? raw)` → `AgeRatingResult(DisplayValue, MinAge)`; `ExtractFromXml(XElement)` → `(Raw, Rating)` liest `<mpaa>` (primär)/`<certification>` (Fallback). `CanonicalOptions` liefert die Auswahlwerte für `AgeRatingSelect`. Regeln siehe `business-rules.md`.
+
 ## Betroffene bestehende Endpunkte
+
+### `SourcesController.GetSources` / `SourcesController.GetSource`
+
+`GET /api/Sources` und `GET /api/Sources/{id}` liefern im `DtoMediaSource` seit dem Merkmal „Im Menü ausblenden" das Feld `hiddenInMenu` (`bool`) aus — automatisch befüllt durch das reflektionsbasierte `ApiBaseController.Create<T>`, da die Property namensgleich zu `MediaSource.HiddenInMenu` ist. Die Änderung ist additiv und abwärtskompatibel; ältere Clients ignorieren das Feld.
+
+**Semantik:** `hiddenInMenu = true` bedeutet ausschließlich, dass der Menüeintrag der Quelle ausgeblendet werden soll. Die Listenabfrage `GetSources` liefert versteckte Quellen weiterhin vollständig aus — die Filterung liegt beim Client (`NavMenu.razor` filtert clientseitig); externe Konsumenten (z. B. die MAUI-App über `VideoWebPlayerClient`) können dieselbe Filterung anwenden. `GetSource` und der Direktaufruf `/mediasource/{id}` bleiben für freigegebene Benutzer unverändert erreichbar. Ein Schreibpfad über die API existiert nicht: `AdminSourcesController` enthält nur `DeleteSource`; das Flag wird ausschließlich über die Admin-Quellenbearbeitung gepflegt. Details siehe `docs/API.md`.
 
 ### `ItemsController.StreamMediaItem` / `ItemsController.Download`
 
 Unveränderte Routen und Authentifizierung. Interner Unterschied: Der Videostream wird über `_reader.OpenFileStream(mediaCollection, fileName)` geholt — bei lokalen Quellen ein `FileStream`, bei SFTP weiterhin `SftpStreamWrapper`. `enableRangeProcessing: true` bleibt bestehen; `null` führt zu `NotFound`.
+
+### `ItemsController` — Detail- und Metadaten-Endpunkte
+
+- `GET /api/items/{type}/{id}`: `DtoMovie` und `DtoTVShow` enthalten zusätzlich `AgeRating` (kanonischer Anzeigewert) und `AgeRatingMinAge` (vergleichbares Mindestalter, `null` bei unbekannter Stufe) — additive Felder, abwärtskompatibel; `AgeRatingRaw` wird nicht exponiert.
+- `POST /api/items/metadata`: `MediaMetadataUpdateRequest.AgeRating` wird für `movie`/`tvshow` akzeptiert (kanonischer Wert, bereits gespeicherter Bestandswert oder leer = löschen; Länge ≤ 64) und für `moviecollection`/`tvshowseason`/`tvshowepisode` mit `ArgumentException` → `400` abgelehnt. Details zum Editierpfad siehe `docs/API.md` und `docs/help/medien-editiermodus.md`.

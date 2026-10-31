@@ -176,6 +176,12 @@ public static class ServiceCollectionExtensions
                 http.DefaultRequestHeaders.Add("X-API-Key", apiKey);
         });
 
+        // Ausgehender Download-Client fuer die ffmpeg/ffprobe-Pakete (kein API-Key, kein
+        // interner User-Agent). Das Client-Timeout gilt wegen ResponseHeadersRead nur bis
+        // zu den Antwort-Headern — den eigentlichen Download-Body sichert der Job ueber ein
+        // eigenes Stall-Timeout ab (CancellationToken in FfmpegToolDownloadService).
+        services.AddHttpClient(FfmpegToolDownloadService.HttpClientName);
+
         // BaseAddress erst im scoped Kontext bestimmen (Blazor-Circuit, HTTP-Request oder Fallback)
         services.AddScoped<HttpClient>(sp =>
         {
@@ -225,11 +231,31 @@ public static class ServiceCollectionExtensions
             return client;
         });
         services.AddScoped<IPlaylistApiClient>(sp => sp.GetRequiredService<VideoWebPlayerClient>());
+        services.AddScoped<IProgramGuideApiClient>(sp => sp.GetRequiredService<VideoWebPlayerClient>());
 
         services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, ApplicationUserClaimsPrincipalFactory>();
         services.AddSingleton<EventManager>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<MediaSourceClassifier>();
+        services.Configure<MediaProbeOptions>(configuration.GetSection("MediaProbe"));
+        services.Configure<TmdbOptions>(configuration.GetSection("Tmdb"));
+        services.AddHttpClient(TmdbAgeRatingService.HttpClientName);
+        services.AddSingleton<ITmdbAgeRatingService, TmdbAgeRatingService>();
+        services.Configure<ProgramScheduleOptions>(configuration.GetSection("ProgramSchedule"));
+        services.Configure<LiveStreamOptions>(configuration.GetSection("LiveStream"));
+        services.AddSingleton<IFfprobeLocator, FfprobeLocator>();
+        services.AddSingleton<IFfmpegLocator, FfmpegLocator>();
+        services.AddSingleton<IFfmpegToolDownloadService, FfmpegToolDownloadService>();
+        services.AddSingleton<ILiveStreamSegmenter, FfmpegLiveStreamSegmenter>();
+        services.AddScoped<LiveStreamMediaResolver>();
+        services.AddScoped<LiveStreamSegmentStore>();
+        services.AddScoped<LiveStreamCoordinator>();
+        services.AddSingleton<LiveStreamStandbySegmenter>();
+        services.AddSingleton<LiveStreamStandbyProvider>();
+        services.AddSingleton<IMediaDurationProbe, FfprobeMediaDurationProbe>();
+        services.AddSingleton<IInternalMediaStreamTokenService, InternalMediaStreamTokenService>();
+        services.AddScoped<MediaDurationProbeService>();
+        services.AddHostedService<MediaDurationProbeWorker>();
         services.AddScoped<MediaMetadataEditorService>();
         services.AddSingleton<IMediaMetadataWriteCoordinator, MediaMetadataWriteCoordinator>();
         services.AddScoped<IFavoritesService, FavoritesService>();
@@ -239,16 +265,23 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<StaticAssetVersioner>();
         services.AddSingleton<PlaylistBackfillSignal>();
         services.AddSingleton<IPlaylistBackfillSignal>(sp => sp.GetRequiredService<PlaylistBackfillSignal>());
+        services.AddSingleton<ProgramScheduleSignal>();
+        services.AddSingleton<IProgramScheduleSignal>(sp => sp.GetRequiredService<ProgramScheduleSignal>());
         services.AddSingleton<PlaylistBackfillCoordinator>();
         services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverValidator>();
         services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverImageGenerator>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<IGenreService, GenreService>();
+        services.AddScoped<SeasonalHomeService>();
         services.AddScoped<SftpMediaSourceReader>();
         services.AddScoped<LocalMediaSourceReader>();
         services.AddScoped<IMediaSourceReader, MediaSourceReaderDispatcher>();
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
+        services.AddScoped<IProgramRuleService, ProgramRuleService>();
+        services.AddScoped<IProgramScheduleService, ProgramScheduleService>();
+        services.AddScoped<IProgramGuideService, ProgramGuideService>();
+        services.AddScoped<IProgramClipGroupService, ProgramClipGroupService>();
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<WatchedStatusService>();
         services.AddBackups(configuration.GetSection("Backups"));
@@ -299,8 +332,11 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<ContinueWatchingWorker>();
         services.AddHostedService<ActorBackfillWorker>();
         services.AddHostedService<PlaylistBackfillWorker>();
+        services.AddHostedService<ProgramScheduleWorker>();
         if (!env.IsEnvironment("Testing"))
         {
+            // In WebApplicationFactory-/E2E-Hosts darf kein ffmpeg-Prozess starten.
+            services.AddHostedService<LiveStreamWorker>();
             // Kein fester UDP-Port 5353 in Tests (WebApplicationFactory/E2E belegen dynamische Ports).
             services.AddHostedService<MdnsAdvertiserWorker>();
         }

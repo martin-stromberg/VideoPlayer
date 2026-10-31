@@ -235,12 +235,16 @@
         statusMessage = null;
 
         var mediaSourceUsers = await DbContext.MediaSourceUsers.Where(x => x.UserId == user.Id).ToListAsync();
+        var tvSenderAccess = await DbContext.TvSenderUserAccess.Where(x => x.UserId == user.Id).ToListAsync();
         var favorites = await DbContext.FavoriteEntries.Where(x => x.UserId == user.Id).ToListAsync();
         var continueWatching = await DbContext.ContinueWatchingEntries.Where(x => x.UserId == user.Id).ToListAsync();
         var unlockedMedia = await DbContext.UnlockedMediaEntries.Where(x => x.UserId == user.Id).ToListAsync();
         var backupOperations = await DbContext.BackupOperationHistories.Where(x => x.UserId == user.Id).ToListAsync();
 
         DbContext.MediaSourceUsers.RemoveRange(mediaSourceUsers);
+        // N28: TV-Sender-Freigabezeilen des Benutzers mitloeschen (FK waere Cascade; wie bei
+        // MediaSourceUsers explizit entfernt, damit es auch ohne erzwungene FKs sauber bleibt).
+        DbContext.TvSenderUserAccess.RemoveRange(tvSenderAccess);
         DbContext.FavoriteEntries.RemoveRange(favorites);
         DbContext.ContinueWatchingEntries.RemoveRange(continueWatching);
         DbContext.UnlockedMediaEntries.RemoveRange(unlockedMedia);

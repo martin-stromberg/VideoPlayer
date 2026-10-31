@@ -1,6 +1,7 @@
 using System.Reflection;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Backups;
 using Xunit;
 
@@ -67,6 +68,22 @@ public class EnumContractTests
     }
 
     /// <summary>
+    /// The states of an ffmpeg tool download job (<see cref="FfmpegToolDownloadJobStatus"/>) are polled by
+    /// the administration page; the members, their order and their numeric values mirror the other job
+    /// enums and are part of that contract.
+    /// </summary>
+    [Fact]
+    public void FfmpegToolDownloadJobStatus_HasTheDocumentedStatesInOrder()
+    {
+        Assert.Equal(ExpectedJobStatuses, Enum.GetNames<FfmpegToolDownloadJobStatus>());
+        Assert.Equal(0, (int)FfmpegToolDownloadJobStatus.Idle);
+        Assert.Equal(1, (int)FfmpegToolDownloadJobStatus.Queued);
+        Assert.Equal(2, (int)FfmpegToolDownloadJobStatus.Running);
+        Assert.Equal(3, (int)FfmpegToolDownloadJobStatus.Succeeded);
+        Assert.Equal(4, (int)FfmpegToolDownloadJobStatus.Failed);
+    }
+
+    /// <summary>
     /// <see cref="PairingCodeKind"/> is stored as a number in the <c>PairingCodes.Kind</c> column, so the members and their
     /// numeric values must not change silently. <see cref="PairingCodeKind.DeviceInitiated"/> is reserved for a
     /// direction that is not implemented yet.
@@ -78,6 +95,52 @@ public class EnumContractTests
         Assert.Equal(0, (int)PairingCodeKind.AdminCode);
         Assert.Equal(1, (int)PairingCodeKind.BootstrapTicket);
         Assert.Equal(2, (int)PairingCodeKind.DeviceInitiated);
+    }
+
+    /// <summary>
+    /// <see cref="ProgramRuleValidityMode"/> is stored as a number in the
+    /// <c>ProgramRules.ValidityMode</c> column and travels in backups, so the members and their
+    /// numeric values must not change silently.
+    /// </summary>
+    [Fact]
+    public void ProgramRuleValidityMode_HasTheStoredNumericValues()
+    {
+        Assert.Equal(
+            new[] { "Unrestricted", "OneTime", "AnnualWindow", "MonthlyWindow", "WeeklyWindow", "HolidayWindow" },
+            Enum.GetNames<ProgramRuleValidityMode>());
+        Assert.Equal(0, (int)ProgramRuleValidityMode.Unrestricted);
+        Assert.Equal(1, (int)ProgramRuleValidityMode.OneTime);
+        Assert.Equal(2, (int)ProgramRuleValidityMode.AnnualWindow);
+        Assert.Equal(3, (int)ProgramRuleValidityMode.MonthlyWindow);
+        Assert.Equal(4, (int)ProgramRuleValidityMode.WeeklyWindow);
+        Assert.Equal(5, (int)ProgramRuleValidityMode.HolidayWindow);
+    }
+
+    /// <summary>
+    /// <see cref="ProgramRuleHolidayAnchor"/> is stored as a number in the
+    /// <c>ProgramRules.ValidHolidayAnchor</c> column and travels in backups, so the members and
+    /// their numeric values must not change silently.
+    /// </summary>
+    [Fact]
+    public void ProgramRuleHolidayAnchor_HasTheStoredNumericValues()
+    {
+        Assert.Equal(
+            new[] { "NewYear", "GoodFriday", "EasterSunday", "EasterMonday", "AscensionDay",
+                "PentecostSunday", "PentecostMonday", "FirstAdvent", "ChristmasEve", "ChristmasDay",
+                "SecondChristmasDay", "NewYearsEve" },
+            Enum.GetNames<ProgramRuleHolidayAnchor>());
+        Assert.Equal(0, (int)ProgramRuleHolidayAnchor.NewYear);
+        Assert.Equal(1, (int)ProgramRuleHolidayAnchor.GoodFriday);
+        Assert.Equal(2, (int)ProgramRuleHolidayAnchor.EasterSunday);
+        Assert.Equal(3, (int)ProgramRuleHolidayAnchor.EasterMonday);
+        Assert.Equal(4, (int)ProgramRuleHolidayAnchor.AscensionDay);
+        Assert.Equal(5, (int)ProgramRuleHolidayAnchor.PentecostSunday);
+        Assert.Equal(6, (int)ProgramRuleHolidayAnchor.PentecostMonday);
+        Assert.Equal(7, (int)ProgramRuleHolidayAnchor.FirstAdvent);
+        Assert.Equal(8, (int)ProgramRuleHolidayAnchor.ChristmasEve);
+        Assert.Equal(9, (int)ProgramRuleHolidayAnchor.ChristmasDay);
+        Assert.Equal(10, (int)ProgramRuleHolidayAnchor.SecondChristmasDay);
+        Assert.Equal(11, (int)ProgramRuleHolidayAnchor.NewYearsEve);
     }
 
     private static (string Name, object Value)[] Members(Type enumType)

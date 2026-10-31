@@ -41,7 +41,7 @@ public sealed class DiscoveryBaseUrlResolverTests
             await db.Database.EnsureCreatedAsync(ct);
             await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>()
                 .UpdateGeneralSettingsAsync(
-                    new GeneralSettingsUpdate("Titel", 60, 7, 30, true, "https://videos.example.com/videoplayer/"),
+                    new GeneralSettingsUpdate("Titel", 60, 7, 30, true, "https://videos.example.com/videoplayer/", true),
                     ct);
         }
 

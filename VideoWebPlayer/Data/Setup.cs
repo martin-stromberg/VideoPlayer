@@ -68,4 +68,114 @@ public class Setup
     /// <c>null</c> means it has never run.
     /// </summary>
     public DateTime? PlaylistBackfillLastSweepAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the admin release switch for the automated TV channel (feature flag):
+    /// only when enabled do the navigation entry, the <c>/live-tv</c> and
+    /// <c>/admin/tv-sender</c> pages, the <c>/api/program-guide</c>, <c>/api/live-stream</c>
+    /// and internal <c>/api/internal/media-stream</c> endpoints serve content, and the
+    /// schedule/stream/probe workers run. Default: <see langword="false"/> — the feature
+    /// stays hidden until an administrator explicitly enables it.
+    /// </summary>
+    public bool TvSenderEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the German federal state (ISO-3166-2 code like <c>DE-NW</c>) whose public
+    /// holidays the automated TV channel's holiday rules (<c>ProgramRuleRecurrence.Holiday</c>)
+    /// follow. <c>null</c> means only holidays valid in all of Germany apply.
+    /// </summary>
+    public string? HolidayFederalState { get; set; }
+
+    /// <summary>
+    /// Gets or sets the schedule horizon in hours the automated TV channel plans ahead.
+    /// Default: 48 hours.
+    /// </summary>
+    public int ProgramScheduleHorizonHours { get; set; } = 48;
+
+    /// <summary>
+    /// Gets or sets the interval (in minutes) at which the schedule worker extends the
+    /// program schedule. Default: 15 minutes.
+    /// </summary>
+    public int ProgramScheduleIntervalMinutes { get; set; } = 15;
+
+    /// <summary>
+    /// Gets or sets the content spectrum of the program schedule:
+    /// <see cref="VideoWebPlayer.Data.ProgramScheduleContentScope.SharedOnly"/> plans only
+    /// contents released for the whole non-admin audience (default — the restrictive variant
+    /// legacy backups restore to), <see cref="VideoWebPlayer.Data.ProgramScheduleContentScope.AllContent"/>
+    /// plans every content the rules expand to and ignores the viewer release check entirely.
+    /// </summary>
+    public VideoWebPlayer.Data.ProgramScheduleContentScope ProgramScheduleContentScope { get; set; } = VideoWebPlayer.Data.ProgramScheduleContentScope.SharedOnly;
+
+    /// <summary>
+    /// Gets or sets the earliest local air time of the FSK-12 window of the program
+    /// schedule's youth-protection scheme: titles with a normalized minimum age of 12–15
+    /// (<see cref="VideoWebPlayer.Data.IAgeRated.AgeRatingMinAge"/>) may only start airing at
+    /// or after this local time (until <see cref="ProgramScheduleAgeWindowNightEndLocal"/>).
+    /// Default: 20:00.
+    /// </summary>
+    public TimeOnly ProgramScheduleAgeWindow12Local { get; set; } = new(20, 0);
+
+    /// <summary>
+    /// Gets or sets the earliest local air time of the FSK-16 window: titles with a minimum
+    /// age of 16–17 may only start airing at or after this local time. Default: 22:00.
+    /// </summary>
+    public TimeOnly ProgramScheduleAgeWindow16Local { get; set; } = new(22, 0);
+
+    /// <summary>
+    /// Gets or sets the earliest local air time of the FSK-18 window: titles with a minimum
+    /// age of 18 or more (and — depending on
+    /// <see cref="ProgramScheduleUnknownRatingMode"/> — unrated material) may only start
+    /// airing at or after this local time. Default: 23:00.
+    /// </summary>
+    public TimeOnly ProgramScheduleAgeWindow18Local { get; set; } = new(23, 0);
+
+    /// <summary>
+    /// Gets or sets the common end of all night windows: rated material airs freely again
+    /// before this local time. Must lie before
+    /// <see cref="ProgramScheduleAgeWindow12Local"/> so the night window is unambiguous.
+    /// Default: 06:00.
+    /// </summary>
+    public TimeOnly ProgramScheduleAgeWindowNightEndLocal { get; set; } = new(6, 0);
+
+    /// <summary>
+    /// Gets or sets how the program schedule treats material without a known age rating
+    /// (<see cref="VideoWebPlayer.Data.IAgeRated.AgeRatingMinAge"/> is <see langword="null"/> —
+    /// including clips, trailers and fillers that carry no rating at all):
+    /// <see cref="VideoWebPlayer.Data.ProgramScheduleUnknownRatingMode.RestrictToNightWindow"/>
+    /// restricts it to the FSK-18 night window (default — the restrictive variant legacy
+    /// backups restore to), <see cref="VideoWebPlayer.Data.ProgramScheduleUnknownRatingMode.Unrestricted"/>
+    /// lets it air at any time. Applies only to materialized schedule slots — the live
+    /// stream's standby clip (<see cref="LiveStreamStandbyMediaItemId"/>) is unaffected.
+    /// </summary>
+    public VideoWebPlayer.Data.ProgramScheduleUnknownRatingMode ProgramScheduleUnknownRatingMode { get; set; } = VideoWebPlayer.Data.ProgramScheduleUnknownRatingMode.RestrictToNightWindow;
+
+    /// <summary>
+    /// Gets or sets the target HLS segment length in seconds the live stream is
+    /// segmented with. Default: 6 seconds.
+    /// </summary>
+    public int LiveStreamSegmentLengthSeconds { get; set; } = 6;
+
+    /// <summary>
+    /// Gets or sets the directory the live stream's HLS segments and playlist are
+    /// written to. <c>null</c> or empty means the default directory
+    /// <c>Data/LiveStream</c> below the application's content root; a relative path
+    /// is resolved against the content root as well.
+    /// </summary>
+    public string? LiveStreamSegmentDirectory { get; set; }
+
+    /// <summary>
+    /// Gets or sets the number of minutes expired HLS segments are kept before the
+    /// automatic retention sweep removes them. Default: 30 minutes.
+    /// </summary>
+    public int LiveStreamSegmentRetentionMinutes { get; set; } = 30;
+
+    /// <summary>
+    /// Gets or sets the media item the live stream serves as standby clip while no real
+    /// playlist with a referenced segment exists (warm-up and all no-stream states).
+    /// <c>null</c> means the embedded default clip „Gleich geht's los!". Soft reference
+    /// without foreign key (same convention as <c>ProgramSlot.MediaItemId</c>): deleting
+    /// the media item does not reset the setting — the provider falls back to the default.
+    /// </summary>
+    public long? LiveStreamStandbyMediaItemId { get; set; }
 }

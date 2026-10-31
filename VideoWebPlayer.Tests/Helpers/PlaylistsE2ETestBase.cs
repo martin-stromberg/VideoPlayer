@@ -62,10 +62,23 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
                 {
                     services.Configure<HttpsRedirectionOptions>(options => options.HttpsPort = null);
                 });
+                ConfigureWebHostBuilder(builder);
             });
     }
 
-    public async ValueTask InitializeAsync()
+    /// <summary>
+    /// Erweiterungspunkt fuer abgeleitete E2E-Basisklassen: wird innerhalb des
+    /// <c>WithWebHostBuilder</c>-Callbacks aufgerufen (z. B. um <c>UseSetting</c>-Umbiegen oder
+    /// Dienst-Neuregistrierungen fuer einen bestimmten Szenario-Test vorzunehmen). Laeuft erst
+    /// beim Host-Start in <see cref="InitializeAsync"/> — abgeleitete Klassen koennen in ihrer
+    /// eigenen <c>InitializeAsync</c> zuerst Fixtures hochfahren und dann
+    /// <c>base.InitializeAsync()</c> aufrufen.
+    /// </summary>
+    protected virtual void ConfigureWebHostBuilder(IWebHostBuilder builder)
+    {
+    }
+
+    public virtual async ValueTask InitializeAsync()
     {
         _factory.UseKestrel();
         _factory.StartServer();
@@ -91,7 +104,7 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (Page is not null)
             await Page.CloseAsync();
@@ -176,7 +189,7 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// </remarks>
     /// <param name="interaction">The step to (re-)issue, e.g. typing into the live-search field.</param>
     /// <param name="waitForState">Waits for the state the step must produce.</param>
-    private static async Task DriveUntilStateAsync(Func<Task> interaction, Func<Task> waitForState)
+    protected static async Task DriveUntilStateAsync(Func<Task> interaction, Func<Task> waitForState)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(InteractionDeadlineMilliseconds);
         while (true)
@@ -826,8 +839,13 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         var user = await ResolveUserByEmailAsync(scope.ServiceProvider, userEmail);
         var sourceId = await EnsureMediaSourceIdAsync(db);
 
-        db.MediaSourceUsers.Add(new MediaSourceUser { UserId = user.Id, MediaSourceId = sourceId });
-        await db.SaveChangesAsync();
+        // Idempotent: MediaSourceUsers has a composite (MediaSourceId, UserId) primary key —
+        // a seed helper may have granted the access already.
+        if (!await db.MediaSourceUsers.AnyAsync(m => m.UserId == user.Id && m.MediaSourceId == sourceId))
+        {
+            db.MediaSourceUsers.Add(new MediaSourceUser { UserId = user.Id, MediaSourceId = sourceId });
+            await db.SaveChangesAsync();
+        }
     }
 
     /// <summary>
@@ -930,7 +948,9 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
             return (episode.Id, show.Id);
         });
 
-    private static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
+    /// <summary>Returns the id of an existing media source, creating the shared "E2E Test Source"
+    /// when the fixture database has none yet.</summary>
+    protected static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
     {
         var existing = await db.MediaSources.FirstOrDefaultAsync();
         if (existing is not null)

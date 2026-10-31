@@ -30,6 +30,12 @@
         /// Optional uploaded icon image (stored in `MediaSourceIcons` table).
         /// </summary>
         public long? IconPictureId { get; set; }
+        /// <summary>
+        /// Gets or sets a value indicating whether the source is hidden from the navigation menu.
+        /// The flag is purely cosmetic: the source stays fully usable for scanners, fillers and
+        /// clip groups, and direct navigation to it keeps working.
+        /// </summary>
+        public bool HiddenInMenu { get; set; }
     }
     /// <summary>
     /// The genres associated with the media of a single source.

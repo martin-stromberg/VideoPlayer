@@ -723,6 +723,119 @@ public sealed class VideoWebPlayerBackupDataTests
     }
 
     /// <summary>
+    /// A backup taken before <c>MediaItems.Duration</c>/<c>DurationProbedAt</c> existed must still
+    /// restore; the missing columns default to <c>null</c> (unprobed → re-probed by the worker).
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutDurationColumnsInMediaItems_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-duration-columns?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var source = new MediaSource
+        {
+            Name = "src",
+            Path = "/media",
+            SourceType = MediaSourceType.LocalDirectory,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(ct);
+
+        db.MediaCollections.Add(new MediaCollection
+        {
+            Name = "root",
+            Path = "/media",
+            CreatedAt = DateTime.UtcNow,
+            MediaSource = source,
+            MediaSourceId = source.Id
+        });
+        await db.SaveChangesAsync(ct);
+        var collection = await db.MediaCollections.SingleAsync(ct);
+
+        db.MediaItems.Add(new MediaItem
+        {
+            Name = "movie.mp4",
+            Path = "/media/movie.mp4",
+            CreatedAt = DateTime.UtcNow,
+            MediaCollectionId = collection.Id,
+            Duration = TimeSpan.FromMinutes(95),
+            DurationProbedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
+            backup, "MediaItems", new[] { "Duration", "DurationProbedAt" }, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        db.ChangeTracker.Clear();
+        var restoredItem = await db.MediaItems.SingleAsync(ct);
+        Assert.Null(restoredItem.Duration);
+        Assert.Null(restoredItem.DurationProbedAt);
+    }
+
+    /// <summary>
+    /// A backup taken before <c>MediaItems.DurationProbeAttempts</c> existed must still restore;
+    /// the missing column defaults to <c>0</c>, so previously failed items are probed again.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutDurationProbeAttemptsColumn_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-probeattempts-column?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var source = new MediaSource
+        {
+            Name = "src",
+            Path = "/media",
+            SourceType = MediaSourceType.LocalDirectory,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(ct);
+
+        db.MediaCollections.Add(new MediaCollection
+        {
+            Name = "root",
+            Path = "/media",
+            CreatedAt = DateTime.UtcNow,
+            MediaSource = source,
+            MediaSourceId = source.Id
+        });
+        await db.SaveChangesAsync(ct);
+        var collection = await db.MediaCollections.SingleAsync(ct);
+
+        db.MediaItems.Add(new MediaItem
+        {
+            Name = "movie.mp4",
+            Path = "/media/movie.mp4",
+            CreatedAt = DateTime.UtcNow,
+            MediaCollectionId = collection.Id,
+            DurationProbedAt = DateTime.UtcNow.AddDays(-1),
+            DurationProbeAttempts = 7
+        });
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
+            backup, "MediaItems", new[] { "DurationProbeAttempts" }, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        db.ChangeTracker.Clear();
+        var restoredItem = await db.MediaItems.SingleAsync(ct);
+        Assert.Equal(0, restoredItem.DurationProbeAttempts);
+    }
+
+    /// <summary>
     /// Backs up <paramref name="backup"/>'s current schema and rebuilds the archive with an old-style
     /// <c>Setups</c> table that lacks the <c>ContinueWatchingEndThresholdSeconds</c> column, simulating a
     /// backup taken before that column existed.
@@ -871,4 +984,185 @@ public sealed class VideoWebPlayerBackupDataTests
         Assert.Equal(MediaSourceType.Sftp, restored.SourceType);
     }
 
+
+    /// <summary>
+    /// Verifies that a backup taken before the TV channel tables (<c>TVChannels</c>, <c>ProgramRules</c>)
+    /// and the <c>Setups.HolidayFederalState</c> column existed can still be restored.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutTVChannelTablesAndHolidayFederalState_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-tvchannel-tables?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var channel = new TVChannel { Name = "TV-Sender" };
+        db.TVChannels.Add(channel);
+        await db.SaveChangesAsync(ct);
+        db.ProgramRules.Add(new ProgramRule
+        {
+            TVChannelId = channel.Id,
+            Name = "Abendserie",
+            RuleType = ProgramRuleType.SeriesFixedTime,
+            Recurrence = ProgramRuleRecurrence.Daily,
+            TimeOfDay = new TimeOnly(20, 0),
+            EpisodeCount = 1,
+            MaterialType = ProgramRuleMaterialType.TVShow,
+            MaterialId = 1
+        });
+        var setup = await db.Setups.FirstOrDefaultAsync(ct) ?? db.Setups.Add(new Setup()).Entity;
+        setup.HolidayFederalState = "DE-NW";
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "TVChannels", "ProgramRules" }, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        Assert.False(await db.TVChannels.AsNoTracking().AnyAsync(ct));
+        Assert.False(await db.ProgramRules.AsNoTracking().AnyAsync(ct));
+
+        using var legacyStream2 = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "Setups", new[] { "HolidayFederalState" }, ct);
+        var exception2 = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream2, ct));
+
+        Assert.Null(exception2);
+        Assert.Null((await db.Setups.AsNoTracking().FirstAsync(ct)).HolidayFederalState);
+    }
+
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutProgramScheduleTablesAndSettings_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-programschedule?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var channel = new TVChannel { Name = "TV-Sender" };
+        db.TVChannels.Add(channel);
+        await db.SaveChangesAsync(ct);
+        var rule = new ProgramRule
+        {
+            TVChannelId = channel.Id,
+            Name = "Füller",
+            RuleType = ProgramRuleType.Filler,
+            Recurrence = ProgramRuleRecurrence.Daily,
+            TimeOfDay = new TimeOnly(0, 0),
+            EpisodeCount = 1,
+            MaterialType = ProgramRuleMaterialType.Movie,
+            MaterialId = 1
+        };
+        db.ProgramRules.Add(rule);
+        await db.SaveChangesAsync(ct);
+        db.ProgramSlots.Add(new ProgramSlot
+        {
+            TVChannelId = channel.Id,
+            Start = new DateTime(2026, 10, 24, 18, 0, 0, DateTimeKind.Utc),
+            End = new DateTime(2026, 10, 24, 18, 30, 0, DateTimeKind.Utc),
+            MediaItemId = 1,
+            MovieId = 1,
+            ProgramRuleId = rule.Id,
+            RuleType = ProgramRuleType.Filler
+        });
+        db.ProgramRuleCursors.Add(new ProgramRuleCursor
+        {
+            ProgramRuleId = rule.Id,
+            LastContentType = ProgramCursorContentType.Movie,
+            LastContentId = 1
+        });
+        var setup = await db.Setups.FirstOrDefaultAsync(ct) ?? db.Setups.Add(new Setup()).Entity;
+        setup.ProgramScheduleHorizonHours = 72;
+        setup.ProgramScheduleIntervalMinutes = 30;
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "ProgramSlots", "ProgramRuleCursors" }, ct);
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        Assert.False(await db.ProgramSlots.AsNoTracking().AnyAsync(ct));
+        Assert.False(await db.ProgramRuleCursors.AsNoTracking().AnyAsync(ct));
+
+        using var legacyStream2 = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
+            backup, "Setups", new[] { "ProgramScheduleHorizonHours", "ProgramScheduleIntervalMinutes" }, ct);
+        var exception2 = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream2, ct));
+
+        Assert.Null(exception2);
+        var restored = await db.Setups.AsNoTracking().FirstAsync(ct);
+        Assert.Equal(48, restored.ProgramScheduleHorizonHours);
+        Assert.Equal(15, restored.ProgramScheduleIntervalMinutes);
+    }
+
+    /// <summary>
+    /// A backup taken before <c>ProgramSlots.Status</c> existed must still restore; the missing
+    /// column defaults to <see cref="ProgramSlotStatus.Scheduled"/>.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutProgramSlotStatus_RestoresWithScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-slotstatus-column?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var channel = new TVChannel { Name = "TV-Sender" };
+        db.TVChannels.Add(channel);
+        await db.SaveChangesAsync(ct);
+        db.ProgramSlots.Add(new ProgramSlot
+        {
+            TVChannelId = channel.Id,
+            Start = new DateTime(2026, 10, 24, 18, 0, 0, DateTimeKind.Utc),
+            End = new DateTime(2026, 10, 24, 18, 30, 0, DateTimeKind.Utc),
+            MediaItemId = 1,
+            MovieId = 1,
+            RuleType = ProgramRuleType.Filler,
+            Status = ProgramSlotStatus.Displaced
+        });
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
+            backup, "ProgramSlots", new[] { "Status" }, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        db.ChangeTracker.Clear();
+        var restoredSlot = await db.ProgramSlots.AsNoTracking().SingleAsync(ct);
+        Assert.Equal(ProgramSlotStatus.Scheduled, restoredSlot.Status);
+    }
+
+    /// <summary>
+    /// Verifies that a backup taken before the live stream settings columns
+    /// (<c>Setups.LiveStreamSegment*</c>) existed can still be restored — the columns are
+    /// registered as optional restore columns with defaults.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutLiveStreamSettings_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-livestream-settings?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var setup = await db.Setups.FirstOrDefaultAsync(ct) ?? db.Setups.Add(new Setup()).Entity;
+        setup.LiveStreamSegmentLengthSeconds = 12;
+        setup.LiveStreamSegmentDirectory = "/tmp/segs";
+        setup.LiveStreamSegmentRetentionMinutes = 60;
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "Setups",
+            new[] { "LiveStreamSegmentLengthSeconds", "LiveStreamSegmentDirectory", "LiveStreamSegmentRetentionMinutes" }, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        db.ChangeTracker.Clear();
+        var restored = await db.Setups.AsNoTracking().FirstAsync(ct);
+        Assert.Equal(6, restored.LiveStreamSegmentLengthSeconds);
+        Assert.Null(restored.LiveStreamSegmentDirectory);
+        Assert.Equal(30, restored.LiveStreamSegmentRetentionMinutes);
+    }
 }

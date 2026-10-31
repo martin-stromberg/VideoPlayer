@@ -345,6 +345,202 @@ public sealed class MediaMetadataEditorServiceTests
         Assert.Equal("New Movie", (await db.Movies.SingleAsync(m => m.Id == 70, TestContext.Current.CancellationToken)).Name);
     }
 
+    [Fact]
+    public async Task UpdateMovieAsync_SetsAgeRating()
+    {
+        await using var db = CreateDb();
+        db.Movies.Add(new Movie { Id = 80, MediaSourceId = 1, Name = "Movie", CreatedAt = DateTime.UtcNow });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await new MediaMetadataEditorService(db).UpdateAsync(new MediaMetadataUpdateRequest
+        {
+            ObjectType = "movie",
+            Id = 80,
+            Name = "Movie",
+            AgeRating = "FSK 12",
+        }, TestContext.Current.CancellationToken);
+
+        var movie = await db.Movies.SingleAsync(m => m.Id == 80, TestContext.Current.CancellationToken);
+        Assert.Equal("FSK 12", movie.AgeRatingRaw);
+        Assert.Equal("FSK 12", movie.AgeRating);
+        Assert.Equal(12, movie.AgeRatingMinAge);
+        Assert.True(movie.IsManuallyEdited);
+    }
+
+    [Fact]
+    public async Task UpdateTVShowAsync_SetsAgeRating()
+    {
+        await using var db = CreateDb();
+        db.TVShows.Add(new TVShow { Id = 81, MediaSourceId = 1, Name = "Show", CreatedAt = DateTime.UtcNow });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await new MediaMetadataEditorService(db).UpdateAsync(new MediaMetadataUpdateRequest
+        {
+            ObjectType = "tvshow",
+            Id = 81,
+            Name = "Show",
+            AgeRating = "PG-13",
+        }, TestContext.Current.CancellationToken);
+
+        var show = await db.TVShows.SingleAsync(s => s.Id == 81, TestContext.Current.CancellationToken);
+        Assert.Equal("PG-13", show.AgeRatingRaw);
+        Assert.Equal("PG-13", show.AgeRating);
+        Assert.Equal(13, show.AgeRatingMinAge);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ClearsAgeRating()
+    {
+        await using var db = CreateDb();
+        db.Movies.Add(new Movie
+        {
+            Id = 82,
+            MediaSourceId = 1,
+            Name = "Movie",
+            CreatedAt = DateTime.UtcNow,
+            AgeRating = "FSK 18",
+            AgeRatingRaw = "FSK 18",
+            AgeRatingMinAge = 18,
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await new MediaMetadataEditorService(db).UpdateAsync(new MediaMetadataUpdateRequest
+        {
+            ObjectType = "movie",
+            Id = 82,
+            Name = "Movie",
+            AgeRating = "",
+        }, TestContext.Current.CancellationToken);
+
+        var movie = await db.Movies.SingleAsync(m => m.Id == 82, TestContext.Current.CancellationToken);
+        Assert.Null(movie.AgeRating);
+        Assert.Null(movie.AgeRatingRaw);
+        Assert.Null(movie.AgeRatingMinAge);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RejectsUnknownAgeRating()
+    {
+        await using var db = CreateDb();
+        db.Movies.Add(new Movie { Id = 1, MediaSourceId = 1, Name = "Movie", CreatedAt = DateTime.UtcNow });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = new MediaMetadataEditorService(db);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateAsync(new MediaMetadataUpdateRequest
+        {
+            ObjectType = "movie",
+            Id = 1,
+            Name = "Movie",
+            AgeRating = "Unbekannter Wert",
+        }, TestContext.Current.CancellationToken));
+
+        Assert.Contains("Altersfreigabe", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateMovieAsync_PreservesNonCanonicalStoredAgeRating()
+    {
+        await using var db = CreateDb();
+        db.Movies.Add(new Movie
+        {
+            Id = 83,
+            MediaSourceId = 1,
+            Name = "Movie",
+            CreatedAt = DateTime.UtcNow,
+            AgeRating = "TV-MA",
+            AgeRatingRaw = "TV-MA",
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await new MediaMetadataEditorService(db).UpdateAsync(new MediaMetadataUpdateRequest
+        {
+            ObjectType = "movie",
+            Id = 83,
+            Name = "Movie (neu)",
+            AgeRating = "TV-MA",
+        }, TestContext.Current.CancellationToken);
+
+        var movie = await db.Movies.SingleAsync(m => m.Id == 83, TestContext.Current.CancellationToken);
+        Assert.Equal("Movie (neu)", movie.Name);
+        Assert.Equal("TV-MA", movie.AgeRating);
+        Assert.Equal("TV-MA", movie.AgeRatingRaw);
+        Assert.Null(movie.AgeRatingMinAge);
+    }
+
+    [Fact]
+    public async Task UpdateTVShowAsync_PreservesNonCanonicalStoredAgeRating()
+    {
+        await using var db = CreateDb();
+        db.TVShows.Add(new TVShow
+        {
+            Id = 84,
+            MediaSourceId = 1,
+            Name = "Show",
+            CreatedAt = DateTime.UtcNow,
+            AgeRating = "TV-14",
+            AgeRatingRaw = "US:TV-14",
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await new MediaMetadataEditorService(db).UpdateAsync(new MediaMetadataUpdateRequest
+        {
+            ObjectType = "tvshow",
+            Id = 84,
+            Name = "Show",
+            AgeRating = "TV-14",
+        }, TestContext.Current.CancellationToken);
+
+        var show = await db.TVShows.SingleAsync(s => s.Id == 84, TestContext.Current.CancellationToken);
+        Assert.Equal("TV-14", show.AgeRating);
+        Assert.Equal("TV-14", show.AgeRatingRaw);
+        Assert.Null(show.AgeRatingMinAge);
+    }
+
+    [Fact]
+    public async Task UpdateMovieAsync_RejectsDifferentNonCanonicalAgeRating()
+    {
+        await using var db = CreateDb();
+        db.Movies.Add(new Movie
+        {
+            Id = 85,
+            MediaSourceId = 1,
+            Name = "Movie",
+            CreatedAt = DateTime.UtcNow,
+            AgeRating = "TV-MA",
+            AgeRatingRaw = "TV-MA",
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var service = new MediaMetadataEditorService(db);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateAsync(new MediaMetadataUpdateRequest
+        {
+            ObjectType = "movie",
+            Id = 85,
+            Name = "Movie",
+            AgeRating = "TV-14",
+        }, TestContext.Current.CancellationToken));
+
+        Assert.Contains("Altersfreigabe", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("moviecollection")]
+    [InlineData("tvshowseason")]
+    [InlineData("tvshowepisode")]
+    public async Task UpdateAsync_RejectsAgeRatingForUnsupportedTypes(string objectType)
+    {
+        await using var db = CreateDb();
+        var service = new MediaMetadataEditorService(db);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateAsync(new MediaMetadataUpdateRequest
+        {
+            ObjectType = objectType,
+            Id = 1,
+            Name = "Entry",
+            AgeRating = "FSK 12",
+        }, TestContext.Current.CancellationToken));
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

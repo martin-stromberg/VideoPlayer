@@ -1,0 +1,15 @@
+# Tasks: InternalMediaStreamController an das TV-Sender-Feature-Flag binden (Issue #259)
+
+| # | Bereich | Aufgabe | Status | Testnachweis |
+|---|---------|---------|--------|--------------|
+| 1 | Entscheidung | Anwender-Entscheidung Variante A (Flag-Gate → 404) oder Variante B (bewusste Ausnahme + Kommentar) einholen — **entschieden: Variante A** | Fertig | Kein direkter Test |
+| 2 | Logik | `ProgramSettingsService` per Konstruktor in `InternalMediaStreamController` injizieren (`settings`-Parameter, `_settings`-Feld, XML-Doc; Vorbild `LiveStreamController` Z. 33) | Fertig | `InternalMediaStreamControllerTests.Stream_FeatureDisabled_ValidToken_Returns404` (ohne die Injektion kompiliert das Gate nicht) |
+| 3 | Logik | Flag-Check in `Stream(...)`: `await _settings.GetTvSenderEnabledAsync(HttpContext.RequestAborted)` als erste Aktion vor dem Token-Resolve → `NotFound()` bei `false`, mit Begründungskommentar (Feature unsichtbar, Vorbild `ProgramGuideController` Z. 37–38) | Fertig | `InternalMediaStreamControllerTests.Stream_FeatureDisabled_ValidToken_Returns404` |
+| 4 | Dokumentation | Klassen-Kommentar `InternalMediaStreamController` (Z. 8–17) ergänzen: Segmentierer-Pfad (`TryCreateStreamUri`, lange Token-Lebensdauer) nennen und die Flag-Bindung festhalten (Endpunkt folgt dem globalen Schalter wie die übrigen TV-Sender-Endpunkte) | Fertig | Kein direkter Test |
+| 5 | Dokumentation | XML-Kommentar `Setup.TvSenderEnabled` (`Data/Setup.cs` Z. 80) angleichen: interner Media-Stream-Endpunkt in die Liste der abgedeckten Komponenten aufnehmen | Fertig | Kein direkter Test |
+| 6 | Tests | Hilfsmethode `SetTvSenderEnabledAsync(bool)` in `InternalMediaStreamControllerTests` anlegen und in `IssueProbeUriAsync` mit `true` aufrufen | Fertig | `InternalMediaStreamControllerTests.Stream_ValidToken_ReturnsFile` (ohne Flag-Seed 404 statt 200) |
+| 7 | Tests | Regressionstest `Stream_FeatureDisabled_ValidToken_Returns404` in `InternalMediaStreamControllerTests` (Flag aus + gültiges Token → 404) | Fertig | `InternalMediaStreamControllerTests.Stream_FeatureDisabled_ValidToken_Returns404` |
+| 8 | Tests | `MediaProbeHttpIntegrationTests` (`Category=E2E`): `TvSenderEnabled = true` in der Test-DB seeden (`SeedMediaItemAsync` bzw. `InitializeAsync`), damit Kestrel-Tests weiterhin 200/206 erhalten | Fertig | `MediaProbeHttpIntegrationTests.InternalStream_RangeRequest_ReturnsPartialContent`, `MediaProbeHttpIntegrationTests.HttpProbe_RangeEndpoint_ReturnsDuration` |
+| 9 | Dokumentation | Eintrag in `docs/RELEASE_NOTES.md` (englischer + deutscher Abschnitt) | Fertig | Kein direkter Test |
+| 10 | Dokumentation | `docs/help/tv-sender.md` Z. 15 („Ohne Freigabe antworten die Endpunkte mit 404") gegen den finalen Stand prüfen und ggf. präzisieren | Fertig | Kein direkter Test |
+| 11 | Regression | `dotnet build VideoPlayer.sln` in Debug und Release fehlerfrei; volle Suite `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj` grün | Fertig | Suite-Lauf: 2247 erfolgreich, 0 fehlgeschlagen, 1 übersprungen (bekannter Alt-Skip) |

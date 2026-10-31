@@ -2,13 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml.Linq;
+using VideoWebPlayer.Utils;
 
 namespace VideoWebPlayer.Data
 {
     /// <summary>
     /// Represents a movie entry and its metadata.
     /// </summary>
-    public class Movie : MediaBaseEntry
+    public class Movie : MediaBaseEntry, IAgeRated
     {
         /// <summary>
         /// Gets or sets the owning movie collection identifier.
@@ -56,6 +57,23 @@ namespace VideoWebPlayer.Data
         public string? Plot { get; set; }
 
         /// <summary>
+        /// Gets or sets the normalized age rating for display (e.g. "FSK 12" or "PG-13").
+        /// </summary>
+        public string? AgeRating { get; set; }
+        /// <summary>
+        /// Gets or sets the unmodified age rating source value (e.g. "Rated PG-13" or "DE:16").
+        /// </summary>
+        public string? AgeRatingRaw { get; set; }
+        /// <summary>
+        /// Gets or sets the comparable minimum age derived from the rating, if known.
+        /// </summary>
+        public int? AgeRatingMinAge { get; set; }
+        /// <summary>
+        /// Gets or sets a value indicating when (or whether) the age rating has been classified for this movie.
+        /// </summary>
+        public DateTime? AgeRatingClassifiedAt { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating when (or whether) actor metadata has been classified for this movie.
         /// </summary>
         public DateTime? ActorsClassifiedAt { get; set; }
@@ -100,6 +118,11 @@ namespace VideoWebPlayer.Data
             Director = xml.Element("director")?.Value;
             Credits = string.Join(",", xml.Elements("credits").Select(c => c.Value));
             Plot = xml.Element("plot")?.Value;
+
+            var (ageRatingRaw, ageRating) = AgeRatingNormalizer.ExtractFromXml(xml);
+            AgeRatingRaw = ageRatingRaw;
+            AgeRating = ageRating.DisplayValue;
+            AgeRatingMinAge = ageRating.MinAge;
         }
     }
 }

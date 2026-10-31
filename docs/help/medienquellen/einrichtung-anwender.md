@@ -17,6 +17,7 @@ Administratoren legen Medienquellen an und pflegen sie. Je nach Speicherort der 
 | `Pfad` | Startverzeichnis auf dem SFTP-Server (nur bei `SFTP-Server`). |
 | `Lokales Verzeichnis` | Absoluter Verzeichnispfad auf dem Server (nur bei `Lokales Verzeichnis`), z. B. `D:\Videos` oder `\\server\share`. |
 | `Benutzername` / `Passwort` | Zugangsdaten für den SFTP-Server (nur bei `SFTP-Server`). |
+| `Im Menü ausblenden` | Unterdrückt den Eintrag der Quelle im Navigationsmenü für alle Benutzer. Gedacht für reine Clip-/Füller-Quellen: Die Quelle bleibt für Scanner, Füller-Regeln und Clip-Gruppen nutzbar und ist weiterhin direkt über ihre Adresse erreichbar. |
 | `Freigegebene Benutzer` | Benutzer, denen die Inhalte dieser Quelle angezeigt werden. |
 
 ## Vorgehen
@@ -37,3 +38,4 @@ Administratoren legen Medienquellen an und pflegen sie. Je nach Speicherort der 
 - Bei `Lokales Verzeichnis` prüft die Anwendung beim Speichern, ob der Pfad absolut ist, das Verzeichnis existiert und lesbar ist. Der Pfad gilt aus Sicht des Servers, nicht des eigenen Rechners — ein Pfad wie `C:\Videos` muss auf dem Server existieren.
 - UNC-Pfade (`\\server\share`) sind erlaubt; der Serverprozess benötigt lesenden Zugriff auf die Freigabe.
 - Über `Scan zurücksetzen` in der Übersicht kann das Einlesen einer einzelnen Quelle erneut angestoßen werden; `Löschen` entfernt die Quelle mitsamt aller eingelesenen Inhalte.
+- Altersfreigaben werden beim Einlesen automatisch aus den Informationsdateien (NFO) der Titel übernommen. Eine optionale Online-Ergänzung fehlender Angaben richtet der Betreiber in der Serverkonfiguration ein — dafür gibt es keinen Schalter in der Oberfläche.

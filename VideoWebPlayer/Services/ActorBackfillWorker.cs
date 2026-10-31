@@ -35,11 +35,28 @@ namespace VideoWebPlayer.Services
                 var gate = scope.ServiceProvider.GetService<IBackgroundProcessingGate>();
 
                 await using var processingLease = gate is null ? null : await gate.EnterOperationAsync("ActorBackfill", stoppingToken);
-                await classifier.BackfillMissingActorsAsync(stoppingToken);
+
+                try
+                {
+                    await classifier.BackfillMissingActorsAsync(stoppingToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "[ActorBackfillWorker] Fehler bei der Nacherfassung der Schauspieler.");
+                }
+
+                try
+                {
+                    await classifier.BackfillMissingAgeRatingsAsync(stoppingToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "[ActorBackfillWorker] Fehler bei der Nacherfassung der Altersfreigaben.");
+                }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogError(ex, "[ActorBackfillWorker] Fehler bei der Nacherfassung der Schauspieler.");
+                _logger.LogError(ex, "[ActorBackfillWorker] Fehler bei der Nacherfassung.");
             }
 
             _logger.LogInformation("[ActorBackfillWorker] Finished; idling.");

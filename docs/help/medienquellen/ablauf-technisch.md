@@ -15,8 +15,10 @@ Der gesamte Dateizugriff auf Medienquellen läuft über die Abstraktion `IMediaS
 Beteiligte Komponenten:
 - `MediaSourceAdminDetails.Save` — ruft bei `LocalDirectory` zuerst `TryValidateLocalDirectory` auf, neutralisiert danach die SFTP-Felder (`Host = string.Empty`, `Port = 0`, `Username`/`Password = null`, da `Host` non-nullable ist) und persistiert über `ApplicationDbContext.AddMediaSourceAsync` bzw. `UpdateMediaSourceAsync`.
 - `MediaSourceAdminDetails.TryValidateLocalDirectory` — prüft `Path.IsPathRooted`, `Path.GetFullPath`, `Directory.Exists` und einen Testzugriff per `Directory.EnumerateFileSystemEntries`; liefert differenzierte Fehlertexte.
-- `MediaSourceExtensions.Update` — kopiert `SourceType` beim Update mit.
+- `MediaSourceExtensions.Update` — kopiert `SourceType` und `HiddenInMenu` beim Update mit.
 - `MediaSourceAdmin.razor` — Übersicht mit `Typ`-Spalte (`Lokal`/`SFTP`); SFTP-Spalten zeigen bei lokalen Quellen `—`.
+
+Zusätzlich bindet das Formular die Checkbox `Im Menü ausblenden` (`InputCheckbox` mit `form-check`-Markup und `form-text`-Hilfetext) an `editSource.HiddenInMenu`. Da `OnInitializedAsync` die Felder einzeln in die `editSource`-Kopie überträgt, wird `HiddenInMenu` dort explizit mitkopiert — sonst zeigte die Checkbox beim Bearbeiten stets `false`. Bei Neu-Anlage gilt der CLR-Default `false`.
 
 ### 2. Scan einer Quelle
 
@@ -32,13 +34,39 @@ Beteiligte Komponenten:
 
 - `LocalMediaSourceReader.ResolveFilePath` — löst Dateiangaben (auch relative Unterpfade wie `.actors/Name.jpg` aus NFO-`<thumb>`-Elementen) per `Path.GetFullPath(Path.Combine(collection.Path, fileName))` auf und prüft, dass das Ergebnis innerhalb des normalisierten Quell-Roots (`MediaSource.Path`) liegt. Die Pfadsegmente werden case-insensitiv (`OrdinalIgnoreCase`) über Verzeichnis-Enumeration aufgelöst; `ReparsePoint`-Einträge und Verzeichnisse als Endziel werden abgelehnt. Bei jeder Verletzung wird `null` zurückgegeben — die Datei gilt als nicht vorhanden.
 
-### 4. Streaming und Download
+#### Altersfreigaben
+
+- `Movie.LoadFromXml`/`TVShow.LoadFromXml` werten über `AgeRatingNormalizer.ExtractFromXml` das NFO-Element `<mpaa>` (primär) bzw. `<certification>` (Fallback) aus: Der Elementwert landet unverändert in `AgeRatingRaw`, `AgeRating`/`AgeRatingMinAge` werden aus `AgeRatingNormalizer.Normalize` gesetzt. Fehlt das Element, bleiben alle drei Felder `null`.
+- Nach `LoadFromXml` (Neuanlage und Update — beide nur bei `!IsManuallyEdited`) setzt der Classifier `AgeRatingClassifiedAt = DateTime.UtcNow` (Muster `ActorsClassifiedAt`).
+- Ist danach `AgeRatingRaw == null` (keine NFO-Angabe), ruft `MediaSourceClassifier.TryApplyOnlineAgeRatingAsync` den optionalen `ITmdbAgeRatingService` auf: `ExtractTmdbId` liefert die TMDB-ID aus `uniqueid[@type='tmdb']`/`<tmdbid>` (direkter Lookup), sonst Titelsuche mit `Year`/`PremieredAt`-Jahr. Das Ergebnis wird als „{Land}:{Certification}" (z. B. „DE:16") in `AgeRatingRaw` geschrieben und normalisiert. NFO-Angaben haben damit immer Vorrang vor der Online-Quelle.
+- `TmdbAgeRatingService` (Singleton, named `HttpClient` „Tmdb") fragt für Filme `release_dates` und für Serien `content_ratings` ab und wählt die Länderfreigabe `TmdbOptions.PreferredCountry` (Default „DE") → „US" → erste Angabe. Deaktiviert/kein `ApiKey`/HTTP-Fehler/Timeout/Parsefehler ⇒ `null` + `LogDebug`/`LogWarning` — der Scan wird nicht behindert.
+- `ProcessEpisodesForTVShowAsync` bleibt unverändert: Episoden und Staffeln tragen keine eigenen Freigabefelder; die Detailansicht zeigt die Serienfreigabe (Anzeige-Vererbung).
+
+### 4. Nacherfassung der Altersfreigaben (Backfill)
+
+`ActorBackfillWorker.ExecuteAsync` ruft nach `BackfillMissingActorsAsync` zusätzlich `MediaSourceClassifier.BackfillMissingAgeRatingsAsync` auf (gleiche `IBackgroundProcessingGate`-Lease, eigener try/catch-Block; der Worker-Name bleibt aus Kompatibilitätsgründen unverändert).
+
+- Kandidaten: `Movies`/`TVShows` mit `AgeRatingClassifiedAt == null`; `IsManuallyEdited`-Einträge werden übersprungen.
+- Filme: erstes Nicht-Trailer-`MediaItem` über `MovieMediaItems` (`!IsTrailer`); NFO-Kandidaten `<name>.nfo` und `movie.nfo` werden über `TryReadNfoAsync` gelesen (aus `TryReadActorNfoAsync` extrahierter Collection-Walk mit Parent-Aufstieg).
+- Serien: `tvshow.nfo` über `TryReadNfoAsync` ab der `CollectionId`-Collection.
+- Pro Eintrag: XML parsen → `LoadFromXml` (Normalisierung) → bei fehlendem Wert Online-Fallback → `AgeRatingClassifiedAt` setzen → `SaveChangesAsync`. Fehler pro Eintrag werden gefangen und mit `DiscardPendingChanges` verworfen; ungültige NFO-XML führt zum Online-Fallback statt zum Abbruch.
+
+### 5. Streaming und Download
 
 `ItemsController.StreamMediaItem` ermittelt `fileName = Path.GetFileName(mediaItem.Path)` und ruft `_reader.OpenFileStream(mediaCollection, fileName)`.
 
 - `LocalMediaSourceReader.OpenFileStream` — liefert nach erfolgreicher `ResolveFilePath`-Prüfung einen `FileStream` (`FileMode.Open`, `FileAccess.Read`, `FileShare.Read`); `null` bei fehlender Datei oder Root-Verletzung.
 - `SftpMediaSourceReader.OpenFileStream` — früher `GetSftpFileStream`; Rückgabetyp verallgemeinert auf `Stream?`, intern weiterhin `SftpStreamWrapper`.
 - `File(stream, contentType, enableRangeProcessing: true)` und `Download` sind unverändert; `FileStream` ist seekbar und damit range-fähig.
+
+### 6. Menüeintrag-Filterung (`HiddenInMenu`)
+
+`NavMenu.razor` befüllt `mediaSources` in `OnInitializedAsync` über `Client.RequestSourcesAsync()` (`GET /api/Sources` → `SourcesController.GetSources`, liefert die freigegebenen Quellen als `DtoMediaSource[]` inkl. `HiddenInMenu` per `ApiBaseController.Create<T>`-Reflection). Beim Zuweisen wird gefiltert: `mediaSources = (await Client.RequestSourcesAsync()).Where(s => !s.HiddenInMenu).ToList()`.
+
+- Die Sektionsbedingung `mediaSources.Any()` und die `foreach`-Liste der `NavLink`s auf `/mediasource/{id}` arbeiten auf der gefilterten Menge — die Überschrift „Quellen" verschwindet automatisch, wenn alle freigegebenen Quellen versteckt sind.
+- Die Filterung ist bewusst clientseitig und gilt für Administratoren wie Anwender gleichermaßen (`GetSources` unterscheidet nicht nach Rolle). Die API-Liste bleibt vollständig, damit externe Konsumenten das `DtoMediaSource.HiddenInMenu`-Flag selbst auswerten können.
+- `NavMenu` befüllt `mediaSources` nur in `OnInitializedAsync` — eine Flag-Änderung wirkt bei bereits angemeldeten Clients erst beim nächsten Laden (Bestandsverhalten wie bei Quell-Umbenennungen).
+- `TVSenderAdmin.razor`, `TVSenderAdminClipGroups.razor`, `ProgramClipGroupService`, `ProgramScheduleService` und der Scanner lesen `MediaSource` direkt über den `DbContext` und sehen versteckte Quellen weiterhin vollständig — das Merkmal ist rein kosmetisch.
 
 ## Diagramm
 
@@ -62,3 +90,5 @@ flowchart TD
 - `LocalMediaSourceReader` fängt `IOException`, `UnauthorizedAccessException`, `ArgumentException` und `NotSupportedException` beim Attribut-/Pfadzugriff und beim Enumerieren ab → Eintrag wird übersprungen bzw. `null`/`false` geliefert, kein Exception-Durchstich.
 - `MediaSourceAdminDetails.TryValidateLocalDirectory` bildet ungültige Pfade, fehlende Verzeichnisse und Zugriffsfehler auf jeweils eigene Meldungen ab.
 - `ItemsController.StreamMediaItem` liefert `NotFound`, wenn `OpenFileStream` `null` zurückgibt (fehlende Datei, Traversal-Versuch, Reparse Point).
+- `TmdbAgeRatingService` und `TryApplyOnlineAgeRatingAsync` fangen alle Fehler der Online-Abfrage (HTTP-Status, Timeout, `HttpRequestException`, Parsefehler) ab und liefern `null` — das Freigabefeld bleibt leer, der Scan läuft ohne Exception-Pfad weiter.
+- `BackfillMissingAgeRatingsAsync` fängt Fehler pro Eintrag ab (`LogWarning` + `DiscardPendingChanges`); ein fehlerhafter Eintrag stoppt die Nacherfassung der übrigen nicht.

@@ -562,7 +562,7 @@ public class ItemsController : ApiBaseController
         {
             "movie" => await _db.MovieMediaItems
                 .Include(mi => mi.MediaItem)
-                .Where(mi => mi.MovieId == entry.Id)
+                .Where(mi => mi.MovieId == entry.Id && !mi.IsTrailer)
                 .Select(mi => mi.MediaItem)
                 .FirstOrDefaultAsync(),
             "tvshowepisode" => await _db.TVShowEpisodeMediaItems
@@ -641,15 +641,7 @@ public class ItemsController : ApiBaseController
         if (stream is null)
             throw new RecordNotFoundException("Für diesen Titel ist keine Videodatei hinterlegt");
 
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        var contentType = ext switch
-        {
-            ".mp4" => "video/mp4",
-            ".mkv" => "video/x-matroska",
-            ".avi" => "video/x-msvideo",
-            ".mpeg" => "video/mpeg",
-            _ => "application/octet-stream"
-        };
+        var contentType = MediaFileContentTypes.ForFileName(fileName);
 
         return new MediaFile(stream, fileName, contentType);
     }

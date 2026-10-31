@@ -96,6 +96,10 @@ else
                     <div class="tvshow-meta">
                         <span class="tvshow-year">@GetEpisodeDisplayDate(selectedEpisode)?.Year</span>
                         <span class="tvshow-episode-number">Episode @selectedEpisode.Number</span>
+                        @if (!string.IsNullOrWhiteSpace(show.AgeRating))
+                        {
+                            <span class="tvshow-agerating agerating-badge">@show.AgeRating</span>
+                        }
                     </div>
                     <div class="tvshow-plot">@selectedEpisode.Plot</div>
                 }
@@ -105,6 +109,10 @@ else
                     <div class="tvshow-meta">
                         <span class="tvshow-year">@selectedSeason.PremieredAt?.Year</span>
                         <span class="tvshow-episode-count">@(selectedSeason.Episodes?.Count() ?? 0) Episoden</span>
+                        @if (!string.IsNullOrWhiteSpace(show.AgeRating))
+                        {
+                            <span class="tvshow-agerating agerating-badge">@show.AgeRating</span>
+                        }
                     </div>
                     <div class="tvshow-plot"></div>
                 }
@@ -114,6 +122,10 @@ else
                     <div class="tvshow-meta">
                         <span class="tvshow-year">@GetShowDisplayDate()?.Year</span>
                         <span class="tvshow-genres">@show.GenreNames</span>
+                        @if (!string.IsNullOrWhiteSpace(show.AgeRating))
+                        {
+                            <span class="tvshow-agerating agerating-badge">@show.AgeRating</span>
+                        }
                     </div>
                     <div class="tvshow-plot">@show.Plot</div>
                 }
@@ -222,6 +234,7 @@ else
     private bool isDirty;
     private bool editSupportsPlot;
     private bool editSupportsGenres;
+    private bool editSupportsAgeRating;
     private bool editUsesPremieredAt;
     private string editObjectType = "";
     private long editId;
@@ -304,6 +317,10 @@ else
         <InputText class="form-control metadata-title-input" @bind-Value="editModel.Name" maxlength="512" />
         <ValidationMessage For="@(() => editModel.Name)" />
         <InputDate class="form-control metadata-date-input" @bind-Value="editModel.Date" />
+        @if (editSupportsAgeRating)
+        {
+            <AgeRatingSelect @bind-Value="editModel.AgeRating" />
+        }
         @if (editSupportsGenres)
         {
             <div class="genre-scrollbar metadata-genre-scrollbar">
@@ -510,6 +527,7 @@ else
         editUsesPremieredAt = target is DtoTVShowSeason;
         editSupportsPlot = target is DtoTVShow or DtoTVShowEpisode;
         editSupportsGenres = target is DtoTVShow;
+        editSupportsAgeRating = target is DtoTVShow;
         editModel = new MetadataEditModel
         {
             Name = target.Name,
@@ -520,6 +538,7 @@ else
                 DtoTVShowEpisode episode => episode.Plot ?? "",
                 _ => ""
             },
+            AgeRating = (target as DtoTVShow)?.AgeRating ?? "",
         };
         editContext = new EditContext(editModel);
         editContext.OnFieldChanged += OnEditFieldChanged;
@@ -546,7 +565,8 @@ else
                 ReleaseDate = editUsesPremieredAt ? null : editModel.Date,
                 PremieredAt = editUsesPremieredAt ? editModel.Date : null,
                 Plot = editSupportsPlot ? editModel.Plot : null,
-                GenreNames = editSupportsGenres ? genres : []
+                GenreNames = editSupportsGenres ? genres : [],
+                AgeRating = editSupportsAgeRating ? editModel.AgeRating : null
             });
         }
         catch (Exception ex)

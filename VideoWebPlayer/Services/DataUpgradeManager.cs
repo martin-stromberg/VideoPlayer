@@ -12,6 +12,7 @@ using VideoWebPlayer.Services;
 public class DataUpgradeManager
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProgramSettingsService _settings;
     private readonly MediaSourceClassifier _classifier;
     private readonly IUserStore<ApplicationUser> userStore;
     private readonly UserManager<ApplicationUser> userManager;
@@ -20,7 +21,7 @@ public class DataUpgradeManager
     /// <summary>
     /// Gets the current data version.
     /// </summary>
-    public const int CurrentVersion = 8; // Version erhöhen
+    public const int CurrentVersion = 9; // Version erhöhen
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DataUpgradeManager"/> class.
@@ -30,9 +31,11 @@ public class DataUpgradeManager
     /// <param name="UserStore">User store for identity operations.</param>
     /// <param name="UserManager">User manager for identity operations.</param>
     /// <param name="logger">Logger instance.</param>
-    public DataUpgradeManager(ApplicationDbContext db, MediaSourceClassifier classifier, IUserStore<ApplicationUser> UserStore, UserManager<ApplicationUser> UserManager, ILogger<DataUpgradeManager> logger)
+    /// <param name="settings">Program settings service owning the single setup row (race-safe get-or-create).</param>
+    public DataUpgradeManager(ApplicationDbContext db, MediaSourceClassifier classifier, IUserStore<ApplicationUser> UserStore, UserManager<ApplicationUser> UserManager, ILogger<DataUpgradeManager> logger, ProgramSettingsService settings)
     {
         _db = db;
+        _settings = settings;
         _classifier = classifier;
         userStore = UserStore;
         userManager = UserManager;
@@ -46,13 +49,10 @@ public class DataUpgradeManager
     /// <param name="cancellationToken">A cancellation token.</param>
     public async Task EnsureUpToDateAsync(CancellationToken cancellationToken)
     {
-        var setup = await _db.Setups.FirstOrDefaultAsync(cancellationToken);
-        if (setup == null)
-        {
-            setup = new Setup { DataVersion = 0 };
-            _db.Setups.Add(setup);
-            await _db.SaveChangesAsync(cancellationToken);
-        }
+        // GetOrCreateSetupAsync is the single creation path: on an empty table two writers can
+        // race (this upgrade vs. the first request); the singleton index on Setups makes the loser
+        // re-read the winner's row instead of leaving a second row behind (Issue #279).
+        var setup = await _settings.GetOrCreateSetupAsync(cancellationToken);
 
         while (setup.DataVersion < CurrentVersion)
         {
@@ -83,6 +83,9 @@ public class DataUpgradeManager
                     break;
                 case 8:
                     await Upgrade_8(cancellationToken);
+                    break;
+                case 9:
+                    await Upgrade_9(cancellationToken);
                     break;
             }
             setup.DataVersion = nextVersion;
@@ -131,6 +134,11 @@ public class DataUpgradeManager
 
         var code = await userManager.GenerateEmailConfirmationTokenAsync(newUser);
         var result2 = await userManager.ConfirmEmailAsync(newUser, code);
+    }
+
+    private async Task Upgrade_9(CancellationToken cancellationToken)
+    {
+        await _classifier.ReloadGenres(cancellationToken);
     }
 
     private string GeneratePassword()

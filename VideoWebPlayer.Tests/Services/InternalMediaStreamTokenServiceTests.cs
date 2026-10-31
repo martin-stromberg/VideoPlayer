@@ -1,0 +1,395 @@
+using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using VideoWebPlayer.Configuration;
+using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
+using Xunit;
+
+namespace VideoWebPlayer.Tests.Services;
+
+/// <summary>
+/// Tests for <see cref="InternalMediaStreamTokenService"/>: loopback URL building from the
+/// server's bound addresses, option handling and token resolution/expiry.
+/// </summary>
+public class InternalMediaStreamTokenServiceTests
+{
+    private static readonly Regex UriPattern = new(
+        @"^http://(?<host>[^:]+):(?<port>\d+)/api/internal/media-stream/(?<token>[0-9a-f]{64})$",
+        RegexOptions.Compiled);
+
+    private static FakeServer CreateServer(params string[] addresses)
+    {
+        var server = new FakeServer();
+        var feature = new ServerAddressesFeature();
+        foreach (var address in addresses)
+            feature.Addresses.Add(address);
+        server.Features.Set<IServerAddressesFeature>(feature);
+        return server;
+    }
+
+    private static InternalMediaStreamTokenService CreateService(
+        IServer? server,
+        MediaProbeOptions? options = null,
+        TimeProvider? timeProvider = null,
+        IConfiguration? configuration = null,
+        ILogger<InternalMediaStreamTokenService>? logger = null)
+        => new(
+            server,
+            Options.Create(options ?? new MediaProbeOptions()),
+            logger ?? NullLogger<InternalMediaStreamTokenService>.Instance,
+            timeProvider,
+            configuration);
+
+    private static IConfiguration KestrelConfig(params KeyValuePair<string, string?>[] entries)
+        => new ConfigurationBuilder().AddInMemoryCollection(entries).Build();
+
+    [Fact]
+    public void TryCreateProbeUri_WildcardAddress_ReturnsLoopbackUriWithResolvableToken()
+    {
+        var service = CreateService(CreateServer("http://*:5002"));
+
+        var uri = service.TryCreateProbeUri(42);
+
+        var match = UriPattern.Match(uri ?? string.Empty);
+        Assert.True(match.Success, $"unexpected probe URI '{uri}'");
+        Assert.Equal("127.0.0.1", match.Groups["host"].Value);
+        Assert.Equal("5002", match.Groups["port"].Value);
+        Assert.Equal(42, service.ResolveMediaItemId(match.Groups["token"].Value));
+    }
+
+    [Theory]
+    [InlineData("http://+:5002", "http://127.0.0.1:5002")]
+    [InlineData("http://0.0.0.0:8080", "http://127.0.0.1:8080")]
+    [InlineData("http://[::]:8080", "http://127.0.0.1:8080")]
+    [InlineData("http://localhost:5039", "http://127.0.0.1:5039")]
+    [InlineData("http://[::1]:5002", "http://127.0.0.1:5002")]
+    [InlineData("http://127.0.0.1:7000", "http://127.0.0.1:7000")]
+    [InlineData("http://192.168.1.20:5002", "http://192.168.1.20:5002")]
+    public void TryNormalizeServerAddress_NormalizesHosts(string address, string expectedBase)
+    {
+        Assert.Equal(expectedBase, InternalMediaStreamTokenService.TryNormalizeServerAddress(address));
+    }
+
+    [Theory]
+    [InlineData("https://*:5002")]
+    [InlineData("ftp://host:21")]
+    [InlineData("not-a-url")]
+    [InlineData("")]
+    public void TryNormalizeServerAddress_NonHttpOrInvalid_ReturnsNull(string address)
+    {
+        Assert.Null(InternalMediaStreamTokenService.TryNormalizeServerAddress(address));
+    }
+
+    [Fact]
+    public void TryCreateProbeUri_OnlyHttpsAddress_ReturnsNull()
+    {
+        var service = CreateService(CreateServer("https://*:5002"));
+
+        Assert.Null(service.TryCreateProbeUri(42));
+    }
+
+    [Fact]
+    public void TryCreateProbeUri_Disabled_ReturnsNull()
+    {
+        var service = CreateService(
+            CreateServer("http://*:5002"),
+            new MediaProbeOptions { HttpProbeEnabled = false });
+
+        Assert.Null(service.TryCreateProbeUri(42));
+    }
+
+    [Fact]
+    public void TryCreateProbeUri_ConfiguredBaseUrl_WinsOverAutoDetection()
+    {
+        var service = CreateService(
+            CreateServer("http://*:5002"),
+            new MediaProbeOptions { HttpProbeBaseUrl = "http://127.0.0.1:9999/" });
+
+        var uri = service.TryCreateProbeUri(42);
+
+        Assert.StartsWith("http://127.0.0.1:9999/api/internal/media-stream/", uri);
+    }
+
+    [Fact]
+    public void TryCreateProbeUri_InvalidConfiguredBaseUrl_FallsBackToAutoDetection()
+    {
+        var service = CreateService(
+            CreateServer("http://*:5002"),
+            new MediaProbeOptions { HttpProbeBaseUrl = "gurke" });
+
+        var uri = service.TryCreateProbeUri(42);
+
+        Assert.StartsWith("http://127.0.0.1:5002/api/internal/media-stream/", uri);
+    }
+
+    [Fact]
+    public void ResolveMediaItemId_UnknownToken_ReturnsNull()
+    {
+        var service = CreateService(CreateServer("http://*:5002"));
+
+        Assert.Null(service.ResolveMediaItemId("unknown-token"));
+        Assert.Null(service.ResolveMediaItemId(string.Empty));
+    }
+
+    [Fact]
+    public void ResolveMediaItemId_ExpiredToken_ReturnsNull()
+    {
+        var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var service = CreateService(
+            CreateServer("http://*:5002"),
+            new MediaProbeOptions { HttpProbeTokenLifetimeSeconds = 60 },
+            timeProvider);
+
+        var uri = service.TryCreateProbeUri(42);
+        var token = UriPattern.Match(uri!).Groups["token"].Value;
+
+        timeProvider.Advance(TimeSpan.FromSeconds(59));
+        Assert.Equal(42, service.ResolveMediaItemId(token));
+
+        timeProvider.Advance(TimeSpan.FromSeconds(2));
+        Assert.Null(service.ResolveMediaItemId(token));
+    }
+
+    [Fact]
+    public void TryCreateProbeUri_NoServer_ReturnsNull()
+    {
+        var service = CreateService(server: null);
+
+        Assert.Null(service.TryCreateProbeUri(42));
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_CustomLifetime_Honored()
+    {
+        var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var service = CreateService(CreateServer("http://*:5002"), timeProvider: timeProvider);
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromHours(2));
+        var token = UriPattern.Match(uri!).Groups["token"].Value;
+
+        timeProvider.Advance(TimeSpan.FromMinutes(119));
+        Assert.Equal(42, service.ResolveMediaItemId(token));
+
+        timeProvider.Advance(TimeSpan.FromMinutes(2));
+        Assert.Null(service.ResolveMediaItemId(token));
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_ProbeDisabled_StillIssuesUri()
+    {
+        var service = CreateService(
+            CreateServer("http://*:5002"),
+            new MediaProbeOptions { HttpProbeEnabled = false });
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromHours(1));
+
+        Assert.NotNull(uri);
+        Assert.Matches(UriPattern, uri!);
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_NoAddress_ReturnsNull()
+    {
+        var service = CreateService(CreateServer("https://*:5002"));
+
+        Assert.Null(service.TryCreateStreamUri(42, TimeSpan.FromHours(1)));
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_TinyLifetime_ClampedToMinimum()
+    {
+        var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var service = CreateService(CreateServer("http://*:5002"), timeProvider: timeProvider);
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromSeconds(5));
+        var token = UriPattern.Match(uri!).Groups["token"].Value;
+
+        timeProvider.Advance(TimeSpan.FromSeconds(50));
+        Assert.Equal(42, service.ResolveMediaItemId(token));
+
+        timeProvider.Advance(TimeSpan.FromSeconds(20));
+        Assert.Null(service.ResolveMediaItemId(token));
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_OnlyKestrelEndpoint_ReturnsLoopbackUri()
+    {
+        var service = CreateService(
+            CreateServer(),
+            configuration: KestrelConfig(
+                new KeyValuePair<string, string?>("Kestrel:Endpoints:Http:Url", "http://*:5002")));
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromHours(1));
+
+        Assert.StartsWith("http://127.0.0.1:5002/api/internal/media-stream/", uri);
+    }
+
+    [Fact]
+    public void TryCreateProbeUri_OnlyKestrelEndpoint_ReturnsLoopbackUri()
+    {
+        var service = CreateService(
+            CreateServer(),
+            configuration: KestrelConfig(
+                new KeyValuePair<string, string?>("Kestrel:Endpoints:Http:Url", "http://*:5002")));
+
+        var uri = service.TryCreateProbeUri(42);
+
+        Assert.StartsWith("http://127.0.0.1:5002/api/internal/media-stream/", uri);
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_KestrelCustomEndpointName_ReturnsLoopbackUri()
+    {
+        var service = CreateService(
+            CreateServer(),
+            configuration: KestrelConfig(
+                new KeyValuePair<string, string?>("Kestrel:Endpoints:Api:Url", "http://*:5002")));
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromHours(1));
+
+        Assert.StartsWith("http://127.0.0.1:5002/api/internal/media-stream/", uri);
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_KestrelHttpsBeforeHttp_SkipsHttpsAndUsesHttp()
+    {
+        var service = CreateService(
+            CreateServer(),
+            configuration: KestrelConfig(
+                new KeyValuePair<string, string?>("Kestrel:Endpoints:Https:Url", "https://*:443"),
+                new KeyValuePair<string, string?>("Kestrel:Endpoints:Http:Url", "http://*:5002")));
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromHours(1));
+
+        Assert.StartsWith("http://127.0.0.1:5002/api/internal/media-stream/", uri);
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_KestrelHttp3OnlyEndpoint_SkipsEndpoint()
+    {
+        var service = CreateService(
+            CreateServer(),
+            configuration: KestrelConfig(
+                new KeyValuePair<string, string?>("Kestrel:Endpoints:QuicOnly:Url", "http://*:5002"),
+                new KeyValuePair<string, string?>("Kestrel:Endpoints:QuicOnly:Protocols", "Http3"),
+                new KeyValuePair<string, string?>("Kestrel:Endpoints:Http:Url", "http://127.0.0.1:5003")));
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromHours(1));
+
+        Assert.StartsWith("http://127.0.0.1:5003/api/internal/media-stream/", uri);
+    }
+
+    [Theory]
+    [InlineData("http://*:0")]
+    [InlineData("http://127.0.0.1:0")]
+    public void TryNormalizeServerAddress_PortZero_ReturnsNull(string address)
+    {
+        Assert.Null(InternalMediaStreamTokenService.TryNormalizeServerAddress(address));
+    }
+
+    [Fact]
+    public void TryCreateProbeUri_AddressesAppearAfterFirstMiss_RetriesAndResolves()
+    {
+        var server = new FakeServer();
+        var feature = new ServerAddressesFeature();
+        server.Features.Set<IServerAddressesFeature>(feature);
+        var service = CreateService(server);
+
+        Assert.Null(service.TryCreateProbeUri(42));
+
+        feature.Addresses.Add("http://*:5002");
+        var uri = service.TryCreateProbeUri(42);
+
+        Assert.StartsWith("http://127.0.0.1:5002/api/internal/media-stream/", uri);
+    }
+
+    [Fact]
+    public void TryCreateProbeUri_PositiveResult_StaysCached()
+    {
+        var server = new FakeServer();
+        var feature = new ServerAddressesFeature();
+        feature.Addresses.Add("http://*:5002");
+        server.Features.Set<IServerAddressesFeature>(feature);
+        var service = CreateService(server);
+
+        Assert.NotNull(service.TryCreateProbeUri(42));
+
+        feature.Addresses.Clear();
+        var uri = service.TryCreateProbeUri(42);
+
+        Assert.StartsWith("http://127.0.0.1:5002/api/internal/media-stream/", uri);
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_BoundAddressWins_OverKestrelEndpoint()
+    {
+        var service = CreateService(
+            CreateServer("http://127.0.0.1:7000"),
+            configuration: KestrelConfig(
+                new KeyValuePair<string, string?>("Kestrel:Endpoints:Http:Url", "http://*:5002")));
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromHours(1));
+
+        Assert.StartsWith("http://127.0.0.1:7000/api/internal/media-stream/", uri);
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_KestrelHttpsOnly_ReturnsNull()
+    {
+        var service = CreateService(
+            CreateServer(),
+            configuration: KestrelConfig(
+                new KeyValuePair<string, string?>("Kestrel:Endpoints:Https:Url", "https://*:443")));
+
+        Assert.Null(service.TryCreateStreamUri(42, TimeSpan.FromHours(1)));
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_NoAddressNoKestrel_ReturnsNull()
+    {
+        var service = CreateService(CreateServer());
+
+        Assert.Null(service.TryCreateStreamUri(42, TimeSpan.FromHours(1)));
+    }
+
+    [Fact]
+    public void TryCreateProbeUri_InvalidBaseUrl_WarnsOnlyOnceAcrossRetries()
+    {
+        var logger = new ListLogger<InternalMediaStreamTokenService>(new ConcurrentQueue<string>());
+        var service = CreateService(
+            CreateServer(),
+            new MediaProbeOptions { HttpProbeBaseUrl = "gurke" },
+            logger: logger);
+
+        Assert.Null(service.TryCreateProbeUri(42));
+        Assert.Null(service.TryCreateProbeUri(42));
+
+        var warnings = logger.Entries.Count(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("keine gültige"));
+        Assert.Equal(1, warnings);
+    }
+
+    /// <summary>
+    /// Minimal <see cref="IServer"/> fake exposing a settable feature collection — the real
+    /// server is irrelevant; only <see cref="IServerAddressesFeature"/> is consumed.
+    /// </summary>
+    private sealed class FakeServer : IServer
+    {
+        public IFeatureCollection Features { get; } = new FeatureCollection();
+
+        public Task StartAsync<TContext>(IHttpApplication<TContext> application, CancellationToken cancellationToken)
+            where TContext : notnull
+            => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void Dispose() { }
+    }
+}

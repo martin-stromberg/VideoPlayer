@@ -1,0 +1,47 @@
+@using System.Linq.Expressions
+@using VideoWebPlayer.Utils
+
+@* Altersfreigabe-Auswahl mit den kanonischen FSK-/MPAA-Stufen aus dem
+   AgeRatingNormalizer. Ein bereits gespeicherter, nicht-kanonischer Wert
+   (z. B. „TV-MA" aus einer NFO) wird als zusätzliche Option angeboten, damit
+   er sichtbar bleibt und beim Speichern anderer Felder unverändert erhalten bleibt. *@
+<InputSelect TValue="string"
+             class="form-select metadata-agerating-select"
+             title="Altersfreigabe"
+             Value="Value"
+             ValueChanged="ValueChanged"
+             ValueExpression="ValueExpression">
+    <option value="">Keine Altersfreigabe</option>
+    @foreach (var (value, label) in AgeRatingNormalizer.CanonicalOptions)
+    {
+        <option value="@value">@label</option>
+    }
+    @if (HasNonCanonicalValue)
+    {
+        <option value="@Value">@Value (übernommen)</option>
+    }
+</InputSelect>
+
+@code {
+    /// <summary>
+    /// Gets or sets the bound age rating value.
+    /// </summary>
+    [Parameter]
+    public string? Value { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback invoked when the value changes.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>
+    /// Gets or sets the expression identifying the bound value for validation.
+    /// </summary>
+    [Parameter]
+    public Expression<Func<string>>? ValueExpression { get; set; }
+
+    private bool HasNonCanonicalValue =>
+        !string.IsNullOrWhiteSpace(Value)
+        && AgeRatingNormalizer.CanonicalOptions.All(o => !string.Equals(o.Value, Value, StringComparison.Ordinal));
+}

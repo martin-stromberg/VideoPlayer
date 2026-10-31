@@ -535,9 +535,10 @@ sobald ein anderer Titel geladen wird oder derselbe Titel doch noch abspielt.
 
 ### Navigation innerhalb der Playlist
 
-Solange aus einer Playlist heraus abgespielt wird, zeigt der Video-Player zusätzlich zu den
-üblichen Video-Bedienelementen zwei Schaltflächen „Vorheriger (Playlist)" und „Nächster
-(Playlist)" an. Ein Klick darauf lädt den vorherigen bzw. nächsten Titel in der aktuell gültigen
+Solange aus einer Playlist heraus abgespielt wird, zeigt der Video-Player in seiner Titelleiste
+neben dem Playlist-Badge rechtsbündig zwei Symbolschaltflächen an: „Vorheriger (Playlist)"
+(Sprung-zum-vorherigen-Titel-Symbol) und „Nächster (Playlist)" (Sprung-zum-nächsten-Titel-Symbol).
+Ein Klick darauf lädt den vorherigen bzw. nächsten Titel in der aktuell gültigen
 Sortierreihenfolge der Playlist (siehe Abschnitt „Sortierung und Anzeige") und aktualisiert den
 Playlist-Badge entsprechend (z. B. „3/12" → „4/12").
 

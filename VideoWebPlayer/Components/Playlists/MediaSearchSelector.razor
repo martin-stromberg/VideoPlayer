@@ -45,6 +45,14 @@
     [Parameter]
     public EventCallback<(string MediaType, long MediaId)> OnMediaSelected { get; set; }
 
+    /// <summary>
+    /// When set, only results of these media types (values of <see cref="MediaTypeValues"/>) are
+    /// shown; <see langword="null"/> shows every result. Used by the TV channel's program-rule
+    /// editor, which accepts only specific material kinds per rule type.
+    /// </summary>
+    [Parameter]
+    public IReadOnlyCollection<string>? AllowedMediaTypes { get; set; }
+
     private string searchTerm = string.Empty;
     private List<MediaEntryDto> results = new();
     private bool isLoading;
@@ -118,7 +126,9 @@
         if (cancellationToken.IsCancellationRequested || requestId != latestRequestId)
             return;
 
-        results = found;
+        results = AllowedMediaTypes is null
+            ? found
+            : found.Where(r => AllowedMediaTypes.Contains(r.Type)).ToList();
         hasSearched = !searchFailed;
         hasError = searchFailed;
         isLoading = false;

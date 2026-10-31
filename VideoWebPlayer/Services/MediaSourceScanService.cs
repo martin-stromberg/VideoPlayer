@@ -99,6 +99,8 @@ namespace VideoWebPlayer.Services
                             lastRun = now;
                             // Marker commits during the scan do not wake the playlist backfill; the end of the scan does.
                             using var playlistBackfillScanScope = _serviceProvider.GetService<IPlaylistBackfillSignal>()?.BeginScan();
+                            // Schedule notifications are suppressed likewise and fire once at scan end.
+                            using var programScheduleScanScope = _serviceProvider.GetService<IProgramScheduleSignal>()?.BeginScan();
                             await using var processingLease = gate is null ? null : await gate.EnterOperationAsync("Automatischer Scanprozess", stoppingToken);
                             _logger.LogInformation("Starte Scanprozess (Intervall: {Interval}).", scanProcessInterval);
 

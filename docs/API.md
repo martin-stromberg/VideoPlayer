@@ -273,10 +273,13 @@ Antwort: `DtoMediaSource[]`
     "mediaSourceId": 0,
     "createdAt": "2026-08-25T10:00:00Z",
     "lastScannedAt": "2026-08-25T11:00:00Z",
-    "iconPictureId": 12
+    "iconPictureId": 12,
+    "hiddenInMenu": false
   }
 ]
 ```
+
+`hiddenInMenu` (`boolean`, seit Version mit Issue #284): `true`, wenn der Administrator die Quelle im Navigationsmenü ausgeblendet hat. Das Flag ist rein kosmetisch — die Quelle bleibt in dieser Liste enthalten, Clients blenden ihren Menüeintrag selbst aus.
 
 ### GET /api/Sources/{id}
 
@@ -351,6 +354,8 @@ Liefert editierbare Genre-Optionen als `DtoGenreOption[]`.
 
 Speichert die vom Anwender änderbaren Metadaten eines Medieneintrags (`MediaMetadataUpdateRequest`).
 
+Für die Typen `movie` und `tvshow` akzeptiert der Request zusätzlich `ageRating` (kanonische Stufen `FSK 0`/`6`/`12`/`16`/`18` bzw. MPAA `G`/`PG`/`PG-13`/`R`/`NC-17`, maximal 64 Zeichen; leer löscht den Wert; der bereits gespeicherte nicht-kanonische Bestandswert bleibt zulässig). Für `moviecollection`, `tvshowseason` und `tvshowepisode` sowie für unbekannte Bezeichnungen wird ein gesetzter Wert mit `400` abgelehnt.
+
 Statuscodes:
 
 - `400`, wenn die Angaben ungültig sind (z. B. Datumsfeld passt nicht zum Typ, Name zu lang)
@@ -368,7 +373,7 @@ Liefert Details zu einem Medieneintrag. Unterstützte `type`-Werte sind:
 - `tvshowseason`
 - `tvshowepisode`
 
-Antworten sind je nach Typ `DtoMovieCollection`, `DtoMovie`, `DtoTVShow`, `DtoTVShowSeason` oder `DtoTVShowEpisode`.
+Antworten sind je nach Typ `DtoMovieCollection`, `DtoMovie`, `DtoTVShow`, `DtoTVShowSeason` oder `DtoTVShowEpisode`. `DtoMovie` und `DtoTVShow` enthalten zusätzlich `ageRating` (normalisierter Anzeigewert, z. B. `FSK 12` oder `PG-13`) und `ageRatingMinAge` (vergleichbares Mindestalter, `null` bei unbekannter Stufe).
 
 Statuscodes:
 
@@ -498,6 +503,90 @@ Antwortstatuswerte:
 
 - `replaced`
 - `removed`
+
+## Programmauskunft (TV-Sender)
+
+Die Programmauskunft des automatischen TV-Senders beantwortet rein zeitbasiert aus dem Sendeplan,
+was gerade läuft und was kommt. Beide Endpunkte verlangen einen angemeldeten Benutzer bzw. ein
+gekoppeltes Gerät (Bearer-Token im `Authorization`-Header oder als `access_token`-Abfrageparameter);
+anonyme Aufrufe werden mit `401` abgelehnt. Verdrängte Sendeplätze erscheinen nicht. Der
+vollständige Sendeplan bleibt der Administration vorbehalten.
+
+### GET /api/program-guide/now
+
+„Jetzt/Gleich" — liefert `DtoProgramGuideNow` mit der laufenden Sendung (inkl. `positionSeconds`
+und `remainingSeconds` innerhalb des Videos) und der nächsten Sendung.
+
+Antwort:
+
+```json
+{
+  "serverTimeUtc": "2026-10-21T20:45:00+00:00",
+  "now": {
+    "slotId": 12,
+    "title": "Serie — Staffel 1, E3: Folgenname",
+    "mediaType": "TVShowEpisode",
+    "mediaId": 77,
+    "mediaItemId": 1234,
+    "isFiller": false,
+    "startUtc": "2026-10-21T20:00:00+00:00",
+    "endUtc": "2026-10-21T20:45:00+00:00",
+    "durationSeconds": 2700,
+    "positionSeconds": 1800,
+    "remainingSeconds": 900
+  },
+  "next": { "slotId": 13, "title": "Abendfilm", "mediaType": "Movie", "mediaId": 42, "mediaItemId": 1235, "isFiller": false, "startUtc": "2026-10-21T20:45:00+00:00", "endUtc": "2026-10-21T22:15:00+00:00", "durationSeconds": 5400, "positionSeconds": null, "remainingSeconds": null }
+}
+```
+
+`now` ist `null`, wenn eine Sendelücke oder noch kein Sender existiert; `next` ist `null`, wenn
+nichts weiter geplant ist. `positionSeconds`/`remainingSeconds` sind nur bei der laufenden
+Sendung gesetzt. Kann ein Inhalt nicht mehr aufgelöst werden, lautet `title` `"Unbekannt"`.
+
+### GET /api/program-guide/upcoming?hours=N
+
+Begrenzte Programmübersicht: liefert `DtoProgramGuideEntry[]` — die laufende Sendung (falls
+vorhanden) plus alle Sendungen, die innerhalb der nächsten `N` Stunden beginnen, nach Start
+sortiert. `hours` ist optional (Vorgabe `6`, Maximum `12`; außerhalb `1..12` antwortet der Server
+mit `400`).
+
+## Live-Stream (HLS)
+
+Der automatisierte TV-Sender wird als durchgehender HLS-Live-Stream ausgeliefert: ein
+Hintergrundlauf segmentiert die aktuell laufende Sendung mit `ffmpeg` in ein rollierendes
+HLS-Fenster. Die Auslieferung erfolgt ausschließlich über den folgenden Endpunkt und ist wie die
+Programmauskunft nur angemeldeten Benutzern bzw. gekoppelten Geräten zugänglich (Bearer-Token im
+`Authorization`-Header oder als `access_token`-Abfrageparameter); anonyme Aufrufe werden mit
+`401` abgelehnt. Da Player relative Segment-URIs ohne die Abfrageparameter der Playlist-URL
+auflösen, wird die Wiedergabeliste bei der Auslieferung so umgeschrieben, dass jede Segment-URI
+den übergebenen `access_token` trägt — die Segment-Adressen sind daher nur mit einem gültigen
+Token abrufbar.
+
+### GET /api/live-stream/{fileName}
+
+Liefert eine Datei aus dem Segment-Verzeichnis des Live-Streams bzw. aus dem
+im Speicher gehaltenen Standby-Stream; jede erfolgreiche Antwort trägt
+`Cache-Control: no-store`:
+
+- `{fileName} = live.m3u8` (bzw. eine andere `*.m3u8` der Ausgabe): die aktuelle
+  HLS-Wiedergabeliste, Antworttyp `application/vnd.apple.mpegurl`. Jede Segment-URI darin
+  trägt bei einem Abruf mit `access_token`-Parameter diesen Token als
+  `access_token`-Abfrageparameter; ohne Parameter bleiben die URIs unverändert.
+  Existiert keine Playlist oder eine Playlist ohne referenziertes Segment (Warm-up
+  nach einem Start, Sendelücke, fehlendes `ffmpeg`), wird stattdessen die
+  Standby-Wiedergabeliste ausgeliefert — eingebetteter Funki-Clip oder der
+  administrativ gewählte Clip. Die erste echte Wiedergabeliste nach einer
+  Standby-Auslieferung trägt einmalig `#EXT-X-DISCONTINUITY` vor dem ersten
+  Segmenteintrag.
+- `{fileName} = seg_*.ts`: ein HLS-Segment, Antworttyp `video/mp2t`.
+- `{fileName} = standby_*.ts`: ein Standby-Segment aus dem Speicher, Antworttyp
+  `video/mp2t` — unabhängig davon, ob die echte Playlist schon existiert, damit ein
+  Zuschauer die zuletzt beworbene Playlist zu Ende spielen kann.
+
+Dateinamen werden strikt geprüft (nur `A–Z`, `a–z`, `0–9`, `.`, `_`, `-`; keine Pfadtrenner) und
+müssen innerhalb des Segment-Verzeichnisses liegen bzw. einem aktiven Standby-Segmentnamen
+entsprechen. Ungültige oder fehlende Dateinamen — und bei fehlenden Standby-Assets auch
+`live.m3u8` — werden mit `404` beantwortet.
 
 ## Playlists
 

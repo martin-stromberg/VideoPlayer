@@ -267,7 +267,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // rating is not a reason to kill the running title mid-air.
         int? SlotMinAge(ProgramSlot slot)
         {
-            if (slot.ProgramRuleId is not { } rid || !states.TryGetValue(rid, out var st))
+            // Clip-fill slots carry no rating of their own — trailer clips reuse the promoted
+            // movie's MovieId and must not inherit its FSK either (governed by the
+            // unknown-rating mode instead).
+            if (slot.IsClipFill || slot.ProgramRuleId is not { } rid || !states.TryGetValue(rid, out var st))
                 return null;
             var idx = FindItemIndex(st.Items, slot);
             return idx >= 0 ? st.Items[idx].AgeRatingMinAge : null;
@@ -1054,9 +1057,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     // picks whose slots all ended before the coverage start without writing
                     // rows for them (e.g. a coverage run that began mid-occurrence, Issue
                     // #315). Its reconstruction base is the persisted scan head (NextIndex):
-                    // the position right behind its last scanned item; the same backward walk
+                    // the position right behind its last taken item; the same backward walk
                     // lands on the prefix picks' ring positions. An empty contribution set
                     // only stays impossible for empty rings — handled above.
+                    // Limitation: the persisted cursor marks the strand's last take across
+                    // the whole plan (its end), not the last prefix pick of this airing —
+                    // for a strand that also contributed to a later non-contiguous group the
+                    // reconstruction bases its hypotheses on that later position (biased
+                    // conservatively: unnecessary displacement rather than stale retention).
                     var cursorBack = new int[m];
                     var nextTakenStart = new DateTime[m];
                     var headBase = new int[m];

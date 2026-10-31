@@ -34,8 +34,31 @@
   `Reconcile_LongAiring_BeyondMaxLookback_Displaced`,
   `PurgeExpiredRules_SlotsDisplacedAfterReconcile` (laufender Slot läuft zu Ende).
 
+## Review-Nacharbeit (siehe review-code.md)
+
+- Ghost-Read-Hunger im Wait-Muster beider Worker behoben (Signal-Task über
+  Iterationen wiederverwendet) — der neue Live-Kanal wäre sonst im Steady State
+  wirkungslos geblieben.
+- `SlotMinAge`: Clip-Füller liefern `null` (Trailer-Clips tragen die MovieId des
+  beworbenen Films und dürfen dessen FSK nicht erben).
+- NextIndex-Rekonstruktionslimitation im Kommentar + „Grenzen"-Abschnitt
+  dokumentiert.
+- Nach-Nacharbeit: 503/503 betroffene Tests grün (ProgramSchedule + LiveStream +
+  Issue315 + MediaDurationProbe).
+
+## Vollständige Suite (Release)
+
+- `dotnet build VideoPlayer.sln -c Release`: 0 Fehler (140 vorhandene Warnungen).
+- `dotnet test -c Release`: 2828/2831 grün, 2 übersprungen.
+- Einziger Ausfall: `TVSenderAdminE2ETests.Admin_CreateEditDeactivateDeleteRule`,
+  zweimal reproduziert — **zeitabhängiger Pre-Existing-Flake**: der Test seedet
+  einen verdrängten Slot direkt (UtcNow+3h) und wählt nur den Tag des ersten
+  Seed-Slots (UtcNow+2h) in der Tagesleiste; ab ~21:00 Ortszeit liegt +3h am
+  Folgetag → `LocatorWaitFor` läuft in den 15-s-Timeout. Der Render-Pfad wird von
+  diesem Change nicht berührt. Commit `c30cbba` hatte die Tagwahl schon für diesen
+  Mechanismus ergänzt — sie deckt den zweiten Seed-Tag nicht ab.
+
 ## Noch offen (DoD)
 
-- Release-Build + volle Suite im Release-Lauf
-- Code-Review-Artefakt, docs/help + Release Notes, Feature-Verzeichnis-Aufräumen
+- Feature-Verzeichnis-Aufräumen zum Abschluss, PR-Beschreibung aktualisieren
 - Residual: `-re`+`-ss`-Seek-Latenz bei nicht-suchbaren Containern (Folgeissue)

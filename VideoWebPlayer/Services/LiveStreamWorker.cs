@@ -84,6 +84,7 @@ public sealed class LiveStreamWorker : BackgroundService
             if (_initialDelay > TimeSpan.Zero)
                 await Task.Delay(_initialDelay, _timeProvider, stoppingToken);
 
+            Task? signalTask = null;
             while (!stoppingToken.IsCancellationRequested)
             {
                 var delay = PollCap;
@@ -152,7 +153,9 @@ public sealed class LiveStreamWorker : BackgroundService
                 }
 
                 // Wake on the computed delay or when a schedule-relevant change was signaled —
-                // whichever comes first.
+                // whichever comes first. The signal task survives iterations: a fresh
+                // ReadAsync per pass would leave a ghost reader in the channel queue that
+                // consumes the next signal while nobody awaits it (Issue #315).
                 var delayTask = Task.Delay(delay, _timeProvider, stoppingToken);
                 if (_signal is null)
                 {
@@ -160,10 +163,13 @@ public sealed class LiveStreamWorker : BackgroundService
                 }
                 else
                 {
-                    var signalTask = _signal.WaitLiveAsync(stoppingToken).AsTask();
+                    signalTask ??= _signal.WaitLiveAsync(stoppingToken).AsTask();
                     await Task.WhenAny(delayTask, signalTask);
                     if (signalTask.IsCompleted)
+                    {
                         await signalTask;
+                        signalTask = null;
+                    }
                 }
             }
         }

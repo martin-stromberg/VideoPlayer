@@ -51,6 +51,7 @@ public sealed class ProgramScheduleWorker : BackgroundService
             if (_initialDelay > TimeSpan.Zero)
                 await Task.Delay(_initialDelay, _timeProvider, stoppingToken);
 
+            Task? signalTask = null;
             while (!stoppingToken.IsCancellationRequested)
             {
                 var interval = TimeSpan.FromMinutes(15);
@@ -99,7 +100,9 @@ public sealed class ProgramScheduleWorker : BackgroundService
                 }
 
                 // Wake on the configured interval or when a schedule-relevant change was signaled —
-                // whichever comes first.
+                // whichever comes first. The signal task survives iterations: a fresh
+                // ReadAsync per pass would leave a ghost reader in the channel queue that
+                // consumes the next signal while nobody awaits it (Issue #315).
                 var delayTask = Task.Delay(interval, _timeProvider, stoppingToken);
                 if (_signal is null)
                 {
@@ -107,10 +110,13 @@ public sealed class ProgramScheduleWorker : BackgroundService
                 }
                 else
                 {
-                    var signalTask = _signal.WaitAsync(stoppingToken).AsTask();
+                    signalTask ??= _signal.WaitAsync(stoppingToken).AsTask();
                     await Task.WhenAny(delayTask, signalTask);
                     if (signalTask.IsCompleted)
+                    {
                         await signalTask;
+                        signalTask = null;
+                    }
                 }
             }
         }

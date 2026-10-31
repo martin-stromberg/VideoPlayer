@@ -883,9 +883,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // airing index minus its prefix pick count, and verifies by simulating the occurrence at
     // the reconstructed real start under the boundary of each candidate nominal start (a begun
     // predecessor may have shifted the airing behind the nominal start). Strands without a
-    // contribution to the airing cannot have supplied prefix picks (their head is not
-    // observable) — such hypotheses are rejected. Conservative by design: an unclear prefix
-    // fails the check, so the airing is displaced and re-materialized rather than kept stale.
+    // contribution to the airing may still have supplied unwritten prefix picks — taken but
+    // never written (the coverage run began mid-occurrence) — so their scan head is
+    // reconstructed back from the persisted ring cursor instead of rejecting the hypothesis
+    // (Issue #315). Conservative by design: an unclear prefix fails the check, so the airing
+    // is displaced and re-materialized rather than kept stale.
     private static bool InterleavedAiringTailReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
     {
         var (state, occurrenceStarts, boundStarts, occupiedEvidence, minStartRemain, ageRule, _) = context;
@@ -909,7 +911,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var firstIndex = new int[m];
         var lastIndex = new int[m];
         var firstStart = new DateTime[m];
-        var countInAiring = new int[m];
         Array.Fill(firstIndex, -1);
         for (var i = 0; i < rest; i++)
         {
@@ -962,7 +963,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 }
             }
             lastIndex[s] = idx;
-            countInAiring[s]++;
         }
 
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
@@ -1001,15 +1001,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         continue;
                     }
 
-                    var prefixCount = new int[m];
                     var possible = true;
                     for (var q = 0; q < p && possible; q++)
                     {
                         var s = (startOffset + q) % m;
-                        if (countInAiring[s] == 0)
-                            possible = false;
-                        else
-                            prefixCount[s]++;
+                        if (strands[s].Items.Count == 0)
+                            possible = false; // an empty strand can never have supplied a pick
                     }
                     if (!possible)
                     {
@@ -1022,10 +1019,24 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     // airing index, a predecessor counts as skipped iff it was blocked at the
                     // strand's next taken pick's start — taken picks drive the reconstructed
                     // real start back, skipped positions only the scan head.
+                    // A strand without a written contribution to the airing could still have
+                    // supplied unwritten prefix picks — the materialization commits taken
+                    // picks whose slots all ended before the coverage start without writing
+                    // rows for them (e.g. a coverage run that began mid-occurrence, Issue
+                    // #315). Its reconstruction base is the persisted scan head (NextIndex):
+                    // the position right behind its last scanned item; the same backward walk
+                    // lands on the prefix picks' ring positions. An empty contribution set
+                    // only stays impossible for empty rings — handled above.
                     var cursorBack = new int[m];
                     var nextTakenStart = new DateTime[m];
+                    var headBase = new int[m];
                     for (var s = 0; s < m; s++)
-                        nextTakenStart[s] = firstStart[s];
+                    {
+                        headBase[s] = firstIndex[s] >= 0 ? firstIndex[s] : strands[s].NextIndex;
+                        // Unobservable strands have no written pick to anchor the skip
+                        // evaluation to — the tail head is the closest proven instant.
+                        nextTakenStart[s] = firstIndex[s] >= 0 ? firstStart[s] : airing[offset].Start;
+                    }
                     var simStart = airing[offset].Start;
                     var reconstructable = true;
                     for (var q = p - 1; q >= 0 && reconstructable; q--)
@@ -1036,7 +1047,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         var skipRun = 0;
                         while (true)
                         {
-                            var ringPos = ((firstIndex[s] - cursorBack[s] - 1) % count + count) % count;
+                            var ringPos = ((headBase[s] - cursorBack[s] - 1) % count + count) % count;
                             var item = items[ringPos];
                             if (!strands[s].PreservesOrder
                                 && !ProgramScheduleAgeWindow.IsAllowedAt(item.AgeRatingMinAge, nextTakenStart[s], ageRule))
@@ -1065,9 +1076,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     for (var s = 0; s < m; s++)
                     {
                         var items = strands[s].Items;
-                        var head = firstIndex[s] >= 0
-                            ? ((firstIndex[s] - cursorBack[s]) % items.Count + items.Count) % items.Count
-                            : 0;
+                        var head = ((headBase[s] - cursorBack[s]) % items.Count + items.Count) % items.Count;
                         simStrands.Add(new StrandState(strands[s].Key, items, head));
                     }
 

@@ -89,8 +89,13 @@ public sealed class LiveStreamMediaResolverTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var source = new MediaSource
         {
-            Name = $"S-{Guid.NewGuid():N}", Path = "/remote", SourceType = MediaSourceType.Sftp,
-            Host = "sftp.example.local", Port = 22, Username = "streamer", Password = "geheim"
+            Name = $"S-{Guid.NewGuid():N}",
+            Path = "/remote",
+            SourceType = MediaSourceType.Sftp,
+            Host = "sftp.example.local",
+            Port = 22,
+            Username = "streamer",
+            Password = "geheim"
         };
         _fixture.Db.MediaSources.Add(source);
         await _fixture.Db.SaveChangesAsync(ct);

@@ -827,7 +827,8 @@ public sealed class FfmpegLiveStreamSegmenterTests
         var httpUrl = "http://127.0.0.1:5002/api/internal/media-stream/" + new string('e', 64);
         await segmenter.StartAsync(FileJob(slotId: 42) with
         {
-            Input = LiveStreamInput.ForHttp(httpUrl), RemainingSeconds = 3600
+            Input = LiveStreamInput.ForHttp(httpUrl),
+            RemainingSeconds = 3600
         }, ct);
 
         _processes[0].StderrPipe.WriteText("Server returned 404 Not Found\n");
@@ -859,7 +860,8 @@ public sealed class FfmpegLiveStreamSegmenterTests
         var httpUrl = "http://127.0.0.1:5002/api/internal/media-stream/" + new string('f', 64);
         await segmenter.StartAsync(FileJob(slotId: 42) with
         {
-            Input = LiveStreamInput.ForHttp(httpUrl), RemainingSeconds = 3600
+            Input = LiveStreamInput.ForHttp(httpUrl),
+            RemainingSeconds = 3600
         }, ct);
 
         _processes[0].StderrPipe.WriteText("Server returned 404 Not Found\n");
@@ -888,7 +890,8 @@ public sealed class FfmpegLiveStreamSegmenterTests
         var httpUrl = "http://127.0.0.1:5002/api/internal/media-stream/" + new string('a', 64);
         await segmenter.StartAsync(FileJob(slotId: 42) with
         {
-            Input = LiveStreamInput.ForHttp(httpUrl), RemainingSeconds = 3600
+            Input = LiveStreamInput.ForHttp(httpUrl),
+            RemainingSeconds = 3600
         }, ct);
 
         _processes[0].StderrPipe.WriteText("Server returned 404 Not Found\n");
@@ -898,7 +901,8 @@ public sealed class FfmpegLiveStreamSegmenterTests
         // Neuer Sendeplatz — seine Fehlschlag-Maske startet leer.
         await segmenter.StartAsync(FileJob(slotId: 43) with
         {
-            Input = LiveStreamInput.ForHttp(httpUrl), RemainingSeconds = 3600
+            Input = LiveStreamInput.ForHttp(httpUrl),
+            RemainingSeconds = 3600
         }, ct);
         _processes[1].SimulateExit(1);
 

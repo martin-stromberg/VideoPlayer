@@ -216,7 +216,11 @@ Sendeplan. Drei Einstellungen im Tab „Einstellungen" (Gruppe „Planung") steu
 Dabei gilt:
 
 - **Konflikte** zwischen überschneidenden Ausstrahlungen entscheidet die Priorität der Regel
-  (bei Gleichstand die ältere Regel); die unterlegene Ausstrahlung entfällt komplett.
+  (bei Gleichstand die ältere Regel). Eine höher priorisierte Regel übernimmt das Zeitfenster
+  niedriger priorisierter Regeln: Ihre Ausstrahlung wird am Fensterbeginn einer schwächeren
+  Regel nicht gestoppt, sondern füllt ihr eigenes Fenster vollständig; die verdrängte
+  Ausstrahlung verschiebt sich hinter das reale Ende der Belegung oder wartet auf ihre nächste
+  Sendezeit.
 - **Videos werden niemals gekürzt:** Ein einmal eingeplantes Video läuft immer vollständig —
   auch über das Ende seines Regelfensters hinaus (Überlauf). Beginnt z. B. 15 Minuten vor dem
   nächsten Sendefenster ein 45-minütiger Film, läuft er zu Ende und die folgende Ausstrahlung

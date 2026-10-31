@@ -12,7 +12,7 @@
 
 | Lauf | Befehl inkl. Filter | Arbeitsverzeichnis | Exit-Code | Erfolgreich | Fehlgeschlagen | Übersprungen | Nachweis |
 |------|--------------------|--------------------|-----------|-------------|----------------|--------------|----------|
-| Baseline | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --logger "console;verbosity=normal"` | Repo-Root | 0 | 1825 | 0 | 1 | [baseline.log](test-results/baseline.log) |
+| Baseline | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --logger "console;verbosity=normal"` | Repo-Root | 0 | 1825 | 0 | 1 | `baseline.log` (`test-results/baseline.log`) |
 
 ### Nachgewiesene bestehende Testfehler
 

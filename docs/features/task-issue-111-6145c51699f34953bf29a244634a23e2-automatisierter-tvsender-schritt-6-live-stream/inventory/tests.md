@@ -13,7 +13,7 @@
 
 | Lauf | Befehl inkl. Filter | Arbeitsverzeichnis | Exit-Code | Erfolgreich | Fehlgeschlagen | Übersprungen | Nachweis |
 |------|--------------------|--------------------|-----------|-------------|----------------|--------------|----------|
-| Baseline | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --logger "console;verbosity=normal"` | Repo-Wurzel | 0 | 1892 | 0 | 1 | [baseline-dotnet-test.log](test-results/baseline-dotnet-test.log) |
+| Baseline | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --logger "console;verbosity=normal"` | Repo-Wurzel | 0 | 1892 | 0 | 1 | `baseline-dotnet-test.log` (`test-results/baseline-dotnet-test.log`) |
 
 Gesamtdauer: ~4 Minuten. Gesamtzahl laut Runner: 1893.
 

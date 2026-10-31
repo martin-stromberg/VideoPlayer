@@ -22,7 +22,7 @@ zusätzlich über einen Build mit Scratch-`OutDir` nachgewiesen.
 
 | Lauf | Befehl inkl. Filter | Arbeitsverzeichnis | Exit-Code | Erfolgreich | Fehlgeschlagen | Übersprungen | Nachweis |
 |------|--------------------|--------------------|-----------|-------------|----------------|--------------|----------|
-| Baseline (gefiltert) | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj -c Release --filter "FullyQualifiedName~MediaDurationProbe\|FullyQualifiedName~TVSenderAdmin\|FullyQualifiedName~ProgramSchedule\|FullyQualifiedName~ProgramRule"` | Repo-Root | 0 | 131 | 0 | 0 | [TRX](test-results/baseline-probe-fortschritt.trx) |
+| Baseline (gefiltert) | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj -c Release --filter "FullyQualifiedName~MediaDurationProbe\|FullyQualifiedName~TVSenderAdmin\|FullyQualifiedName~ProgramSchedule\|FullyQualifiedName~ProgramRule"` | Repo-Root | 0 | 131 | 0 | 0 | `TRX` (`test-results/baseline-probe-fortschritt.trx`) |
 | Build Release | `dotnet build VideoPlayer.sln -c Release` | Repo-Root | 0 | – | – | – | 0 Fehler, 142 Warnungen (Bestand) |
 | Build Debug | `dotnet build VideoPlayer.sln` | Repo-Root | 1 | – | – | – | MSB3027/MSB3021: `VideoWebPlayer.Client.dll` durch laufende `VideoWebPlayer.exe` (PID 55720) gesperrt — Umgebungsproblem, kein Codeproblem |
 

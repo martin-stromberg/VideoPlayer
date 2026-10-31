@@ -7,13 +7,13 @@
 - Uncommittete Änderungen im getesteten Stand: nur Lifecycle-Artefakte dieses Feature-Verzeichnisses (untracked); kein Produktivcode geändert
 - Testumgebung: Windows, `dotnet --version` 10.0.402, Playwright 1.62.0 (Chromium headless über `PlaylistsE2ETestBase`)
 - Ermittelte Testsuiten: `VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj` (xUnit v3, bUnit, Moq, Mvc.Testing, Playwright, EF SQLite) — einziger Testbefehl laut `AGENTS.md` DoD: `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj`
-- Vorab-Build: `dotnet build VideoPlayer.sln -c Debug` → 0 Fehler, 141 Warnungen (Bestand) — [Log](test-results/baseline-build.log)
+- Vorab-Build: `dotnet build VideoPlayer.sln -c Debug` → 0 Fehler, 141 Warnungen (Bestand) — `Log` (`test-results/baseline-build.log`)
 
 ### Testläufe
 
 | Lauf | Befehl inkl. Filter | Arbeitsverzeichnis | Exit-Code | Erfolgreich | Fehlgeschlagen | Übersprungen | Nachweis |
 |------|--------------------|--------------------|-----------|-------------|----------------|--------------|----------|
-| Baseline | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build --logger "console;verbosity=normal"` | Repo-Wurzel | 1 | 1952 | 1 | 1 | [baseline-dotnet-test.log](test-results/baseline-dotnet-test.log) |
+| Baseline | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build --logger "console;verbosity=normal"` | Repo-Wurzel | 1 | 1952 | 1 | 1 | `baseline-dotnet-test.log` (`test-results/baseline-dotnet-test.log`) |
 | Einzelwiederholung | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build --filter "FullyQualifiedName~TVSenderAdminE2ETests.Admin_CreateEditDeactivateDeleteRule"` | Repo-Wurzel | 0 | 1 | 0 | 0 | Konsole, s. u. |
 
 ### Nachgewiesene bestehende Testfehler

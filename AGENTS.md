@@ -100,8 +100,8 @@ betrifft nur, was der Agent selbst erzeugt hat.
 
 ## 9. Prozessbeschreibungen
 
-Die Ablaufbeschreibung der Skills `lifecycle` und `project` existiert derzeit an zwei Stellen, beide nicht
-von Git verfolgt: lokal unter `.agents/skills/lifecycle/` (für Codex/Devin; der Ordner steht in der
-`.gitignore`) und im Benutzerverzeichnis von Claude Code (`~/.claude/commands/`). Beide sollen inhaltlich
-gleich sein, sonst arbeiten die Agenten nach unterschiedlichen Regeln. Ein Agent, der eine Abweichung
-bemerkt, gleicht nicht eigenmächtig an, sondern weist den Anwender darauf hin.
+Die Ablaufbeschreibung der Skills `lifecycle` und `project` liegt nicht im Repository, sondern
+im Benutzerverzeichnis von Claude Code (`~/.claude/commands/lifecycle.md` und
+`~/.claude/commands/project.md`; zusätzlich `~/.claude/skills/lifecycle/`). Agenten ohne
+Zugriff darauf halten sich an die dort beschriebene Arbeitsweise; wer eine Abweichung bemerkt,
+gleicht nicht eigenmächtig an, sondern weist den Anwender darauf hin.

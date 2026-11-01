@@ -252,8 +252,11 @@ public sealed class ProgramScheduleServiceTests_Boundary
         var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
         var invader = await fixture.CreateRuleAsync(channel.Id, "Vormittag", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
             new TimeOnly(15, 30), ProgramRuleMaterialType.Movie, movie.Id);
+        // 30-minute period: the shifted head lies further behind the nominal start than the
+        // unwritten headroom, so only invader evidence can prove the anchor — losing the
+        // evidence must really displace.
         var shifted = await fixture.CreateRuleAsync(channel.Id, "Vorbendserien", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily,
-            new TimeOnly(16, 0), ProgramRuleMaterialType.TVShow, show.Id, slotDuration: TimeSpan.FromHours(4));
+            new TimeOnly(16, 0), ProgramRuleMaterialType.TVShow, show.Id, slotDuration: TimeSpan.FromMinutes(30));
 
         var service = fixture.CreateService();
         await service.EnsureCoverageAsync(now, ct);
@@ -274,6 +277,83 @@ public sealed class ProgramScheduleServiceTests_Boundary
         Assert.True(replan.SlotsDisplaced > 0);
         var second = await service.ReconcileAsync(now.AddMinutes(10), ct);
         await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, second, ct, "Folgelauf");
+    }
+
+    // Issue „Senderplanung fehlerhaft": der Kopf-Anker einer invader-verschobenen UND
+    // teilweise gelaufenen Ausstrahlung. Reconcile mitten in der zweiten Episode teilt die
+    // Ausstrahlung an der Coverage-Grenze — der Zukunfts-Gruppenkopf (21:15) ist weder der
+    // nominale Occurrence-Start noch das Ende der Invader-Kette (die endet am realen
+    // Ausstrahlungsstart 20:30, nicht am Gruppenkopf). Der Ankerbeweis muss daher am realen
+    // Start ansetzen; sonst wird die Folge-Ausstrahlung verdrängt und positions- und
+    // inhaltsgleich neu erzeugt (Selbst-Verdrängung).
+    [Fact]
+    public async Task Reconcile_ShiftedPartiallyAiredAiring_StaysScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("boundary-shifted-partial", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var (show, _, _) = await fixture.CreateShowAsync("Serie", 10, duration: TimeSpan.FromMinutes(45));
+        var invaderMovie = await fixture.CreateMovieAsync("Invaderfilm", duration: TimeSpan.FromMinutes(30));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 19, 0));
+        // Höherpriore Invader-Regel exakt auf dem 20:00-Occurrence-Start: die 2×45-min-
+        // Serienausstrahlung verschiebt sich auf 20:30–22:00.
+        await fixture.CreateRuleAsync(channel.Id, "Invader", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, invaderMovie.Id, priority: 1);
+        var series = await fixture.CreateRuleAsync(channel.Id, "Abendserie", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.TVShow, show.Id, episodeCount: 2);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+        var airing = (await ScheduledAsync(fixture, ct))
+            .Where(s => s.ProgramRuleId == series.Id && s.Start < LocalUtc(2026, 10, 25, 0, 0)).ToList();
+        Assert.Equal(2, airing.Count);
+        Assert.Equal(LocalUtc(2026, 10, 24, 20, 30), airing[0].Start);
+
+        // Reconcile mitten in E2 (21:30): der laufende Slot überlebt als Protected — die
+        // Folge-Ausstrahlungen der Regel dürfen aber nicht als Suffix verdrängt werden.
+        var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 21, 30)), ct);
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+        await ProgramScheduleTestDb.AssertNoSelfDisplacedAsync(fixture, ct);
+    }
+
+    // Pathologischer EpisodeCount (ungeprüfte Benutzereingabe): (wanted − 1) × maxItemDuration
+    // läuft als long über — das Anker-Headroom muss sättigen statt negativ zu wrappen, sonst
+    // verliert die teilweise gelaufene Ausstrahlung ihren Anker und wird verdrängt.
+    [Fact]
+    public async Task Reconcile_PathologicalEpisodeCount_AnchorHeadroomSaturates()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("boundary-headroom-overflow", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var (show, _, episodes) = await fixture.CreateShowAsync("Serie", 10, duration: TimeSpan.FromMinutes(45));
+        var itemByEpisode = await fixture.Db.TVShowEpisodeMediaItems
+            .ToDictionaryAsync(l => l.TVShowEpisodeId, l => l.MediaItemId, ct);
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0));
+        // Einmal-Regel vor 40 h: der Occurrence-Start liegt im erweiterten Lookback
+        // (Anker-Kandidat), aber jenseits des 24-h-Re-Materialisierungsfensters — die
+        // pathologische Regel wird so nur validiert, nie neu ausgewählt.
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Marathon", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Once,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.TVShow, show.Id, episodeCount: 400_000_001,
+            singleDate: new DateOnly(2026, 10, 22));
+
+        // Lückenlose geschriebene Kette der Ausstrahlung: sie muss die 24-h-Ladekante
+        // überspannen (sonst loest der Lookback-Trigger das erweiterte Fenster nicht aus,
+        // in dem der 40-h-Occurrence-Start als Anker-Kandidat liegt) und hinter die
+        // Coverage-Grenze reichen (sonst gilt die Gruppe als gelaufene Historie).
+        var cursor = LocalUtc(2026, 10, 23, 11, 45);
+        for (var k = 0; cursor < LocalUtc(2026, 10, 24, 14, 0); k++)
+        {
+            var episode = episodes[k % episodes.Count];
+            await fixture.CreateSlotAsync(channel.Id, cursor, cursor + TimeSpan.FromMinutes(45),
+                itemByEpisode[episode.Id], episodeId: episode.Id, ruleId: rule.Id, ruleType: ProgramRuleType.SeriesFixedTime);
+            cursor += TimeSpan.FromMinutes(45);
+        }
+
+        var service = fixture.CreateService();
+        var summary = await service.ReconcileAsync(now, ct);
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
     }
 
     // A head item larger than the remaining window is no longer consumed or skipped — it airs

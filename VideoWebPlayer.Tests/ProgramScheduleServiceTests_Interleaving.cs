@@ -106,10 +106,8 @@ public sealed class ProgramScheduleServiceTests_Interleaving
         using var _ = fixture;
 
         // Extend coverage a day later — each strand continues at its own persisted cursor,
-        // never restarting at the first episode. (Within the 24 h lookback the service
-        // re-consumes one already-aired occurrence per strand — the same lookback-consume
-        // semantics the flat ring had before; a single index jump across the run boundary
-        // is therefore expected, but never a reset.)
+        // never restarting at the first episode. (A lookback occurrence that already ended
+        // consumes nothing — the rings simply continue from the cursor.)
         var later = new DateTimeOffset(LocalUtc(2026, 10, 25, 9, 0));
         await service.EnsureCoverageAsync(later, ct);
 

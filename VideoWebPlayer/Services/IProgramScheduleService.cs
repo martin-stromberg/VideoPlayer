@@ -13,6 +13,7 @@ namespace VideoWebPlayer.Services;
 /// <param name="DroppedConflicts">How many rule airings were dropped because a higher-priority airing occupied their window.</param>
 /// <param name="RemainingGapSeconds">Total seconds of the planning window left uncovered (e.g. no fitting filler).</param>
 /// <param name="BlockedByAgeWindow">How many scanned candidates were blocked by the youth-protection window.</param>
+/// <returns>What the coverage run did.</returns>
 public readonly record struct ProgramScheduleRunSummary(
     int SlotsCreated,
     int FillerSlotsCreated,
@@ -35,6 +36,7 @@ public readonly record struct ProgramScheduleRunSummary(
 /// <param name="DroppedConflicts">How many rule airings were dropped because higher-priority coverage occupied their window.</param>
 /// <param name="RemainingGapSeconds">Total seconds of the planning window left uncovered (e.g. no fitting filler).</param>
 /// <param name="BlockedByAgeWindow">How many scanned candidates were blocked by the youth-protection window.</param>
+/// <returns>What the reconcile run did.</returns>
 public readonly record struct ProgramScheduleReconcileSummary(
     int SlotsDisplaced,
     int SlotsCreated,
@@ -68,6 +70,7 @@ public readonly record struct ProgramScheduleReconcileSummary(
 /// <param name="AgeWindowBlockedCount">Schedulable candidates that are not age-appropriate for
 /// the rule's evaluation time (its next occurrence start) under the configured
 /// youth-protection window.</param>
+/// <returns>The diagnosis of one rule.</returns>
 public readonly record struct ProgramRuleDiagnosis(
     long RuleId,
     bool MaterialMissing,
@@ -84,6 +87,7 @@ public readonly record struct ProgramRuleDiagnosis(
 /// </summary>
 /// <param name="SlotsDeleted">How many program slots (scheduled and displaced) were deleted.</param>
 /// <param name="CursorsDeleted">How many rule cursors (continuation state) were deleted.</param>
+/// <returns>What the reset deleted.</returns>
 public readonly record struct ProgramScheduleResetResult(int SlotsDeleted, int CursorsDeleted);
 
 /// <summary>
@@ -96,6 +100,8 @@ public interface IProgramScheduleService
     /// Extends the channel's program schedule so it covers the configured horizon starting at
     /// <paramref name="utcNow"/>. Existing slots are never modified — the run only appends coverage
     /// (extend-only; reconciling the plan after rule or media changes is a separate concern).
+    /// Occurrences inside the lookback window materialize only their still-running part: an
+    /// occurrence whose airing already ended leaves the material rings untouched.
     /// </summary>
     /// <param name="utcNow">The current time.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -104,11 +110,15 @@ public interface IProgramScheduleService
 
     /// <summary>
     /// Re-evaluates the channel's program schedule for <c>[utcNow, utcNow + horizon]</c> against the
-    /// current rules and media library: scheduled slots that are no longer valid (producing rule
-    /// gone or inactive, airing no longer reproducible, referenced media item deleted, content no
-    /// longer in the rule's expansion) are marked <see cref="ProgramSlotStatus.Displaced"/> — never
-    /// deleted — and the freed windows are re-materialized from the current rules, re-airing
-    /// displaced series content in air order via the rule cursor.
+    /// current rules and media library: each scheduled slot is validated on its own — producing
+    /// rule present and active, an occurrence anchor for the airing's head, content still in the
+    /// rule's expansion, stored runtime and age-window admissibility at the slot start, and ring
+    /// contiguity of ordered strands. Slots failing a check (rule gone or inactive, no provable
+    /// occurrence anchor, referenced media item deleted, content no longer in the rule's
+    /// expansion, tightened age window, broken episode order) are marked
+    /// <see cref="ProgramSlotStatus.Displaced"/> — never deleted — and the freed windows are
+    /// re-materialized from the current rules, re-airing displaced series content in air order
+    /// via the rule cursor.
     /// </summary>
     /// <param name="utcNow">The current time.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

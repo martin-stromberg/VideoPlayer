@@ -245,8 +245,8 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
 
         // The rematerialization stays window-conform: with the whole ring blocked at every
         // occurrence start nothing replaces the displaced airings (this is also the
-        // regression scenario for the backward-hypothesis wall in FlatAiringTailReproducible —
-        // a full skip lap must terminate the scan instead of looping over ~2^31 hypotheses).
+        // regression scenario for the skip-lap guard in SelectAiringItems —
+        // a full skip lap must terminate the scan instead of looping without progress).
         var scheduledRule = await fixture.Db.ProgramSlots
             .Where(s => s.ProgramRuleId == rule.Id && s.Status == ProgramSlotStatus.Scheduled).ToListAsync(ct);
         Assert.Empty(scheduledRule);
@@ -432,9 +432,13 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         // skipped inside the window (taken ring positions are non-consecutive).
         Assert.Contains(slots, s => s.TVShowEpisodeId is not null);
         Assert.Contains(slots, s => s.MovieId is not null);
-        Assert.DoesNotContain(slots, s => s.MovieId == m2.Id);
+        // The FSK-18 position is skipped while its window is closed and may only air
+        // inside the night window (the ring start no longer depends on lookback consumption).
+        foreach (var slot in slots.Where(s => s.MovieId == m2.Id))
+            Assert.True(LocalMinutes(slot.Start) >= 23 * 60 || LocalMinutes(slot.Start) < 6 * 60,
+                $"FSK-18-Slot {slot.Start:o} außerhalb des Nachtfensters");
 
-        // Unchanged settings: the gap-tolerant reproducibility check keeps the airing.
+        // Unchanged settings: the title-wise slot validation keeps the airing.
         var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 19, 30)), ct);
         await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
 

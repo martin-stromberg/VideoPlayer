@@ -442,6 +442,34 @@ public sealed class ProgramScheduleServiceTests_ClipGroups
         Assert.True(summary.SlotsDisplaced > 0);
     }
 
+    // Clip slots carry the runtime they were written with: a stored clip slot whose length
+    // no longer matches the clip's probed runtime (e.g. after a re-probe) is a real change —
+    // the title-wise check must reject it like it does for title slots.
+    [Fact]
+    public async Task Reconcile_ClipSlotDurationMismatch_DisplacesAiring()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("cg-clip-duration", ct);
+        var (rule, _, _, clips) = await SeedClipAiringAsync(fixture, ct, clipCount: 12);
+        var clipIds = clips.Select(c => c.Id).ToHashSet();
+        var service = fixture.CreateService();
+
+        await service.EnsureCoverageAsync(Now, ct);
+        // The last clip slot of the airing: stretching only its End keeps the group gapless
+        // (no successor slot's Start depends on it).
+        var stale = (await AiringSlotsAsync(fixture, rule, ct)).Last(s => clipIds.Contains(s.MediaItemId));
+        await fixture.Db.ProgramSlots.Where(s => s.Id == stale.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.End, stale.End.AddMinutes(5)), ct);
+        // Bulk updates bypass the change tracker — the materialization tracked the slot with
+        // its original End and the reconcile would otherwise validate the stale instance.
+        fixture.Db.ChangeTracker.Clear();
+
+        var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 30)), ct);
+        Assert.True(summary.SlotsDisplaced > 0);
+        Assert.Equal(ProgramSlotStatus.Displaced,
+            await fixture.Db.ProgramSlots.Where(s => s.Id == stale.Id).Select(s => s.Status).SingleAsync(ct));
+    }
+
     [Fact]
     public async Task Reconcile_WorkerLoop_WithClipFill_NoDisplacedAccumulation()
     {

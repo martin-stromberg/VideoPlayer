@@ -577,11 +577,41 @@ zeitgebunden eingeholt (`_pumpDrainTimeout`, per Parameter an
   trug: Ein `Failed`-/`Truncated`-/`SourceUnavailable`- oder unbekannt
   gebliebenes Pump-Ergebnis macht die Demux-Klagen zur erwarteten Folge des
   unvollständigen Feeds (transienter Retry statt Slot-Skip).
-- Die `Warning`-Zeile führt Exit-Code, alle drei Flags und — sofern eingeholt —
-  die Pump-Bilanz „Eingabe-Pumpe: n/m Bytes"; stderr-Tail und ffmpeg-Argumente
-  laufen durch `MaskStreamTokenInText` und `MaskCredentialsInText`.
+- Die `Warning`-Zeile führt Exit-Code, alle drei Flags, den Vermerk „erstes
+  Segment: erzeugt|ausgeblieben" (aus dem Erste-Ausgabe-Wächter, Abschnitt 4 —
+  ein beim Seek-Scan sterbender ffmpeg bleibt so von einem echten Demux-Fehler
+  unterscheidbar) und — sofern eingeholt — die Pump-Bilanz „Eingabe-Pumpe: n/m
+  Bytes"; stderr-Tail und ffmpeg-Argumente laufen durch
+  `MaskStreamTokenInText` und `MaskCredentialsInText`.
 
-#### 4. Log-Seite (`LiveStreamWorker`)
+#### 4. Erste-Ausgabe-Wächter (Seek-Latenz, Issue #319)
+
+`StartAsync` startet neben Pump- und stderr-Drain einen dritten Neben-Task:
+`WatchFirstOutputAsync` misst die Wandzeit von `_startedAt` bis zur ersten
+sichtbaren Ausgabe des Laufs — dem ersten `seg_*_{slotId}_*.ts`-Namen, der im
+Start-Snapshot des Segmentverzeichnisses noch nicht stand (`append_list`
+führt den `%05d`-Zähler fort, das erste Segment heißt also nicht zwingend
+`00000`), oder der ersten `live.m3u8`-Rewrite nach dem Snapshot (der
+ENDLIST-Strip beim Start liegt davor und zählt nicht). `Directory`/mtime
+werden alle 500 ms gepollt.
+
+- **Info-Log** beim ersten Output: „Erstes Segment fuer Sendeplatz {SlotId}
+  nach {Latency}s (Eingang: {Datei|HTTP|sftp|pipe:0}, Position {Position}s)".
+- **Warnung** ab `max(15 s, 3 × SegmentSeconds)` ohne Ausgabe: „Kein erstes
+  Segment … — Seek-/Scan-Latenz am Eingang {Kind} vermutet". Hintergrund: Auf
+  seekbaren Eingängen löst der Demuxer-Seek (`avformat_seek_file`) vor dem
+  Streaming auf; auf `pipe:0` oder Containern ohne Index scannt ffmpeg dagegen
+  unter `-re`-Drossel in Echtzeit bis zur Zielposition — Verzögerung ≈
+  `PositionSeconds`, kann die Restlaufzeit des Sendeplatzes übersteigen.
+  `ExpectedPositionSeconds` ist Wanduhr-Projektion und stderr läuft auf
+  `-loglevel warning` — ohne diesen Wächter war der hängende Seek für Log und
+  Drift-Wächter unsichtbar. Der Wächter endet still bei Prozessende, Job-
+  Ersetzung oder Laufzeithorizont; die ffmpeg-Optionen bleiben bewusst
+  unverändert (`-noaccurate_seek`/`-seekable 0`/output-seitiges `-ss` sind im
+  Issue jeweils als kontraproduktiv belegt), differenzierte Optionen je
+  Eingangsart folgen erst bei Befund.
+
+#### 5. Log-Seite (`LiveStreamWorker`)
 
 Das `Started`-`Detail` trägt `InputKindLabel` (Datei/HTTP/`sftp`/`pipe:0`) und die
 `ResolutionNote` — einmal je Job auf `Information`. `MediaUnavailable`- und

@@ -97,11 +97,3 @@ Ein Schritt ist erst „Fertig“, wenn alles gilt:
 Untracked Dateien, die der Agent nicht selbst angelegt hat (z. B. lokale Notizen oder Rückmeldungen des
 Anwenders unter `docs/features/task/`), werden weder gelöscht noch verändert oder committet. Aufräumen
 betrifft nur, was der Agent selbst erzeugt hat.
-
-## 9. Prozessbeschreibungen
-
-Die Ablaufbeschreibung der Skills `lifecycle` und `project` existiert derzeit an zwei Stellen, beide nicht
-von Git verfolgt: lokal unter `.agents/skills/lifecycle/` (für Codex/Devin; der Ordner steht in der
-`.gitignore`) und im Benutzerverzeichnis von Claude Code (`~/.claude/commands/`). Beide sollen inhaltlich
-gleich sein, sonst arbeiten die Agenten nach unterschiedlichen Regeln. Ein Agent, der eine Abweichung
-bemerkt, gleicht nicht eigenmächtig an, sondern weist den Anwender darauf hin.

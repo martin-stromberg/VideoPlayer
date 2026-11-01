@@ -115,14 +115,18 @@ Schritt nach `Updates/update.log`; nach einem Fehlschlag liegt zusätzlich eine 
 ausgeführten Skripts als `update-failed.ps1` vor.
 
 **Update-Installation unter Linux (systemd):** Das Installationsskript läuft als transienter
-systemd-Service (`systemd-run --wait`): Der Starter-Prozess wartet bis zum Unit-Ende und propagiert
-den Exit-Code, sodass der Updater Lock-Datei und Paket-Deskriptor erst nach dem tatsächlichen
-Skriptende aufräumt — gleiches Verhalten wie der Windows-WMI-Pfad. Schlägt das Skript fehl, legt ein
-Cleanup-Trap einen `update.failed`-Marker im Update-Verzeichnis an, den die Status-Überwachung beim
-nächsten Lauf als fehlgeschlagene Installation einordnet. Solange der Status `Installing` ist und der
-Installationsbeginn jünger als `HealthTimeoutSeconds` liegt, gilt die Installation als laufend
-(Karenzfenster) — es erfolgt weder ein Workspace-Cleanup noch ein Fehlverdikt. Auch das Linux-Skript
-protokolliert jeden Schritt nach `Updates/update.log`.
+systemd-Service (`systemd-run`, ohne `--wait`): Der Starter-Prozess ist kurzlebig und endet bereits
+nach der Registrierung der Unit — die Unit läuft losgelöst weiter und überlebt damit den
+`StopHostAfterScriptStart`-Shutdown des Hosts. `MonitorStarterAsync` überwacht nur den Exit-Code des
+Starters, also ob die Unit registriert werden konnte, und meldet Starter-Fehler als fehlgeschlagene
+Installation; anders als `MonitorAsync` auf dem Windows-Pfad berührt die Überwachung weder
+Installations-Lock noch persistierten Paket-Deskriptor — beide räumt das Installationsskript am Ende
+selbst auf. Schlägt das Skript fehl, legt ein Cleanup-Trap einen `update.failed`-Marker im
+Update-Verzeichnis an, den die Status-Überwachung beim nächsten Lauf als fehlgeschlagene Installation
+einordnet. Solange der Status `Installing` ist und der Installationsbeginn jünger als
+`HealthTimeoutSeconds` liegt, gilt die Installation als laufend (Karenzfenster) — es erfolgt weder
+ein Workspace-Cleanup noch ein Fehlverdikt. Auch das Linux-Skript protokolliert jeden Schritt nach
+`Updates/update.log`.
 
 **Dateierhalt bei Updates:** Die Schutzliste `AutoUpdate:ProtectedFiles` steuert, welche deployment-seitig
 angepassten Dateien eine Update-Installation überstehen. Das generierte Installationsskript arbeitet strikt

@@ -92,10 +92,16 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     /// <summary>Grace period to wait for the exit code once stderr reaches end of stream.</summary>
     private static readonly TimeSpan ExitDetectionTimeout = TimeSpan.FromSeconds(5);
 
+    /// <summary>Poll cadence of the first-output watchdog that times the wait for the run's
+    /// first produced segment (or playlist rewrite) — the seek latency of non-seekable
+    /// inputs (Issue #319).</summary>
+    private static readonly TimeSpan FirstOutputPollInterval = TimeSpan.FromMilliseconds(500);
+
     private readonly ILogger<FfmpegLiveStreamSegmenter> _logger;
     private readonly Func<ProcessStartInfo, ISegmenterProcess?> _startProcess;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _pumpDrainTimeout;
+    private readonly TimeSpan? _firstOutputWarnAfter;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private ISegmenterProcess? _process;
@@ -104,6 +110,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     private DateTimeOffset _startedAt;
     private volatile LiveStreamExitInfo? _lastUnexpectedExit;
     private volatile bool _sftpInputSupported = true;
+    private volatile bool _firstOutputObserved;
 
     // Escalation memory per broadcast slot, held by this singleton because the coordinator
     // is resolved per tick in a fresh scope: the input cascade HTTP → sftp → pipe:0 must be
@@ -130,12 +137,14 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
         ILogger<FfmpegLiveStreamSegmenter> logger,
         Func<ProcessStartInfo, ISegmenterProcess?> startProcess,
         TimeProvider? timeProvider = null,
-        TimeSpan? pumpDrainTimeout = null)
+        TimeSpan? pumpDrainTimeout = null,
+        TimeSpan? firstOutputWarnAfter = null)
     {
         _logger = logger;
         _startProcess = startProcess;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _pumpDrainTimeout = pumpDrainTimeout ?? SegmenterProcessSupport.PumpDrainTimeout;
+        _firstOutputWarnAfter = firstOutputWarnAfter;
     }
 
     /// <inheritdoc />
@@ -203,6 +212,9 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
         {
             await StopCoreAsync(cancellationToken);
             StripEndlistFromPlaylist(job.SegmentDirectory);
+            // Snapshot after the ENDLIST strip so that rewrite is not mistaken for the
+            // new run's first output; only files appearing after this point count.
+            var firstOutputSnapshot = CaptureSegmentDirectorySnapshot(job);
 
             var startInfo = new ProcessStartInfo
             {
@@ -222,6 +234,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             _job = job;
             _startedAt = _timeProvider.GetUtcNow();
             _lastUnexpectedExit = null;
+            _firstOutputObserved = false;
             _logger.LogInformation(
                 "[FfmpegLiveStreamSegmenter] Segmentierung fuer Sendeplatz {SlotId} gestartet (Position {Position}s).",
                 job.SlotId, job.PositionSeconds);
@@ -238,6 +251,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
                 : null;
             _pumpTask = pumpTask is not null ? pumpTask : Task.CompletedTask;
             _ = Task.Run(() => DrainStandardErrorAsync(process, job, _startedAt, pumpTask), CancellationToken.None);
+            _ = Task.Run(() => WatchFirstOutputAsync(process, job, _startedAt, firstOutputSnapshot), CancellationToken.None);
         }
         finally
         {
@@ -397,6 +411,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
         // even when the re-check finds the process already replaced, so they are
         // applied before it; only publishing the report must not overwrite the new
         // job's state with the stale diagnosis.
+        var firstOutputObserved = false;
         await _gate.WaitAsync(CancellationToken.None);
         try
         {
@@ -424,6 +439,9 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
                 return;
             }
 
+            // Read inside the gate while the identity check above still holds — a
+            // concurrently starting job resets the flag for its own run.
+            firstOutputObserved = _firstOutputObserved;
             _lastUnexpectedExit = new LiveStreamExitInfo(
                 job.SlotId, exitCode, httpTransportFailure, _timeProvider.GetUtcNow(),
                 UndecodableInput: undecodableInput, SftpInputFailure: sftpInputFailure,
@@ -441,8 +459,9 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             : string.Empty;
 
         _logger.LogWarning(
-            "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} beendete sich unerwartet nach {Elapsed:F1}s (Exit-Code {ExitCode}, HTTP-Transportfehler: {HttpTransportFailure}, sftp-Eingangsfehler: {SftpInputFailure}, Eingang nicht demuxbar: {UndecodableInput}{PumpStats}). stderr: {StderrTail}",
-            job.SlotId, elapsed.TotalSeconds, exitCode, httpTransportFailure, sftpInputFailure, undecodableInput, pumpStats,
+            "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} beendete sich unerwartet nach {Elapsed:F1}s (Exit-Code {ExitCode}, HTTP-Transportfehler: {HttpTransportFailure}, sftp-Eingangsfehler: {SftpInputFailure}, Eingang nicht demuxbar: {UndecodableInput}, erstes Segment: {FirstOutput}{PumpStats}). stderr: {StderrTail}",
+            job.SlotId, elapsed.TotalSeconds, exitCode, httpTransportFailure, sftpInputFailure, undecodableInput,
+            firstOutputObserved ? "erzeugt" : "ausgeblieben", pumpStats,
             string.IsNullOrWhiteSpace(maskedTail) ? "(leer)" : maskedTail.Trim());
     }
 
@@ -467,6 +486,141 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
         if (result.Outcome == SegmenterPumpOutcome.SourceUnavailable)
             _logger.LogWarning("[FfmpegLiveStreamSegmenter] Eingabe-Stream fuer Sendeplatz {SlotId} nicht verfuegbar.", job.SlotId);
         return result;
+    }
+
+    /// <summary>
+    /// Directory state of one job's segment directory at process start: the
+    /// <c>seg_*_{slotId}_*.ts</c> names already present and the playlist's last write.
+    /// Segments of earlier runs survive in the directory, and an <c>append_list</c>
+    /// restart continues the <c>%05d</c> counter instead of restarting at 00000 — so
+    /// "first output" cannot be a fixed file name, only "a name that was not there at
+    /// start" or a playlist rewrite.
+    /// </summary>
+    private sealed class SegmentDirectorySnapshot
+    {
+        internal HashSet<string> SegmentNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+        internal DateTime PlaylistWriteUtc { get; set; }
+    }
+
+    /// <summary>
+    /// Watchdog per started run: measures the wall time from process start until ffmpeg
+    /// produces its first visible output — the first new <c>seg_*_{slotId}_*.ts</c> file
+    /// or the first rewrite of <c>live.m3u8</c>. For seekable inputs the demuxer seek
+    /// resolves ahead of streaming and the first segment lands within roughly one
+    /// segment length; on non-seekable inputs (<c>pipe:0</c>, containers without a
+    /// usable index) ffmpeg scans forward throttled by <c>-re</c>, so the wait can grow
+    /// toward <see cref="LiveStreamJob.PositionSeconds"/> and even outlive the slot's
+    /// remaining air time. Nothing else surfaces that scan: stderr runs at
+    /// <c>-loglevel warning</c> and the coordinator's drift watcher projects
+    /// <see cref="ExpectedPositionSeconds"/> from the wall clock, so a hanging seek was
+    /// invisible (Issue #319). The watchdog ends silently once the process exits or the
+    /// job is replaced — process-end reporting belongs to the stderr drain.
+    /// </summary>
+    private async Task WatchFirstOutputAsync(
+        ISegmenterProcess process, LiveStreamJob job, DateTimeOffset startedAt,
+        SegmentDirectorySnapshot snapshot)
+    {
+        // Healthy inputs show their first segment after process startup plus about one
+        // segment length; beyond three segment lengths (floor 15 s) a forward scan
+        // instead of a resolved demuxer seek is the likely cause — worth a warning
+        // while the scan is still running, not only retroactively.
+        var warnAfter = _firstOutputWarnAfter
+            ?? TimeSpan.FromSeconds(Math.Max(15, 3 * job.SegmentSeconds));
+        var horizon = TimeSpan.FromSeconds(job.RemainingSeconds)
+            + TimeSpan.FromSeconds(Math.Max(30, 3 * job.SegmentSeconds));
+        var warned = false;
+
+        while (ReferenceEquals(_process, process) && !process.HasExited
+            && _timeProvider.GetUtcNow() - startedAt < horizon)
+        {
+            if (FirstOutputArrived(job, snapshot))
+            {
+                if (!ReferenceEquals(_process, process))
+                    return;
+
+                _firstOutputObserved = true;
+                _logger.LogInformation(
+                    "[FfmpegLiveStreamSegmenter] Erstes Segment fuer Sendeplatz {SlotId} nach {Latency:F1}s (Eingang: {InputKind}, Position {Position:F1}s).",
+                    job.SlotId, (_timeProvider.GetUtcNow() - startedAt).TotalSeconds,
+                    job.Input.InputKindLabel, job.PositionSeconds);
+                return;
+            }
+
+            if (!warned && _timeProvider.GetUtcNow() - startedAt >= warnAfter)
+            {
+                warned = true;
+                _logger.LogWarning(
+                    "[FfmpegLiveStreamSegmenter] Kein erstes Segment fuer Sendeplatz {SlotId} nach {Elapsed:F1}s — Seek-/Scan-Latenz am Eingang {InputKind} vermutet (Position {Position:F1}s; nicht-seekbare Eingaenge lesen den Eingang in Echtzeit bis zur Zielposition).",
+                    job.SlotId, (_timeProvider.GetUtcNow() - startedAt).TotalSeconds,
+                    job.Input.InputKindLabel, job.PositionSeconds);
+            }
+
+            await Task.Delay(FirstOutputPollInterval);
+        }
+    }
+
+    /// <summary>
+    /// Records the segment directory contents of the job about to start so the
+    /// first-output watchdog can tell genuinely new output apart from prior runs'
+    /// leftover segments and the playlist state left behind by the ENDLIST strip.
+    /// </summary>
+    private SegmentDirectorySnapshot CaptureSegmentDirectorySnapshot(LiveStreamJob job)
+    {
+        var snapshot = new SegmentDirectorySnapshot();
+        try
+        {
+            if (!Directory.Exists(job.SegmentDirectory))
+                return snapshot;
+
+            foreach (var file in Directory.EnumerateFiles(job.SegmentDirectory, SegmentFilePattern(job.SlotId)))
+                snapshot.SegmentNames.Add(Path.GetFileName(file));
+
+            var playlist = Path.Combine(job.SegmentDirectory, PlaylistFileName);
+            if (File.Exists(playlist))
+                snapshot.PlaylistWriteUtc = File.GetLastWriteTimeUtc(playlist);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogDebug(ex,
+                "[FfmpegLiveStreamSegmenter] Segmentverzeichnis fuer Sendeplatz {SlotId} nicht einsehbar — Erste-Ausgabe-Messung ggf. blind.",
+                job.SlotId);
+        }
+
+        return snapshot;
+    }
+
+    private static string SegmentFilePattern(long slotId) => $"seg_*_{slotId}_*.ts";
+
+    /// <summary>
+    /// Detects the run's first visible output: a playlist whose last-write time advanced
+    /// past the snapshot (the HLS muxer rewrites <c>live.m3u8</c> with every finished
+    /// segment, starting with the first) or any <c>seg_*_{slotId}_*.ts</c> name the
+    /// start snapshot did not contain. Returns <see langword="false"/> when the
+    /// directory cannot be read — an unreadable listing must not fake an output.
+    /// </summary>
+    private static bool FirstOutputArrived(LiveStreamJob job, SegmentDirectorySnapshot snapshot)
+    {
+        try
+        {
+            var playlist = Path.Combine(job.SegmentDirectory, PlaylistFileName);
+            if (File.Exists(playlist) && File.GetLastWriteTimeUtc(playlist) > snapshot.PlaylistWriteUtc)
+                return true;
+
+            if (!Directory.Exists(job.SegmentDirectory))
+                return false;
+
+            foreach (var file in Directory.EnumerateFiles(job.SegmentDirectory, SegmentFilePattern(job.SlotId)))
+            {
+                if (!snapshot.SegmentNames.Contains(Path.GetFileName(file)))
+                    return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

@@ -97,3 +97,11 @@ Ein Schritt ist erst „Fertig“, wenn alles gilt:
 Untracked Dateien, die der Agent nicht selbst angelegt hat (z. B. lokale Notizen oder Rückmeldungen des
 Anwenders unter `docs/features/task/`), werden weder gelöscht noch verändert oder committet. Aufräumen
 betrifft nur, was der Agent selbst erzeugt hat.
+
+## 9. Prozessbeschreibungen
+
+Die Ablaufbeschreibung der Skills `lifecycle` und `project` liegt nicht im Repository, sondern
+im Benutzerverzeichnis von Claude Code (`~/.claude/commands/lifecycle.md` und
+`~/.claude/commands/project.md`; zusätzlich `~/.claude/skills/lifecycle/`). Agenten ohne
+Zugriff darauf halten sich an die dort beschriebene Arbeitsweise; wer eine Abweichung bemerkt,
+gleicht nicht eigenmächtig an, sondern weist den Anwender darauf hin.

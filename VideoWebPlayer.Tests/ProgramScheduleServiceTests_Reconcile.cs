@@ -214,8 +214,8 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         var planned = (await fixture.SlotsAsync(ct))
             .Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime)
             .Select(s => s.TVShowEpisodeId).ToList();
-        // Lookback airing consumed E1+E2 → today E3+E4, tomorrow E5+E6 (48h horizon).
-        Assert.Equal(episodes.Skip(2).Take(4).Select(e => (long?)e.Id), planned);
+        // The ended lookback airing consumes nothing → today E1+E2, tomorrow E3+E4 (48h horizon).
+        Assert.Equal(episodes.Take(4).Select(e => (long?)e.Id), planned);
 
         // Move the series slot: all future airings get displaced and must re-air the same
         // episodes at the new time — in air order, without a skip.
@@ -232,7 +232,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
             .Select(s => s.TVShowEpisodeId).ToList();
         var dumpSeries = string.Join(" | ", (await fixture.SlotsAsync(ct)).Select(s =>
             $"{s.Start:dd.HH:mm}-{s.End:HH:mm} ep={s.TVShowEpisodeId} {(s.Status == ProgramSlotStatus.Displaced ? "X" : "S")}"));
-        Assert.True(rescheduled.SequenceEqual(episodes.Skip(2).Take(rescheduled.Count).Select(e => (long?)e.Id)), dumpSeries);
+        Assert.True(rescheduled.SequenceEqual(episodes.Take(rescheduled.Count).Select(e => (long?)e.Id)), dumpSeries);
     }
 
     [Fact]
@@ -253,23 +253,23 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         var service = fixture.CreateService();
         await service.EnsureCoverageAsync(now, ct);
 
-        // Delete episode 5's media item (bulk delete — the path real media deletion takes).
-        var e5Item = await fixture.Db.TVShowEpisodeMediaItems
-            .Where(l => l.TVShowEpisodeId == episodes[4].Id)
+        // Delete episode 3's media item (bulk delete — the path real media deletion takes).
+        var e3Item = await fixture.Db.TVShowEpisodeMediaItems
+            .Where(l => l.TVShowEpisodeId == episodes[2].Id)
             .Select(l => l.MediaItemId)
             .SingleAsync(ct);
-        await fixture.Db.TVShowEpisodeMediaItems.Where(l => l.MediaItemId == e5Item).ExecuteDeleteAsync(ct);
-        await fixture.Db.MediaItems.Where(m => m.Id == e5Item).ExecuteDeleteAsync(ct);
+        await fixture.Db.TVShowEpisodeMediaItems.Where(l => l.MediaItemId == e3Item).ExecuteDeleteAsync(ct);
+        await fixture.Db.MediaItems.Where(m => m.Id == e3Item).ExecuteDeleteAsync(ct);
 
         var summary = await service.ReconcileAsync(now.AddMinutes(30), ct);
 
         Assert.True(summary.SlotsDisplaced >= 2);
         var displaced = await DisplacedAsync(fixture, ct);
-        Assert.Contains(displaced, s => s.MediaItemId == e5Item);
+        Assert.Contains(displaced, s => s.MediaItemId == e3Item);
         // The deleted slot row stays — no delete cascade.
-        Assert.Contains(await fixture.SlotsAsync(ct), s => s.MediaItemId == e5Item);
+        Assert.Contains(await fixture.SlotsAsync(ct), s => s.MediaItemId == e3Item);
 
-        // Tomorrow's airing re-airs the next episodes in order — E5 skipped (deleted), E6+E7 air.
+        // Tomorrow's airing re-airs the next episodes in order — E3 skipped (deleted), E4+E5 air.
         var tomorrowAiring = (await ScheduledAsync(fixture, ct))
             .Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime)
             .GroupBy(s => s.Start.Day)
@@ -278,7 +278,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
             .ToList();
         var dumpSeries = string.Join(" | ", (await fixture.SlotsAsync(ct)).Select(s =>
             $"{s.Start:dd.HH:mm}-{s.End:HH:mm} ep={s.TVShowEpisodeId} {(s.Status == ProgramSlotStatus.Displaced ? "X" : "S")}"));
-        Assert.True(tomorrowAiring.Any(a => a.SequenceEqual(new long?[] { episodes[5].Id, episodes[6].Id })), dumpSeries);
+        Assert.True(tomorrowAiring.Any(a => a.SequenceEqual(new long?[] { episodes[3].Id, episodes[4].Id })), dumpSeries);
         var scheduled = await ScheduledAsync(fixture, ct);
     }
 
@@ -357,8 +357,9 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         var scheduledEpisodes = (await ScheduledAsync(fixture, ct))
             .Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime)
             .Select(s => s.TVShowEpisodeId).ToList();
-        // Expansion order is now E1,E2,E3,newE,E4,E5,E6 → airings E3+newE, E4+E5 (48h horizon).
-        Assert.Equal(new long?[] { episodes[2].Id, newEpisode.Id, episodes[3].Id, episodes[4].Id },
+        // Expansion order is now E1,E2,E3,newE,E4,E5,E6 → today's airing E1+E2 stays (title-wise
+        // still valid), only tomorrow's is replanned to E3+newE (48h horizon).
+        Assert.Equal(new long?[] { episodes[0].Id, episodes[1].Id, episodes[2].Id, newEpisode.Id },
             scheduledEpisodes.Take(4).ToList());
     }
 
@@ -920,7 +921,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
             Assert.Contains("Grund", line);
             Assert.Contains($"Regel {rule.Id}", line);
         });
-        Assert.Contains(lines, l => l.Contains("HeadPickInconsistent"));
+        Assert.Contains(lines, l => l.Contains("AnchorWithoutInvaderEvidence"));
     }
 
     // Issue #290 baseline: two reconcile runs with an identical time anchor and unchanged

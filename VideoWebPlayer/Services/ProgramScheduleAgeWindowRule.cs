@@ -8,10 +8,11 @@ namespace VideoWebPlayer.Services;
 /// form a single unit — a title's allowance at a slot start is always decided by both
 /// together (<see cref="ProgramScheduleAgeWindow.IsAllowedAt"/>) and they are never used
 /// apart, so they travel as one value through the materialization, selection and
-/// reproducibility paths.
+/// validation paths.
 /// </summary>
 /// <param name="Windows">The configured window schema.</param>
 /// <param name="UnknownMode">The behavior for unknown ratings.</param>
+/// <returns>The youth-protection rule as one value.</returns>
 public sealed record ProgramScheduleAgeWindowRule(
     ProgramScheduleAgeWindowSettings Windows,
     ProgramScheduleUnknownRatingMode UnknownMode);

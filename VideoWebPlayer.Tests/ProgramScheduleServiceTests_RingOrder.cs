@@ -407,7 +407,7 @@ public sealed class ProgramScheduleServiceTests_RingOrder
         await service.EnsureCoverageAsync(Now, ct);
         var summary = await service.ReconcileAsync(Now.AddMinutes(30), ct);
 
-        // Der Positionsvergleich der Reproduzierbarkeitspruefung re-simuliert denselben
+        // Die titelweise Validierung haelt die geplanten Slots gegen denselben
         // SetItems-Aufbau — die Hash-Ordnung ist eine reine Funktion der Eingaben.
         await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
     }

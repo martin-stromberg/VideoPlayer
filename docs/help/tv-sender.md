@@ -236,13 +236,13 @@ Dabei gilt:
   einer Genre-Rotation, Clips aus Clip-Quellen und Clip-Gruppen — ist je Regel fest, aber
   gemischt: nicht alphabetisch und nicht nach Erscheinungsdatum, sondern so gestreut, dass
   sich die Auswahl über die Planläufe gleichmäßig über den gesamten Bestand verteilt und
-  nicht bevorzugt immer dieselben Titel zuerst zum Zug kommen. Die Mischung bleibt über
-  Neustarts und Planläufe hinweg stabil, damit Fortsetzung und Neu-Bewertung des Plans
-  reproduzierbar bleiben. Geordnete Abspielreihenfolgen bleiben unverändert: Serienfolgen,
-  die Sortierung von Playlists und Trailer, die ihren anstehenden Filmen vorauslaufen.
-  Einmalig nach dem Update auf diese Version kann die erste Neu-Bewertung einzelne, noch
-  unter der früheren Sortierung eingeplante Sendungen als „Verdrängt" markieren und neu
-  planen.
+  nicht bevorzugt immer dieselben Titel zuerst zum Zug kommen. Die Mischung bleibt für
+  denselben Bestand über Neustarts und Planläufe hinweg stabil, damit die Rotation an
+  derselben Stelle fortgesetzt wird. Kommt Material hinzu, ordnet sich die Mischung neu —
+  das wirkt nur auf künftige Planungen; bereits eingeplante Sendeplätze bleiben davon
+  unberührt und werden nicht verdrängt. Geordnete Abspielreihenfolgen bleiben unverändert:
+  Serienfolgen, die Sortierung von Playlists und Trailer, die ihren anstehenden Filmen
+  vorauslaufen.
 - **Lücken** füllen die Regeln der Art „Platzhalter/Füller" — nur Inhalte, die vollständig in die
   Lücke passen; der letzte Füller darf über das Planungsende hinauslaufen.
 - Eingeplant werden ausschließlich Inhalte mit bekannter Laufzeit, die für das gesamte
@@ -404,6 +404,20 @@ Dabei gilt:
   zweite, demselben Film oder derselben Episode zugeordnete Datei vermessen hat. Als Änderung
   zählt erst, wenn die am Sendeplatz hinterlegte Datei dem Inhalt nicht mehr zugeordnet ist
   oder ihre Laufzeit nicht zur Sendeplatz-Länge passt.
+- **Wachsender Medienbestand verdrängt nichts**: Kommen neue Filme oder Episoden zum
+  Material einer Regel hinzu oder wird der Regel ein weiteres Genre zugeordnet, bleiben alle
+  bereits eingeplanten Sendeplätze unverändert stehen — die erweiterte Auswahl wirkt nur auf
+  künftige Planungen. Verdrängt wird nur bei einer echten Änderung am Sendeplatz selbst:
+  entfernter oder unplanbar gewordener Inhalt, eine geänderte oder deaktivierte Regel, eine
+  geänderte Dateilaufzeit, ein verschärftes Jugendschutzfenster oder eine gebrochene
+  Sendefolge (etwa umnummerierte Episoden einer Serie).
+- **Bereits abgelaufene Sendeblöcke verbrauchen keinen Platz in der Rotation**: Der
+  Planlauf berücksichtigt rückblickend nur noch Ausstrahlungen, die zum Planungszeitpunkt
+  noch laufen. Ein Sendeblock, der vorher schon vollständig vorbei war — etwa weil der
+  Server zu seiner Sendezeit ausgeschaltet war oder der Plan neu aufgebaut wurde —, gilt
+  nicht als gesendet: Er schreibt keine Sendeplätze und schreitet die Serien- und
+  Clip-Rotation nicht fort. Die nächste tatsächlich geplante Ausstrahlung setzt mit dem
+  Inhalt fort, der an der Reihe ist.
 - **Lange Sendungen (über 24 Stunden) bleiben gültig**: Der Plan-Lauf schaut für die
   Gültigkeitsprüfung regulär 24 Stunden zurück. Beginnt eine noch laufende oder künftige
   Ausstrahlung weiter in der Vergangenheit — z. B. ein mehrtägiger Marathon-Block oder eine
@@ -415,7 +429,8 @@ Dabei gilt:
   mehr nachvollziehbar und werden verdrängt und neu eingeplant.
 - **Ungültige Sendeplätze werden als „verdrängt" markiert**, nicht gelöscht — z. B. weil die
   erzeugende Regel geändert, deaktiviert oder gelöscht wurde, ihr referenzierter Inhalt nicht
-  mehr planbar ist oder eine höherpriorisierte Regel das Zeitfenster übernimmt.
+  mehr planbar ist, die hinterlegte Mediendatei nicht mehr zur Sendeplatz-Länge passt oder
+  eine höherpriorisierte Regel das Zeitfenster übernimmt.
 - **Verdrängte Serienfolgen** werden zur nächsten passenden Gelegenheit desselben Regelkontexts
   erneut eingeplant — in Sendedreihenfolge, ohne dass eine Folge übersprungen wird (außer die
   Folge selbst ist nicht mehr planbar).

@@ -9,8 +9,8 @@ using Xunit;
 namespace VideoWebPlayer.Tests;
 
 /// <summary>
-/// Regression tests for issue #320 (follow-up of #315): the interleaved tail check
-/// (<c>InterleavedAiringTailReproducible</c>) invalidates faithfully materialized airings
+/// Regression tests for issue #320 (follow-up of #315): the reconcile validation
+/// must not invalidate faithfully materialized airings
 /// in two more cases — both only conservative (displacement churn, never false retention):
 /// 1. Deferral gap: a strand that deferred mid-occurrence (age-blocked ordered head or a
 ///    bound that forbids the take) produces no pick at its rotation turn, so the real

@@ -207,7 +207,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // overlapping displaced duplicates run over run. The window is widened on demand up to
         // the configured maximum lookback: airings whose real start lies more than a day back
         // (marathon blocks, multi-day broadcasts) need their head slots and invader evidence
-        // loaded for the reproducibility check.
+        // loaded for the anchor check.
         // Displaced rows ride along in the same query — invader evidence only: their occupancy
         // at the materialization time is what legitimately shifted an airing, and it stays
         // provable after the invader itself is displaced (Reload keeps them out of
@@ -230,7 +230,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // Everything derived from the loaded slot window lives in the ReconcileWindow — Reload()
         // re-derives and re-validates it atomically on every (re-)load, so no structure of a
         // narrower window can be reused by mistake.
-        var window = new ReconcileWindow(coverageStart, horizonEnd, federalState, activeRules, states, rulesById, _minStartRemain, ageRule, _logger);
+        var window = new ReconcileWindow(coverageStart, horizonEnd, federalState, activeRules, states, rulesById, ageRule, _logger);
 
         // Cost heuristic only — carries no correctness weight: a slot starting at or before the
         // base window edge proves that pre-window context exists, so the window is widened once
@@ -599,9 +599,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // starts exactly at the previous slot's end. With <paramref name="coverageBoundary"/> the
     // chain additionally breaks before the first slot reaching past the boundary: fully aired
     // history stays its own group while the slot carrying the playback position heads the
-    // future group — the tail check tolerates an unwritten head prefix but never a truncated
-    // tail, and clip slots spanning the boundary keep their group's clip-time projection
-    // intact (Issue #315).
+    // future group — the anchor proof folds the written prefix back into the airing's real
+    // start and tolerates an unwritten head prefix through the unwritten headroom, while
+    // clip slots spanning the boundary keep their group's clip-time projection intact
+    // (Issue #315).
     private static List<List<ProgramSlot>> GroupAirings(List<ProgramSlot> orderedSlots, DateTime? coverageBoundary = null)
     {
         var airings = new List<List<ProgramSlot>>();
@@ -622,48 +623,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return airings;
     }
 
-    // Recursion-invariant context of the airing-reproducibility check plus the memo shared
-    // across the recursion — bundled so the dispatch to the flat/interleaved tail checks keeps
-    // a short (airing, offset, afterStart) signature. LaterGroupSlots holds the slots of the
-    // same rule's later (non-contiguous) airing groups in start order — the occurrence-local
-    // reconstruction basis for strands without a written contribution to the checked airing.
-    private sealed record ReproContext(
-        RuleState State,
-        HashSet<DateTime> OccurrenceStarts,
-        List<(DateTime StartUtc, int Priority)> BoundStarts,
-        IReadOnlyList<(DateTime StartUtc, DateTime EndUtc, int? Priority)> OccupiedEvidence,
-        TimeSpan MinStartRemain,
-        ProgramScheduleAgeWindowRule AgeRule,
-        IReadOnlyList<ProgramSlot> LaterGroupSlots,
-        Dictionary<(int Offset, DateTime AfterStart), bool> Memo)
-    {
-        // Diagnosis sink: the deepest check stage any hypothesis reached before failing wins
-        // (the enum is stage-ordered), so the reported reason is the most informative one —
-        // not the first failure of an early hypothesis.
-        public AiringInvalidReason InvalidReason { get; private set; } = AiringInvalidReason.None;
-
-        public void NoteFailure(AiringInvalidReason reason)
-        {
-            if (reason > InvalidReason)
-                InvalidReason = reason;
-        }
-    }
-
-    // An airing is still valid iff its producing rule would schedule exactly this slot sequence for
-    // the occurrence the airing belongs to. That occurrence may already have been in progress when
-    // the plan was extended: the materialization writes only the slots ending after the coverage
-    // start, so the first written slot of a partially aired occurrence legitimately begins
-    // mid-occurrence instead of at the occurrence start (the already "aired" head items consumed
-    // cursor progress but produced no slot row). A begun predecessor may additionally overshoot
-    // into the occurrence start and shift the airing's real start behind its own — the check
-    // therefore accepts any nominal occurrence start at or before the reconstructed real start.
-    // It walks the item ring backwards from the airing's head item — each step counts one more
-    // skipped head item — reconstructs the airing's real start as the airing's first slot start
-    // minus the cumulative prefix durations, and re-runs the selection there with the boundary
-    // of each candidate occurrence start. The written tail must then reproduce count, media
-    // items and slot boundaries under the same selection logic (EpisodeCount / SlotDuration,
-    // min-start-remainder and the overshoot boundary — a shifted or overshooting airing is
-    // expected, not invalid).
     // Media item ids of every clip-group ring of the rule — the clip-first classification set:
     // a slot whose media item is a clip candidate is a fill clip, everything else a title.
     private static HashSet<long> ClipMediaItemIds(RuleState state)
@@ -675,229 +634,182 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return ids;
     }
 
-    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, IReadOnlyList<(DateTime StartUtc, DateTime EndUtc, int? Priority)> occupiedEvidence, TimeSpan minStartRemain, ProgramScheduleAgeWindowRule ageRule, IReadOnlyList<ProgramSlot> laterGroupSlots, out AiringInvalidReason invalidReason)
+    // Title-wise validity of one slot inside an airing group — the building block of the
+    // reconcile validation. A slot stays valid while its content still belongs to the
+    // producing rule's expansion and still fits its written position; growing material or a
+    // reshuffled ring therefore never invalidates a written slot (growth changes positions,
+    // not contents). Clip slots are verified by membership in the current clip expansion
+    // plus stored runtime and age window at their written start — the same predicate the
+    // clip fill applies on insert; a removed clip assignment, a changed clip group, a
+    // re-probed clip runtime or a revoked release of the clip material makes the slot
+    // invalid. Title slots locate their content inside the strands: a slot not found in
+    // any strand is genuinely gone (deleted media, removed genre/source link, revoked
+    // release). The slot's length must equal the runtime of the media item stored on it —
+    // the item's own duration or, after a representative switch,
+    // the matching probed alternate's runtime (a re-linked file with a different runtime is
+    // a real change). A title must still be allowed to start at its written start under the
+    // current age window — a tightened restriction is a real change.
+    // Ordered strands additionally require ring contiguity inside the group: a pick
+    // following an earlier pick of the same strand must sit on the directly succeeding ring
+    // position — this catches renumbered or inserted episodes without any positional
+    // assumption about the ring. The strand's first pick inside the group is the unverified
+    // baseline: its predecessor may be unwritten (partially aired occurrence) or lie in an
+    // earlier group. Unordered rings get no position check — skip proofs are meaningless on
+    // a ring whose order may have been reshuffled.
+    private static bool SlotStillValid(
+        ProgramSlot slot, RuleState state, HashSet<long> clipIds,
+        ProgramScheduleAgeWindowRule ageRule, int[] lastIndex, out AiringInvalidReason invalidReason)
     {
-        var clipIds = ClipMediaItemIds(state);
-        var effective = airing;
-        if (clipIds.Count > 0)
+        if (slot.IsClipFill || clipIds.Contains(slot.MediaItemId))
         {
-            // Clip-aware pre-filter: clip slots are verified by membership in the current clip
-            // expansion (a removed/changed clip makes the airing invalid — same behavior as
-            // changed material) and by gapless chaining; their positions are not re-simulated.
-            // For the title tail check the kept slots are projected onto a clip-free time axis:
-            // every title slot shifts back by the clip time preceding it, so content, order and
-            // durations reproduce under the regular check.
-            effective = new List<ProgramSlot>(airing.Count);
-            var clipTime = TimeSpan.Zero;
-            for (var i = 0; i < airing.Count; i++)
+            var clip = state.ClipGroups.SelectMany(g => g.Ring.Items)
+                .FirstOrDefault(i => i.MediaItemId == slot.MediaItemId);
+            if (clip is null)
             {
-                var slot = airing[i];
-                if (i > 0 && slot.Start != airing[i - 1].End)
-                {
-                    invalidReason = AiringInvalidReason.ClipChainBroken; // a clip airing must stay gaplessly linked
-                    return false;
-                }
-                if (clipIds.Contains(slot.MediaItemId))
-                {
-                    clipTime += slot.End - slot.Start;
-                    continue;
-                }
-                effective.Add(new ProgramSlot
-                {
-                    Start = slot.Start - clipTime,
-                    End = slot.End - clipTime,
-                    MediaItemId = slot.MediaItemId,
-                    MovieId = slot.MovieId,
-                    TVShowEpisodeId = slot.TVShowEpisodeId,
-                    ProgramRuleId = slot.ProgramRuleId,
-                    RuleType = slot.RuleType,
-                    Status = slot.Status
-                });
-            }
-            if (effective.Count == 0)
-            {
-                invalidReason = AiringInvalidReason.TitlelessAiring; // an airing always carries at least one title
+                invalidReason = AiringInvalidReason.ItemNotInExpansion;
                 return false;
             }
-        }
-        var context = new ReproContext(state, occurrenceStarts, boundStarts, occupiedEvidence, minStartRemain, ageRule, laterGroupSlots, new Dictionary<(int Offset, DateTime AfterStart), bool>());
-        if (AiringReproducible(effective, 0, DateTime.MinValue, context))
-        {
+            if (slot.End - slot.Start != clip.Duration)
+            {
+                invalidReason = AiringInvalidReason.SlotSequenceMismatch;
+                return false;
+            }
+            if (!ProgramScheduleAgeWindow.IsAllowedAt(clip.AgeRatingMinAge, slot.Start, ageRule))
+            {
+                invalidReason = AiringInvalidReason.SlotSequenceMismatch;
+                return false;
+            }
             invalidReason = AiringInvalidReason.None;
             return true;
         }
-        invalidReason = context.InvalidReason;
-        return false;
+
+        var strandIndex = -1;
+        var idx = -1;
+        for (var s = 0; s < state.Strands.Count; s++)
+        {
+            idx = FindItemIndex(state.Strands[s].Items, slot);
+            if (idx >= 0)
+            {
+                strandIndex = s;
+                break;
+            }
+        }
+        if (strandIndex < 0)
+        {
+            invalidReason = AiringInvalidReason.ItemNotInExpansion;
+            return false;
+        }
+
+        var strand = state.Strands[strandIndex];
+        var item = strand.Items[idx];
+        if (MatchingItemDuration(slot, item) is not { } duration || slot.End - slot.Start != duration)
+        {
+            invalidReason = AiringInvalidReason.SlotSequenceMismatch;
+            return false;
+        }
+        if (!ProgramScheduleAgeWindow.IsAllowedAt(item.AgeRatingMinAge, slot.Start, ageRule))
+        {
+            invalidReason = AiringInvalidReason.SlotSequenceMismatch;
+            return false;
+        }
+        if (strand.PreservesOrder
+            && lastIndex[strandIndex] >= 0
+            && idx != (lastIndex[strandIndex] + 1) % strand.Items.Count)
+        {
+            invalidReason = AiringInvalidReason.StrandSequenceBroken;
+            return false;
+        }
+        lastIndex[strandIndex] = idx;
+        invalidReason = AiringInvalidReason.None;
+        return true;
     }
 
-    // Validates airing[offset..] as a chain of sub-airings anchored at strictly ascending
-    // occurrence starts (> afterStart): a merged group of a dense rule holds one (partial)
-    // airing per occurrence, so the check decomposes it recursively. Each sub-airing keeps the
-    // full original proof — anchor, invader evidence and slot-by-slot match — and consumes at
-    // least one slot, so the recursion depth is bounded by the group length; the memo keyed by
-    // (rest head, lower occurrence bound) bounds the branching cost of pathological groups.
-    private static bool AiringReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
+    // Runtime resolution for the media item stored on a slot: the item's own duration when
+    // the slot carries the content's current representative, else the matching probed
+    // alternate's duration — a representative switch alone changes nothing about the airing.
+    // Null when the stored media item is neither the representative nor a probed alternate
+    // (unlinked/deleted file — a real change).
+    private static TimeSpan? MatchingItemDuration(ProgramSlot slot, SchedulableItem item)
+        => item.MediaItemId == slot.MediaItemId
+            ? item.Duration
+            : item.MediaItemAlternates.FirstOrDefault(a => a.MediaItemId == slot.MediaItemId)?.Duration;
+
+    // Time budget of a partially written airing's unwritten head prefix: the materialization
+    // writes only ranges ending past the coverage start, so head items taken before it
+    // legitimately produced no slot rows. Slot-duration rules bound that prefix by the full
+    // period (interleaved and flat periods alike); count-bound rules by the remaining picks
+    // times the largest item runtime of the expansion.
+    private static TimeSpan UnwrittenHeadroom(RuleState state)
     {
-        if (offset >= airing.Count)
-            return true;
-        if (context.Memo.TryGetValue((offset, afterStart), out var cached))
-            return cached;
-
-        var result = context.State.IsInterleaved
-            ? InterleavedAiringTailReproducible(airing, offset, afterStart, context)
-            : FlatAiringTailReproducible(airing, offset, afterStart, context);
-        context.Memo[(offset, afterStart)] = result;
-        return result;
-    }
-
-    private static bool FlatAiringTailReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
-    {
-        var (state, occurrenceStarts, boundStarts, occupiedEvidence, minStartRemain, ageRule, _, _) = context;
-        var items = state.Items;
-        if (items.Count == 0)
-        {
-            context.NoteFailure(AiringInvalidReason.ItemNotInExpansion);
-            return false;
-        }
-        if (occurrenceStarts.Count == 0)
-        {
-            context.NoteFailure(AiringInvalidReason.NoOccurrenceAnchor);
-            return false;
-        }
-
-        var idx = FindItemIndex(items, airing[offset]);
-        if (idx < 0)
-        {
-            context.NoteFailure(AiringInvalidReason.ItemNotInExpansion);
-            return false;
-        }
-
         var rule = state.Rule;
-        var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
-        var clipGrace = state.ClipGrace;
-        var preservesOrder = state.PreservesOrder;
+        if (rule.SlotDuration is { } slotDuration)
+            return slotDuration;
+        var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : 1;
+        var maxItemDuration = state.Items.Count > 0 ? state.Items.Max(i => i.Duration) : TimeSpan.Zero;
+        // (wanted - 1) * Ticks overflows long for pathological EpisodeCount values —
+        // saturate instead of wrapping into a negative headroom that would unanchor a
+        // legitimate partially aired airing.
+        var headroomTicks = (double)(wanted - 1) * maxItemDuration.Ticks;
+        return headroomTicks >= long.MaxValue ? TimeSpan.MaxValue : TimeSpan.FromTicks((long)headroomTicks);
+    }
 
-        var count = items.Count;
-        // Backward hypotheses: k = taken-but-unwritten head items. The scan head may
-        // additionally lie behind window-skipped positions — a skipped position consumed the
-        // ring without producing airtime, so it counts toward the head index but not toward
-        // the reconstructed start. A predecessor position was skipped exactly when it was
-        // blocked at the next taken item's start (skips advance no airtime, so the selection
-        // evaluated them at that pick's slot time).
-        for (var k = 0; k < wanted; k++)
+    // Head anchor proof of an airing group: the group's written head must trace back to a
+    // nominal occurrence start of its rule at or before it — exactly (an unshifted
+    // materialization), through a provable invader shift (an occupied chain covering the
+    // nominal start and ending exactly at the real start), or within the unwritten headroom
+    // (a partially aired occurrence whose head takes produced no rows — the position is
+    // indistinguishable from an invader-free mid-occurrence start). Two anchor targets are
+    // legitimate for a boundary-split group: the head's own start and the airing's real
+    // start (<paramref name="realStart"/>) reached back through the written prefix — the
+    // invader chain ends at the real start, not at the mid-airing group head, because the
+    // airing's own already-aired slots block the shift chain (strict containment fails on
+    // their start points). Only the group head carries the proof: groups are gapless
+    // chains, interior links inherit the head's anchor.
+    private static bool AnchorProvable(
+        ProgramSlot head, DateTime realStart, RuleState state, IReadOnlyCollection<DateTime> occurrenceStarts,
+        IReadOnlyList<(DateTime StartUtc, DateTime EndUtc, int? Priority)> occupiedEvidence,
+        out AiringInvalidReason invalidReason)
+    {
+        var candidates = occurrenceStarts.Where(o => o <= head.Start).ToList();
+        if (candidates.Count == 0)
         {
-            var skipped = TimeSpan.Zero;
-            var positionsBack = 0;
-            var takenBack = 0;
-            var skipRun = 0;
-            var possible = true;
-            while (takenBack < k)
-            {
-                var p = ((idx - positionsBack - 1) % count + count) % count;
-                var item = items[p];
-                if (!preservesOrder
-                    && !ProgramScheduleAgeWindow.IsAllowedAt(
-                        item.AgeRatingMinAge, airing[offset].Start - skipped, ageRule))
-                {
-                    positionsBack++;
-                    if (++skipRun >= count)
-                    {
-                        possible = false; // a full ring lap of skips is impossible — the scan would have stopped
-                        break;
-                    }
-                    continue;
-                }
-                skipRun = 0;
-                if (item.Duration <= TimeSpan.Zero)
-                {
-                    possible = false; // degenerate duration — the backward walk would never progress
-                    break;
-                }
-                skipped += item.Duration;
-                positionsBack++;
-                takenBack++;
-            }
-            // The backward hypotheses are deterministic: a walk that hit a wall (a full ring
-            // lap of skips or a degenerate duration) fails identically for every larger k —
-            // break, like the interleaved counterpart does, instead of scanning on forever
-            // (wanted is int.MaxValue for rules without EpisodeCount).
-            if (!possible)
-                break;
+            invalidReason = AiringInvalidReason.NoOccurrenceAnchor;
+            return false;
+        }
 
-            // The sub-airing's real start — its first taken item began here; the nominal
-            // occurrence started at or before this point.
-            var airingStart = airing[offset].Start - skipped;
-            // Anchor space exhausted: the reconstructed start lies before every occurrence
-            // that can still anchor the tail (the skipped duration already reaches past the
-            // oldest occurrence in the window, or earlier chain links consumed all of them).
-            // A larger k only walks the start further back — no hypothesis remains.
-            if (!occurrenceStarts.Any(o => o > afterStart && o <= airingStart))
+        var headroom = UnwrittenHeadroom(state);
+        foreach (var target in realStart == head.Start ? [head.Start] : new[] { head.Start, realStart })
+        {
+            // Candidate occurrences must lie at or before the anchor target — a later
+            // nominal start inside the written prefix cannot anchor this airing (and
+            // would make the headroom difference negative).
+            if (candidates.Any(o => o <= target
+                    && (o == target
+                        || ShiftProvable(o, target, state.Rule.Priority, occupiedEvidence)
+                        || target - o <= headroom)))
             {
-                context.NoteFailure(AiringInvalidReason.OutsideOccurrenceWindow);
-                break;
-            }
-
-            var headIndex = ((idx - positionsBack) % count + count) % count;
-            foreach (var occurrenceStart in occurrenceStarts.Where(o => o > afterStart && o <= airingStart))
-            {
-                // A shift needs invader evidence: a chain of occupied intervals covering the
-                // nominal start whose end is exactly the real start — otherwise the earlier
-                // anchor would rescue stale airings (e.g. after the rule's time-of-day changed).
-                if (occurrenceStart < airingStart
-                    && !ShiftProvable(occurrenceStart, airingStart, rule.Priority, occupiedEvidence))
-                {
-                    context.NoteFailure(AiringInvalidReason.AnchorWithoutInvaderEvidence);
-                    continue;
-                }
-                var expected = SelectAiringItems(items, headIndex, rule, airingStart,
-                    BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain, clipGrace,
-                    preservesOrder, ageRule);
-                // Hypothesis k claims exactly k taken-but-unwritten picks before the airing
-                // head — the head is therefore pick #k of the simulation and must sit on the
-                // observed ring position.
-                var headPick = k < expected.Taken.Count && expected.Positions[k] == idx ? k : -1;
-                if (headPick < 0)
-                {
-                    context.NoteFailure(AiringInvalidReason.HeadPickInconsistent);
-                    continue;
-                }
-                // The candidate may cover a real prefix of the group — the merged chain holds
-                // one airing per occurrence; the remainder is checked recursively against
-                // strictly later occurrences.
-                var consumed = expected.Taken.Count - headPick;
-                if (consumed < 1 || consumed > airing.Count - offset)
-                {
-                    context.NoteFailure(AiringInvalidReason.SlotSequenceMismatch);
-                    continue;
-                }
-
-                var start = airing[offset].Start;
-                var matches = true;
-                for (var i = 0; i < consumed; i++)
-                {
-                    var slot = airing[offset + i];
-                    var item = expected.Taken[headPick + i];
-                    if (!SlotMatchesItem(slot, item, start))
-                    {
-                        matches = false;
-                        break;
-                    }
-                    start = slot.End;
-                }
-                if (!matches)
-                {
-                    context.NoteFailure(AiringInvalidReason.SlotSequenceMismatch);
-                    continue;
-                }
-                if (AiringReproducible(airing, offset + consumed, occurrenceStart, context))
-                    return true;
-                context.NoteFailure(AiringInvalidReason.RemainderNotReproducible);
+                invalidReason = AiringInvalidReason.None;
+                return true;
             }
         }
+        invalidReason = AiringInvalidReason.AnchorWithoutInvaderEvidence;
         return false;
     }
 
-    // Shift proof for the reproducibility check: the airing's real start must be reachable
+    // The airing's real start behind a boundary-split head group: the already-aired
+    // fragment of the same airing sits in the immediately preceding contiguous group(s)
+    // of the same rule — each ends exactly where the next begins, and only the coverage
+    // boundary kept them apart. Without an adjacent fragment the head start is the real
+    // start.
+    private static DateTime AiringRealStart(List<List<ProgramSlot>> orderedRuleAirings, int index)
+    {
+        var realStart = orderedRuleAirings[index][0].Start;
+        for (var j = index - 1; j >= 0 && orderedRuleAirings[j][^1].End == realStart; j--)
+            realStart = orderedRuleAirings[j][0].Start;
+        return realStart;
+    }
+
+    // Shift proof for the head anchor check: the airing's real start must be reachable
     // from the nominal occurrence start through a chain of occupied intervals — each link
     // strictly covering the running point, the same ShiftPastInvaders fixpoint semantics the
     // materialization applies, so single-invader and chained shifts are provable alike. Only
@@ -910,420 +822,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return ShiftPastInvaders(occurrenceStart,
             occupied.Select(i => new Interval(i.StartUtc, i.EndUtc)),
             occupied.Where(i => i.Priority > rulePriority).Select(i => new Interval(i.StartUtc, i.EndUtc))) == airingStart;
-    }
-
-    // Interleaved counterpart of <see cref="AiringReproducible"/> for multi-strand states: the
-    // occurrence's picks rotate over the strands, so the check hypothesizes the observed first
-    // slot's rotation turn (turn t of a strand sits at rotation position t*m + off — the
-    // first slot's strand fixes its turn slot j0), reconstructs each strand's head as its
-    // reconstruction base minus its prefix takes, and verifies by simulating the occurrence at
-    // the reconstructed real start under the boundary of each candidate nominal start (a begun
-    // predecessor may have shifted the airing behind the nominal start). Strands without a
-    // contribution to the airing may still have supplied unwritten prefix picks — taken but
-    // never written (the coverage run began mid-occurrence) — so their scan head is
-    // reconstructed back from a provable basis instead of rejecting the hypothesis (Issue
-    // #315): the first written pick of the strand in a later group bounds it occurrence-locally,
-    // else the persisted ring cursor remains. A strand's prefix turns are not necessarily all
-    // takes — a mid-occurrence deferral (age- or bound-blocked head) produces nothing at that
-    // turn and every later one; such a nothing turn is admitted into a hypothesis only with
-    // proof that the offered head was blocked at the turn's reconstructed slot time
-    // ("provable deferral", Issue #320). Conservative by design: an unclear prefix fails the
-    // check, so the airing is displaced and re-materialized rather than kept stale.
-    private static bool InterleavedAiringTailReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
-    {
-        var (state, occurrenceStarts, boundStarts, occupiedEvidence, minStartRemain, ageRule, _, _) = context;
-        var strands = state.Strands;
-        var m = strands.Count;
-        var rule = state.Rule;
-        var clipGrace = state.ClipGrace;
-        if (occurrenceStarts.Count == 0)
-        {
-            context.NoteFailure(AiringInvalidReason.NoOccurrenceAnchor);
-            return false;
-        }
-
-        // Locate each slot of the remaining tail inside its strand. Ordered strands keep
-        // strict ring contiguity (episodes of a series never air shuffled); unordered rings
-        // may contain window-skipped positions — every intermediate position must have been
-        // blocked at the following pick's slot start (skips advance no airtime, so the
-        // selection evaluated them at exactly that time).
-        var rest = airing.Count - offset;
-        var strandOf = new int[rest];
-        var firstIndex = new int[m];
-        var lastIndex = new int[m];
-        var firstStart = new DateTime[m];
-        Array.Fill(firstIndex, -1);
-        for (var i = 0; i < rest; i++)
-        {
-            var s = -1;
-            var idx = -1;
-            for (var t = 0; t < m; t++)
-            {
-                idx = FindItemIndex(strands[t].Items, airing[offset + i]);
-                if (idx >= 0)
-                {
-                    s = t;
-                    break;
-                }
-            }
-            if (s < 0)
-            {
-                context.NoteFailure(AiringInvalidReason.ItemNotInExpansion);
-                return false;
-            }
-
-            strandOf[i] = s;
-            if (firstIndex[s] < 0)
-            {
-                firstIndex[s] = idx;
-                firstStart[s] = airing[offset + i].Start;
-            }
-            else if (strands[s].PreservesOrder)
-            {
-                if (idx != (lastIndex[s] + 1) % strands[s].Items.Count)
-                {
-                    context.NoteFailure(AiringInvalidReason.StrandSequenceBroken);
-                    return false;
-                }
-            }
-            else
-            {
-                var n = strands[s].Items.Count;
-                var distance = ((idx - lastIndex[s]) % n + n) % n;
-                if (distance == 0)
-                    distance = n; // a full lap back to the same position
-                for (var d = 1; d < distance; d++)
-                {
-                    if (ProgramScheduleAgeWindow.IsAllowedAt(
-                            strands[s].Items[(lastIndex[s] + d) % n].AgeRatingMinAge,
-                            airing[offset + i].Start, ageRule))
-                    {
-                        context.NoteFailure(AiringInvalidReason.StrandSequenceBroken);
-                        return false; // an allowed intermediate position would have been taken
-                    }
-                }
-            }
-            lastIndex[s] = idx;
-        }
-
-        var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
-        var maxPrefix = Math.Min(wanted, strands.Sum(s => s.Items.Count) + rest);
-
-        // Occurrence-local basis for strands without a written contribution: the first
-        // written pick of the strand in a later (non-contiguous) group of the same rule
-        // bounds its scan head at this airing's end — the scan cannot have moved past the
-        // item it provably took next. Only without such a pick does the persisted cursor
-        // remain the basis (it marks the last take of the whole plan, biased toward its
-        // end — Issue #320); positions between the real head and the bound were scanned —
-        // skipped or taken — in later occurrences and are walked back at that later pick's
-        // start like every skip.
-        var laterIndex = new int[m];
-        var laterStart = new DateTime[m];
-        Array.Fill(laterIndex, -1);
-        for (var s = 0; s < m; s++)
-        {
-            if (firstIndex[s] >= 0)
-                continue;
-            foreach (var later in context.LaterGroupSlots)
-            {
-                var idx = FindItemIndex(strands[s].Items, later);
-                if (idx >= 0)
-                {
-                    laterIndex[s] = idx;
-                    laterStart[s] = later.Start;
-                    break;
-                }
-            }
-        }
-
-        // Anchor space exhausted: the tail can only anchor to occurrences after the lower
-        // bound and at or before its first slot's start — an empty candidate space means the
-        // airing starts ahead of every usable occurrence in the window (or earlier chain
-        // links already consumed all of them).
-        if (!occurrenceStarts.Any(o => o > afterStart && o <= airing[offset].Start))
-        {
-            context.NoteFailure(AiringInvalidReason.OutsideOccurrenceWindow);
-            return false;
-        }
-
-        var s0 = strandOf[0];
-        foreach (var occurrenceStart in occurrenceStarts.Where(o => o > afterStart && o <= airing[offset].Start).OrderBy(o => o))
-        {
-            var bound = BoundaryAfter(boundStarts, occurrenceStart, rule.Priority);
-            // The real start may shift across a UTC day boundary when invaders push it —
-            // the materialization derives the start-strand offset from that shifted day,
-            // so both plausible days are tried and checked for consistency below.
-            var realDay = airing[offset].Start.Date;
-            var offsetCandidates = new[] { realDay, realDay.AddDays(-1) }
-                .Select(d => StrandStartOffset(wanted, m, d))
-                .Distinct();
-
-            foreach (var startOffset in offsetCandidates)
-            {
-                var off0 = ((s0 - startOffset) % m + m) % m;
-                // Hypothesize the observed pick's rotation turn r0 instead of a dense pick
-                // count: deferring strands produce nothing at their turn, so a dense
-                // pick-count hypothesis cannot represent real prefix sequences with a
-                // deferral (Issue #320). Position j0 = r0*m + off0 is the observed pick's
-                // turn slot in the rotation.
-                for (var r0 = 0; r0 < maxPrefix; r0++)
-                {
-                    var j0 = r0 * m + off0;
-                    var prefixTurns = new int[m];
-                    for (var s = 0; s < m; s++)
-                    {
-                        var offS = ((s - startOffset) % m + m) % m;
-                        prefixTurns[s] = j0 > offS ? (j0 - offS - 1) / m + 1 : 0;
-                    }
-
-                    foreach (var takeCounts in PrefixTakeAssignments(strands, s0, prefixTurns))
-                    {
-                        if (takeCounts.Sum() >= maxPrefix)
-                            continue;
-
-                        // Reconstruct each strand's scan head: the scan consumes taken prefix
-                        // picks plus window-skipped positions. Walking the ring back from the
-                        // reconstruction base, a predecessor counts as skipped iff it was
-                        // blocked at the strand's next taken pick's start — taken picks drive
-                        // the reconstructed real start back, skipped positions only the head.
-                        var cursorBack = new int[m];
-                        var nextTakenStart = new DateTime[m];
-                        var headBase = new int[m];
-                        for (var s = 0; s < m; s++)
-                        {
-                            headBase[s] = firstIndex[s] >= 0 ? firstIndex[s]
-                                : laterIndex[s] >= 0 ? laterIndex[s]
-                                : strands[s].NextIndex;
-                            // Unobservable strands anchor the skip evaluation to the closest
-                            // proven instant: their first later written pick, else the tail head.
-                            nextTakenStart[s] = firstIndex[s] >= 0 ? firstStart[s]
-                                : laterIndex[s] >= 0 ? laterStart[s]
-                                : airing[offset].Start;
-                        }
-                        var simStart = airing[offset].Start;
-                        var reconstructable = true;
-                        for (var j = j0 - 1; j >= 0 && reconstructable; j--)
-                        {
-                            var s = ((startOffset + j) % m + m) % m;
-                            if (s != s0)
-                            {
-                                var offS = ((s - startOffset) % m + m) % m;
-                                var turn = (j - offS) / m;
-                                if (turn >= takeCounts[s])
-                                    continue; // post-deferral turn — nothing produced
-                                if (turn == takeCounts[s] && takeCounts[s] < prefixTurns[s])
-                                {
-                                    // The deferral turn itself — admitted only with proof
-                                    // (the offered head blocked at the turn's reconstructed
-                                    // slot time, the same checks the selection applies).
-                                    if (!ProvableDeferral(strands, s, headBase, cursorBack,
-                                            nextTakenStart[s], simStart, bound, minStartRemain, ageRule))
-                                        reconstructable = false;
-                                    continue;
-                                }
-                            }
-                            var items = strands[s].Items;
-                            var count = items.Count;
-                            var skipRun = 0;
-                            while (true)
-                            {
-                                var ringPos = ((headBase[s] - cursorBack[s] - 1) % count + count) % count;
-                                var item = items[ringPos];
-                                if (!strands[s].PreservesOrder
-                                    && !ProgramScheduleAgeWindow.IsAllowedAt(item.AgeRatingMinAge, nextTakenStart[s], ageRule))
-                                {
-                                    cursorBack[s]++;
-                                    if (++skipRun >= count)
-                                    {
-                                        reconstructable = false; // a full ring lap of skips is impossible
-                                        break;
-                                    }
-                                    continue;
-                                }
-                                cursorBack[s]++;
-                                simStart -= item.Duration;
-                                nextTakenStart[s] = simStart;
-                                break;
-                            }
-                        }
-                        if (!reconstructable)
-                        {
-                            context.NoteFailure(AiringInvalidReason.HeadPickInconsistent);
-                            continue;
-                        }
-
-                        var simStrands = new List<StrandState>(m);
-                        for (var s = 0; s < m; s++)
-                        {
-                            var items = strands[s].Items;
-                            var head = ((headBase[s] - cursorBack[s]) % items.Count + items.Count) % items.Count;
-                            simStrands.Add(new StrandState(strands[s].Key, items, head));
-                        }
-
-                        // The materialization derived the start-strand offset from the real
-                        // start's day — a hypothesis is only consistent when it yields the
-                        // same offset.
-                        if (StrandStartOffset(wanted, m, simStart) != startOffset)
-                        {
-                            context.NoteFailure(AiringInvalidReason.HeadPickInconsistent);
-                            continue;
-                        }
-
-                        if (occurrenceStart > simStart
-                            || (occurrenceStart < simStart
-                                && !ShiftProvable(occurrenceStart, simStart, rule.Priority, occupiedEvidence)))
-                        {
-                            context.NoteFailure(AiringInvalidReason.AnchorWithoutInvaderEvidence);
-                            continue; // shift requires an occupied chain ending exactly at the real start
-                        }
-
-                        var picks = SelectAiringItemsInterleaved(simStrands, rule, simStart,
-                            bound, minStartRemain, clipGrace, ageRule);
-                        // A real prefix of the group suffices — the remainder is checked
-                        // recursively against strictly later occurrences (merged chains).
-                        var prefixTakes = takeCounts.Sum();
-                        var consumed = picks.Picks.Count - prefixTakes;
-                        if (consumed < 1 || consumed > rest)
-                        {
-                            context.NoteFailure(AiringInvalidReason.SlotSequenceMismatch);
-                            continue;
-                        }
-
-                        var start = simStart;
-                        var matches = true;
-                        var pos = 0;
-                        foreach (var pk in picks.Picks)
-                        {
-                            if (pos >= prefixTakes)
-                            {
-                                var slot = airing[offset + pos - prefixTakes];
-                                if (!SlotMatchesItem(slot, pk.Item, start))
-                                {
-                                    matches = false;
-                                    break;
-                                }
-                                start = slot.End;
-                            }
-                            else
-                            {
-                                start += pk.Item.Duration;
-                            }
-                            pos++;
-                        }
-                        if (!matches || pos < picks.Picks.Count)
-                        {
-                            context.NoteFailure(AiringInvalidReason.SlotSequenceMismatch);
-                            continue;
-                        }
-                        if (AiringReproducible(airing, offset + consumed, occurrenceStart, context))
-                            return true;
-                        context.NoteFailure(AiringInvalidReason.RemainderNotReproducible);
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    // Upper bound on how many strands of one airing's unwritten prefix may carry a deferral
-    // hypothesis — real deferrals are rare, and beyond the cap the gap stays conservative
-    // (the airing is displaced and re-materialized rather than kept stale).
-    private const int MaxDeferredStrands = 3;
-
-    // Take-count hypotheses for the unwritten prefix of an interleaved occurrence: strand
-    // s0 demonstrably produced the observed pick at its r0-th turn, so all its prefix turns
-    // were takes. Every other strand contributes a head-run of takeCount[s] takes and then
-    // nothing — the first untaken turn is its deferral turn (the done-flag the selection
-    // raises permanently once a head may not start), admitted only via ProvableDeferral
-    // during reconstruction. The dense all-takes assignment (the historic rotation model)
-    // comes first, then assignments with up to MaxDeferredStrands strands deferring.
-    private static IEnumerable<int[]> PrefixTakeAssignments(List<StrandState> strands, int s0, int[] prefixTurns)
-    {
-        var m = prefixTurns.Length;
-        var dense = new int[m];
-        var flexible = new List<int>();
-        for (var s = 0; s < m; s++)
-        {
-            dense[s] = strands[s].Items.Count > 0 ? prefixTurns[s] : 0;
-            if (s != s0 && strands[s].Items.Count > 0 && prefixTurns[s] > 0)
-                flexible.Add(s);
-        }
-        yield return dense;
-        foreach (var vec in DeferralAssignments(dense, flexible, prefixTurns, 0, 0))
-            yield return vec;
-    }
-
-    private static IEnumerable<int[]> DeferralAssignments(int[] current, List<int> flexible, int[] prefixTurns, int fi, int deferred)
-    {
-        if (fi == flexible.Count)
-        {
-            if (deferred > 0)
-                yield return current;
-            yield break;
-        }
-        var s = flexible[fi];
-        foreach (var vec in DeferralAssignments(current, flexible, prefixTurns, fi + 1, deferred))
-            yield return vec;
-        if (deferred < MaxDeferredStrands)
-        {
-            for (var takes = 0; takes < prefixTurns[s]; takes++)
-            {
-                var vec = (int[])current.Clone();
-                vec[s] = takes;
-                foreach (var v in DeferralAssignments(vec, flexible, prefixTurns, fi + 1, deferred + 1))
-                    yield return v;
-            }
-        }
-    }
-
-    // Provable-deferral check for a strand's nothing turn: the scan head hypothesis
-    // (headBase minus the positions already walked back) must have been blocked at the
-    // turn's reconstructed slot time — an ordered strand defers on an age-blocked or
-    // bound-blocked head, an unordered ring only on a bound-blocked candidate (an
-    // age-blocked candidate is skipped, never deferred). The positions the next
-    // occurrence's scan skipped before its first written take are consumed first —
-    // evaluated at the next take's start like every skip — then the deferral turn's own
-    // skips at the turn's slot time. Ordered strands never skip, so their deferred head
-    // is exactly the ring position the next take used (the occurrence-local basis).
-    private static bool ProvableDeferral(
-        List<StrandState> strands, int s, int[] headBase, int[] cursorBack, DateTime nextTakenStart,
-        DateTime deferralTime, (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain,
-        ProgramScheduleAgeWindowRule ageRule)
-    {
-        var strand = strands[s];
-        var items = strand.Items;
-        var count = items.Count;
-        var lap = 0;
-        while (!strand.PreservesOrder
-               && !ProgramScheduleAgeWindow.IsAllowedAt(
-                   items[((headBase[s] - cursorBack[s] - 1) % count + count) % count].AgeRatingMinAge,
-                   nextTakenStart, ageRule))
-        {
-            cursorBack[s]++;
-            if (++lap >= count)
-                return false;
-        }
-        var candidate = items[((headBase[s] - cursorBack[s]) % count + count) % count];
-        var ageBlocked = !ProgramScheduleAgeWindow.IsAllowedAt(candidate.AgeRatingMinAge, deferralTime, ageRule);
-        var provable = strand.PreservesOrder
-            ? ageBlocked || BoundBlocked(candidate, deferralTime)
-            : !ageBlocked && BoundBlocked(candidate, deferralTime);
-        if (!provable)
-            return false;
-        lap = 0;
-        while (!strand.PreservesOrder
-               && !ProgramScheduleAgeWindow.IsAllowedAt(
-                   items[((headBase[s] - cursorBack[s] - 1) % count + count) % count].AgeRatingMinAge,
-                   deferralTime, ageRule))
-        {
-            cursorBack[s]++;
-            if (++lap >= count)
-                return false;
-        }
-        return true;
-
-        bool BoundBlocked(SchedulableItem item, DateTime slotStart)
-            => bound is { } b && (b.StartUtc - slotStart < minStartRemain || (b.Hard && slotStart + item.Duration > b.StartUtc));
     }
 
     // Locates a slot's content inside the expanded list: by media item first (unique), then by the
@@ -1409,7 +907,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         List<ProgramRule> activeRules,
         Dictionary<long, RuleState> states,
         Dictionary<long, ProgramRule> rulesById,
-        TimeSpan minStartRemain,
         ProgramScheduleAgeWindowRule ageRule,
         ILogger logger)
     {
@@ -1439,7 +936,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         private void Rebuild(DateTime loadFrom, List<ProgramSlot> displacedEvidence)
         {
-            // Invader evidence for the reproducibility check: an airing that starts later than
+            // Invader evidence for the anchor check: an airing that starts later than
             // its nominal occurrence start is only plausible when a chain of occupied intervals
             // covered that start and ends exactly at the real start. Displaced rows contribute
             // the same evidence: the shift was proven at materialization time and stays
@@ -1498,10 +995,33 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     }
                     else
                     {
-                        // Later groups of the same rule anchor the occurrence-local basis
-                        // for strands that left no written pick in this airing (#320).
-                        var laterSlots = ordered.Skip(i + 1).SelectMany(g => g).ToList();
-                        invalid = !AiringReproducible(airing, states[rule.Id], starts, BoundStarts, _occupiedEvidence, minStartRemain, ageRule, laterSlots, out reason);
+                        // Title-wise validation: the group's head must anchor to a nominal
+                        // occurrence start, then every slot is verified on its own — content
+                        // still in the expansion, stored runtime and age window at the slot
+                        // start unchanged, ordered strands ring-contiguous. Material growth
+                        // changes ring positions, not contents, so it can never invalidate a
+                        // written slot.
+                        var state = states[rule.Id];
+                        var clipIds = ClipMediaItemIds(state);
+                        if (!airing.Any(s => !s.IsClipFill && !clipIds.Contains(s.MediaItemId)))
+                        {
+                            reason = AiringInvalidReason.TitlelessAiring; // an airing always carries at least one title
+                        }
+                        else if (AnchorProvable(airing[0], AiringRealStart(ordered, i), state, starts, _occupiedEvidence, out reason))
+                        {
+                            var lastIndex = new int[state.Strands.Count];
+                            Array.Fill(lastIndex, -1);
+                            reason = AiringInvalidReason.None;
+                            invalid = false;
+                            foreach (var slot in airing)
+                            {
+                                if (!SlotStillValid(slot, state, clipIds, ageRule, lastIndex, out reason))
+                                {
+                                    invalid = true;
+                                    break;
+                                }
+                            }
+                        }
                     }
 
                     if (invalid)
@@ -1644,7 +1164,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // head may never be reordered, so a window-blocked head defers instead of being
         // skipped. Unordered rings (movies, "other" genre material, clips) may skip. Computed
         // once — the item list never changes for a strand's lifetime, while the selection scan
-        // and the tail checks read this per candidate.
+        // and the title-wise slot check read this per candidate.
         public bool PreservesOrder { get; } = items.Count > 0 && items.All(i => i.ContentType
             is ProgramCursorContentType.TVShowEpisode or ProgramCursorContentType.PlaylistEntry);
 
@@ -1713,7 +1233,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public List<StrandState> Strands { get; private set; } = [];
 
         // Clip-group rings live outside Strands — they are draw sources for the clip fill pass,
-        // not airing material, and must not affect IsInterleaved, CommitTaken or the tail checks.
+        // not airing material, and must not affect IsInterleaved, CommitTaken or the
+        // title-wise slot check.
         public List<ClipGroupState> ClipGroups { get; } = [];
         public bool IsInterleaved => Strands.Count > 1;
 
@@ -1725,7 +1246,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             : null;
 
         // Flat-mode surface (single strand): used by filler handling and the flat airing
-        // reproducibility check — identical semantics to the former single ring.
+        // title-wise slot check — identical semantics to the former single ring.
         public int NextIndex => Strands[0].NextIndex;
         public SchedulableItem? LastPlaced => Strands[0].LastPlaced;
         public bool PreservesOrder => Strands[0].PreservesOrder;
@@ -1763,7 +1284,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     // Innerhalb der Stränge mischen dieselben Schluessel die ungeordneten
                     // Ringe ("other"-Filme); show:-Stränge bleiben in Sendedreihenfolge.
                     // Items bleibt die Expansionsliste — dort findet nur die
-                    // Mitgliedschaftspruefung der Reproduzierbarkeit statt.
+                    // Mitgliedschaftspruefung der titelweisen Slot-Validierung statt.
                     Items = items;
                     Strands = order
                         .OrderBy(key => StrandOrderKey(Rule.Id, key))
@@ -1778,8 +1299,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             }
 
             // Flachpfad: Items und der einzige Strang teilen dieselbe Ringinstanz —
-            // SelectAiringItems und der flache Tail-Check lesen positionsbasiert ueber
-            // state.Items.
+            // SelectAiringItems scannt positionsbasiert, die titelweise Slot-Validierung
+            // loest den Slot-Inhalt ueber dieselbe Liste auf.
             var flat = MixUnorderedRing(Rule.Id, null, items);
             Items = flat;
             Strands = [new StrandState(null, flat, NextIndexFor(flat, FindCursor(cursors, null)))];
@@ -2100,6 +1621,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             start = end;
         }
 
+        // Fully-past occurrences produce nothing and must not consume the cursor — a lookback
+        // airing that already ended leaves the rings untouched (same guard as the evicting
+        // variant).
+        if (ranges.Count == 0)
+            return;
+
         // An airing is atomic: if any of its slots collides with already occupied ranges
         // (persisted coverage or a higher-priority airing), the whole airing is dropped and the
         // cursor is not advanced.
@@ -2151,13 +1678,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
     // One pick of the interleaved selection: the strand and the taken item. The per-strand
     // scan extent (taken plus window-skipped positions) comes back in
-    // <see cref="InterleavedSelection.Scanned"/> — the reproducibility check reconstructs the
-    // ring positions itself from that scan trace and the slot sequence.
+    // <see cref="InterleavedSelection.Scanned"/>.
     private sealed record StrandPick(int Strand, SchedulableItem Item);
 
-    // The outcome of the flat selection: taken items, each pick's ring position (scan trace),
-    // the consumed scan positions and the window-blocked candidate count.
-    private sealed record FlatSelection(List<SchedulableItem> Taken, int[] Positions, int Scanned, int BlockedByAgeWindow);
+    // The outcome of the flat selection: taken items, the consumed scan positions (taken
+    // plus window-skipped) and the window-blocked candidate count.
+    private sealed record FlatSelection(List<SchedulableItem> Taken, int Scanned, int BlockedByAgeWindow);
 
     // The outcome of the interleaved selection: picks, per-strand consumed scan positions and
     // the window-blocked candidate count.
@@ -2323,7 +1849,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var count = items.Count;
         var selected = new List<SchedulableItem>();
-        var positions = new List<int>();
         var accumulated = TimeSpan.Zero;
         var slotStart = airingStartUtc;
         var ring = 0;            // consumed scan positions (taken + skipped)
@@ -2356,7 +1881,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             }
 
             selected.Add(item);
-            positions.Add((headIndex + ring) % count);
             ring++;
             slotStart += item.Duration;
             accumulated += item.Duration;
@@ -2366,7 +1890,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             if (target is not null && accumulated >= target)
                 break;
         }
-        return new FlatSelection(selected, positions.ToArray(), ring, blockedByWindow);
+        return new FlatSelection(selected, ring, blockedByWindow);
     }
 
     // Sorted start times of all occurrences whose rule currently expands to schedulable items —
@@ -3144,8 +2668,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
     // ---- clip-group fill ----
 
-    // Shared context of the clip-group build/expansion/fill passes — bundled like ReproContext
-    // so the helpers keep short signatures: the audience snapshot, the movie-airing map for the
+    // Shared context of the clip-group build/expansion/fill passes — bundled so the helpers
+    // keep short signatures: the audience snapshot, the movie-airing map for the
     // trailer group's lead matching (null while a run has not computed it yet), the coverage
     // edge, the reserved occurrence starts for the free-room check, the horizon cap and the
     // run counters.
@@ -3522,20 +3046,5 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         for (var j = airingStartIndex; j < rebuilt.Count; j++)
             blocked.Add(new Interval(rebuilt[j].Start, rebuilt[j].End));
-    }
-
-    // Slot-vs-item match of the reproducibility checks: the slot's stored media item may be the
-    // content's current representative or any of its still-linked probed alternates — a
-    // representative switch alone changes nothing about the airing. The slot's length must
-    // match the stored item's own runtime (a re-linked file with a different runtime is a real
-    // change); an unlinked/deleted stored item matches nothing and the airing is displaced.
-    private static bool SlotMatchesItem(ProgramSlot slot, SchedulableItem item, DateTime expectedStart)
-    {
-        if (slot.Start != expectedStart)
-            return false;
-        var duration = item.MediaItemId == slot.MediaItemId
-            ? item.Duration
-            : item.MediaItemAlternates.FirstOrDefault(a => a.MediaItemId == slot.MediaItemId)?.Duration;
-        return duration is not null && slot.End == expectedStart + duration.Value;
     }
 }

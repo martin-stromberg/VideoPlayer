@@ -88,7 +88,8 @@ durch `access.Allows` an den Expansionsstellen) liest zu Beginn die Admin-Einste
 Zuschauer-Freigabeprüfung ist für alle Expansionspfade aufgehoben (`SkippedNoAccess` bleibt
 0); bei `SharedOnly` (Default) läuft der bisherige Schnitt über alle Nicht-Admin-Benutzer
 unverändert. `ReconcileAsync` und `GetRuleDiagnosesAsync` nutzen denselben Kontext —
-beim Zurückschalten verdrängt der Mitgliedschafts-Check nicht mehr reproduzierbare Slots.
+beim Zurückschalten verdrängt der Mitgliedschafts-Check die betroffenen Slots
+(`ItemNotInExpansion`).
 
 1. Regeln werden inkl. `ClipGroups`-Navigation geladen. `BuildClipGroupStates` baut je
    zugeordneter Gruppe (aufsteigend nach `ProgramClipGroupId` = Round-Robin-Reihenfolge) einen
@@ -111,12 +112,19 @@ beim Zurückschalten verdrängt der Mitgliedschafts-Check nicht mehr reproduzier
    `TVShowEpisode`-/`PlaylistEntry`-Stränge (`PreservesOrder`), die airings-geordneten
    Trailer-Ringe und der Genre-Füller-Flachring mit gemischtem Inhalt (dort würde eine
    Vollmischung die Episoden-Sendedreihenfolge zerstören). Die Ordnung ist eine reine
-   Funktion der Expansion — Reproduzierbarkeitsprüfung und Cursor bleiben stabil.
+   Funktion der Expansion — die Cursor-Verankerung bleibt stabil (`NextIndexFor`
+   lokalisiert den persistierten Inhalt im neu gemischten Ring); die titelweise
+   Validierung des Reconcile fragt Ringpositionen ohnehin nicht mehr ab.
 2. `SelectItems` übergibt `clipGrace = rule.PlaceholderGrace`, sofern die Regel Gruppen trägt
    und `SlotDuration` gesetzt ist. `SelectAiringItems`/`SelectAiringItemsInterleaved` brechen
    die Titel-Auswahl zusätzlich ab, sobald `target - accumulated < clipGrace`; die
    Fenster-Bound-Prüfung über `_minStartRemain` bleibt davon unberührt.
-3. `MaterializeOccurrence` läuft unverändert (nur Titel). Danach:
+3. `MaterializeOccurrence` läuft unverändert (nur Titel). Der 24-h-`OccurrenceLookback`
+   materialisiert nur noch den laufenden Teil einer Ausstrahlung: Enden sämtliche
+   `ranges` der selektierten Takes vor `coverageStart`, greift der Early-Return
+   `ranges.Count == 0` vor Konfliktcheck und `CommitTaken` — eine komplett gelaufene
+   Lookback-Occurrence schreibt keine Slots und verbraucht keine Cursor-/Ringpositionen
+   (gleicher Guard wie `MaterializeOccurrenceEvicting`). Danach:
    `LoadMovieAiringsAsync`/`BuildMovieAiringsFromSlotsAsync` liefern `airingsByMovie` inkl.
    der frischen Ausstrahlungen; `ExpandClipGroupStatesAsync` expandiert die Trailer-
    `ClipGroupState`s verzögert über `ExpandTrailersAsync` (gleiches Muster wie
@@ -166,13 +174,15 @@ beim Zurückschalten verdrängt der Mitgliedschafts-Check nicht mehr reproduzier
 
 1. Regel-Zustände werden inkl. Clip-Gruppen expandiert; die Trailer-Gruppe expandiert hier
    sofort, da `airingsByMovie` aus den persistierten Slots bekannt ist.
-2. Die clip-bewusste `AiringReproducible`-Variante klassifiziert Slots zuerst über
-   `ClipMediaItemIds(state)` (`MediaItemId` ∈ Clip-Expansion der Regel → Clip-Slot): Die
-   titel-gefilterte Teilfolge läuft durch die bestehenden Tail-Checks
-   (`FlatAiringTailReproducible`/`InterleavedAiringTailReproducible`); Clip-Slots werden separat
-   auf Mitgliedschaft in der aktuellen Clip-Expansion und lückenlose Verkettung geprüft
-   (Position/Anzahl wird nicht re-simuliert). Ein entferntes oder nachträglich klassifiziertes
-   Mitglied macht die Ausstrahlung invalid → verdrängen und neu planen.
+2. Die titelweise Validierung (`ReconcileWindow.Validate` → `SlotStillValid`) klassifiziert
+   Slots zuerst über `IsClipFill`/`ClipMediaItemIds(state)` (`MediaItemId` ∈ Clip-Expansion
+   der Regel → Clip-Slot): Clip-Slots gelten, solange ihr MediaItem im aktuellen Clip-Ring
+   expandiert, ihre geschriebene Laufzeit der Clip-Laufzeit entspricht und sie an ihrem
+   Slot-Start alterszulässig wären (Position/Anzahl wird nicht geprüft). Ein entferntes oder
+   nachträglich klassifiziertes Mitglied (`ItemNotInExpansion`) bzw. eine geänderte Laufzeit
+   oder Fensterlage (`SlotSequenceMismatch`) macht die Ausstrahlung invalid → verdrängen und
+   neu planen. Die Titel-Prüfung und der Kopf-Anker stehen im Abschnitt
+   „Titelweise Validierung (`ReconcileWindow.Validate`)".
 3. `MaterializeOccurrenceEvicting` materialisiert nur Titel; `InsertClipFill` läuft über die
    neu materialisierten Ausstrahlungen in `newSlots`. `RewindCursor` berücksichtigt verdrängte
    Clip-Slots (Clip-Strang zurück auf den Vorgänger).
@@ -200,8 +210,8 @@ flowchart TD
   überspringt Links auf fehlende Gruppen-Zeilen; `GetGroupsAsync` listet „Trailer" schlicht
   nicht; `ValidateClipGroupInputAsync` weist die Id per `KeyNotFoundException` ab.
 - **Nachträglich klassifizierte/fehlende Clips:** Die doppelte Prüfung (bei Zuordnung und bei
-  Expansion) filtert sie heraus; in der Reproduzierbarkeits-Prüfung invalidieren sie die
-  Ausstrahlung und lösen Neuplanung aus.
+  Expansion) filtert sie heraus; in der titelweisen Validierung machen sie den betroffenen
+  Clip-Slot invalid (`ItemNotInExpansion`) und verdrängen die Ausstrahlung zur Neuplanung.
 - **Kein passendes Material / kein freier Raum:** Der verbleibende Rest bleibt eine
   dokumentierte Lücke (`SummaryCounters.RemainingGapSeconds`) und geht an `FillGaps`.
 - **Berechtigungen:** `RequireAdminAsync` in jeder Service-Methode; die UI blendet lediglich
@@ -652,7 +662,7 @@ Jugendschutzfenster: ein Titel darf nur starten, wenn seine normalisierte Mindes
   bis 06:00) und `IsValid()` (monotone Schwellen, Nachtende vor dem FSK-12-Beginn).
 - `ProgramScheduleAgeWindowRule` (Services): Record, der Fensterschema (`Windows`) und
   Unbekannt-Modus (`UnknownMode`) zu einer Einheit bündelt — beide werden nie getrennt
-  gebraucht und wandern gemeinsam durch Materialisierung, Auswahl und Reproduzierbarkeit.
+  gebraucht und wandern gemeinsam durch Materialisierung, Auswahl und Validierung.
 - `ProgramScheduleAgeWindow` (Services): statischer Helfer `IsAllowedAt(minAge, utcStart,
   ageRule)` — Schwellenabbildung (größte Schwelle ≤ Mindestalter; < 12 immer erlaubt;
   `null` je nach Modus), Nachtfenster über Mitternacht (`local >= earliest || local < end`).
@@ -691,14 +701,16 @@ Entry-Points (`EnsureCoverageAsync`, `ReconcileAsync`, `GetRuleDiagnosesAsync`) 
 Schema und Modus einmal pro Lauf, bauen daraus die `ProgramScheduleAgeWindowRule` und
 reichen sie durch.
 
-### Reproduzierbarkeit
+### Neu-Bewertung
 
-`ReproContext` trägt die Regel als `AgeRule`; `FlatAiringTailReproducible` und
-`InterleavedAiringTailReproducible` simulieren die Auswahl mit identischer Skip-/Defer-
-Semantik. Die Rückwärtsrekonstruktion ist lückentolerant: ein Vorgänger-Ringplatz zählt als
-Skip, wenn er zur Startzeit des folgenden Takes gesperrt war (Skips verbrauchen keine
-Sendezeit). `ReconcileAsync` verdrängt Ausstrahlungen, die unter dem verschärften Schema
-nicht mehr reproduzierbar sind, und materialisiert sie neu.
+Die titelweise Validierung prüft jeden geplanten Slot einzeln über
+`ProgramScheduleAgeWindow.IsAllowedAt(item.AgeRatingMinAge, slot.Start, ageRule)` an seinem
+geschriebenen Start — Titel und Clips gleichermaßen (`SlotStillValid`). Eine Verschärfung
+des Schemas oder ein Modus-Wechsel invalidiert den betroffenen Slot
+(`SlotSequenceMismatch`); `ReconcileAsync` verdrängt die Ausstrahlung und materialisiert
+sie regelkonform neu. Der laufende Slot bleibt über `Protected` geschützt — er läuft zu
+Ende, es sei denn, die aktuellen Einstellungen verbieten den Inhalt bereits an seinem
+eigenen Slot-Start.
 
 ### Diagnose
 
@@ -726,12 +738,64 @@ die Spalten wieder her.
 
 `ReconcileAsync` gleicht die gespeicherten `Scheduled`-Sendeplätze gegen die aktuelle
 Regel-, Medien- und Zeitlage ab; ein Lauf ohne sachliche Eingabeänderung muss ein No-Op
-sein (`SlotsDisplaced == 0`, `SlotsCreated == 0`). Vier Mechanismen sichern das ab:
-der tolerante Sendeplatz-Vergleich über die Alternativ-Dateien eines Inhalts, eine
+sein (`SlotsDisplaced == 0`, `SlotsCreated == 0`). Zentral ist die **titelweise
+Validierung**: Jeder geschriebene Sendeplatz wird einzeln gegen Inhalt, Laufzeit und
+Altersfenster geprüft, dazu ein Occurrence-Anker je Ausstrahlung — die frühere
+positionsbasierte Re-Simulation der Auswahl (`AiringReproducible` samt Tail-Checks,
+Hypothesen und `ReproContext`) ist vollständig entfernt. Wächst der Materialbestand
+(neue Datei, neue Serie, weiteres Genre an der Regel), ändern sich Ringpositionen und
+Strangzahl, nicht aber der Inhalt eines geschriebenen Slots — Mengenwachstum kann daher
+definitionsgemäß nichts verdrängen. Vier weitere Mechanismen sichern die Idempotenz ab:
+der tolerante Laufzeitvergleich über die Alternativ-Dateien eines Inhalts, eine
 durchgängig einheitliche Zeitbasis der Materialexpansion, `Displaced`-Zeilen als
 Verschiebungs-Evidenz und die Bündelung der Auslöse-Signale.
 
-### Repräsentantenwahl und toleranter Sendeplatz-Vergleich
+### Titelweise Validierung (`ReconcileWindow.Validate`)
+
+`GroupAirings` bildet aus den Nicht-Filler-Slots lückenlose Ketten gleicher Regel
+(Ausstrahlungsgruppen), geteilt am `coverageStart` des Laufs. Je Regel werden die
+Gruppen in Startreihenfolge geprüft; Ausstrahlungen, die vollständig vor
+`coverageStart` enden, sind Historie und werden übersprungen.
+
+1. **Gruppen-Vorprüfung:** fehlende Regel → `RuleMissing`; inaktive Regel →
+   `RuleInactive`; keine Occurrence-Starts der Regel im (ggf. verbreiterten) Fenster →
+   `NoOccurrenceAnchor`; Gruppe ohne einzigen Titel-Slot → `TitlelessAiring`.
+2. **Kopf-Anker** (`AnchorProvable`): Der Gruppenkopf muss zu einem nominalen
+   Occurrence-Start `≤ Kopf.Start` zurückführen — exakt (ungeschobene
+   Materialisierung), über eine beweisbare Invader-Kette (`ShiftProvable` auf der
+   Besetzt-Evidenz `Scheduled ∪ Displaced`) oder innerhalb des `UnwrittenHeadroom`
+   (teil-ausgestrahlte Occurrence, deren Kopf-Takes vor `coverageStart` keine
+   Slot-Zeilen erzeugten). `UnwrittenHeadroom = rule.SlotDuration ?? (wanted − 1) ·
+   maxItemDuration` ist eine reine Zeit-/Inhaltsschranke ohne Ringpositionsbezug —
+   wachstumsstabil. Bei einer an der Coverage-Grenze geteilten Gruppe faltet
+   `AiringRealStart` das unmittelbar voranlaufende, lückenlos anschließende Fragment
+   derselben Regel auf den realen Start zurück und prüft beide Ankerziele. Kandidaten
+   vorhanden, aber keiner beweisbar → `AnchorWithoutInvaderEvidence`.
+3. **Slotweise Prüfung** (`SlotStillValid`) je Slot der Gruppe:
+   - **Clip-Slot** (`IsClipFill` oder `MediaItemId` ∈ `ClipMediaItemIds(state)`):
+     gültig, wenn das MediaItem im aktuellen Clip-Ring expandiert, die geschriebene
+     Laufzeit der Clip-Laufzeit entspricht und der Inhalt am Slot-Start
+     alterszulässig wäre — sonst `ItemNotInExpansion` bzw. `SlotSequenceMismatch`.
+   - **Titel-Slot:** `FindItemIndex` lokalisiert den Inhalt in den Strängen
+     (zuerst `MediaItemId`, dann `MovieId`/`TVShowEpisodeId`) — nicht gefunden →
+     `ItemNotInExpansion` (gelöschtes Medium, entfernte Genre-/Quell-Zuordnung,
+     entzogene Freigabe). Danach: geschriebene Laufzeit muss zur Datei passen
+     (`MatchingItemDuration` — eigene Laufzeit oder passende
+     `MediaItemAlternates`-Variante), `IsAllowedAt` am Slot-Start, und bei
+     geordneten Strängen (`PreservesOrder`) Ring-Kontiguität: Ein Pick, der in
+     derselben Gruppe auf einen früheren Pick desselben Strangs folgt, muss auf der
+     direkt nachfolgenden Ringposition liegen (`StrandSequenceBroken` — erkennt
+     umnummerierte/eingeschobene Episoden). Der erste Pick je Strang und Gruppe ist
+     die ungeprüfte Baseline; ungeordnete Ringe erhalten keine Positionsprüfung.
+4. Die erste invalide Ausstrahlung je Regel geht in `InvalidGroups`
+   (ausstrahlungsatomar); `HasRescuableInvalid` nur bei aktiver Regel —
+   validierungsgetriebenes Fenster-Widening bleibt. Danach läuft die unveränderte
+   Verdrängungs- und Neuplanungs-Machinerie: Suffix-Verdrängung je Regel,
+   Filler-Einzelprüfung, `RewindCursor`/`RewindRing`, Re-Materialisierung über
+   `MaterializeOccurrenceEvicting` auf dem Basisfenster, `Evicts`-Konfliktauflösung,
+   `InsertClipFill`, `FillGaps`, `PersistCursors`.
+
+### Repräsentantenwahl und toleranter Laufzeitvergleich
 
 Zu einem Inhalt (Film/Episode) können mehrere `MediaItem`s verlinkt sein;
 `MovieMediaItemsAsync`/`EpisodeMediaItemsAsync` liefern je Inhalt eine `MediaItemChoice` —
@@ -743,24 +807,20 @@ Gruppierung `ToMediaItemChoices`). `TryMovieItem`/`ToItem` übertragen die Liste
 
 Schreibt `MediaDurationProbeService` einem bisher unbemessenen Item eine `Duration`, kann
 der bevorzugte Repräsentant wechseln, ohne dass sich die Ausstrahlung fachlich ändert.
-Der Slot-für-Slot-Vergleich der Reproduzierbarkeitsprüfung läuft deshalb über
-`SlotMatchesItem(slot, item, expectedStart)` (eingesetzt in `FlatAiringTailReproducible`
-und `InterleavedAiringTailReproducible`): Der Sendeplatz passt, wenn
-`slot.Start == expectedStart` gilt und `slot.MediaItemId` dem Repräsentanten entspricht
-**oder** unter `item.MediaItemAlternates` steht; geprüft wird `slot.End` gegen
-`expectedStart` plus der Laufzeit **der am Sendeplatz hinterlegten Datei**. In
-`InterleavedAiringTailReproducible` wandert die Positionskette über `start = slot.End`
-weiter (statt `start += item.Duration`), damit eine Alternativ-Datei mit abweichender
-Laufzeit konsistent bleibt. Ein entlinktes oder gelöschtes Item steht nicht unter den
-Alternativen — das ist eine echte Änderung und verdrängt genau einmal.
+Die titelweise Validierung prüft die geschriebene Sendeplatz-Länge deshalb über
+`MatchingItemDuration(slot, item)` (`SlotStillValid`): Sie löst die Laufzeit der am
+Sendeplatz hinterlegten Datei auf — die Item-Laufzeit, wenn `slot.MediaItemId` dem
+Repräsentanten entspricht, sonst die der passenden `MediaItemAlternates`-Variante — und
+verlangt `slot.End - slot.Start == duration`. Ein entlinktes oder gelöschtes Item steht
+nicht unter den Alternativen — das ist eine echte Änderung und verdrängt genau einmal.
 
 Bevor der Vergleich läuft, muss jeder Sendeplatz seinem Inhalt in der Expansion
-zugeordnet werden: `FindItemIndex` — genutzt von beiden Tail-Checks und `RewindCursor` —
-sucht zuerst die `MediaItemId`, dann den Inhalt. Der Inhaltsfallback matcht seit Issue
-#310 über die eigenen Inhaltsfelder des Items (`i.MovieId == slot.MovieId` bzw.
+zugeordnet werden: `FindItemIndex` — genutzt von `SlotStillValid`, `SlotMinAge` und
+`RewindCursor` — sucht zuerst die `MediaItemId`, dann den Inhalt. Der Inhaltsfallback
+matcht seit Issue #310 über die eigenen Inhaltsfelder des Items (`i.MovieId == slot.MovieId` bzw.
 `i.TVShowEpisodeId`) statt über `ContentType`/`ContentId`: Playlist-Einträge tragen als
 `ContentId` die `PlaylistEntryId`, sodass der frühere typ-spezifische Vergleich sie nie
-fand — ein Repräsentantenwechsel machte Playlist-Slots unbeweisbar. Jetzt lösen sie wie
+fand — ein Repräsentantenwechsel machte Playlist-Slots unauflösbar. Jetzt lösen sie wie
 direktes Film-/Episodenmaterial auf.
 
 ### Einheitliche Zeitbasis der Expansion
@@ -805,11 +865,16 @@ verdrängten Zeile nachweisbar war, kann danach einmalig verdrängt und an ihrem
 Nominalstart neu eingeplant werden (Anwendersicht: `docs/help/tv-sender.md`).
 
 Jeder als invalide erkannte Block schreibt eine Diagnose-Zeile (`Information`):
-Regel, Kopf-Intervall, Sendeplatzanzahl und der `AiringInvalidReason`, der die
-tiefste erreichte Ablehnungsstufe benennt (fehlende/inaktive Regel, fehlender
-Occurrence-Anker bzw. Ausstrahlungskopf vor jedem nutzbaren Anker, Inhalt nicht mehr
-im expandierten Material, fehlende Verschiebe-Evidenz, Folge-/Kopf-Pick-, Strang- oder
-Clip-Ketten-Bruch, titellose Clip-Ausstrahlung, nicht reproduzierbarer Rest). Pro Regelgruppe wird nur der erste invalide Block geprüft und protokolliert —
+Regel, Kopf-Intervall, Sendeplatzanzahl und der `AiringInvalidReason` der Ablehnung —
+fehlende/inaktive Regel (`RuleMissing`/`RuleInactive`), keine Occurrence der Regel
+(`NoOccurrenceAnchor`), titellose Clip-Ausstrahlung (`TitlelessAiring`), Kopf-Anker
+nicht beweisbar (`AnchorWithoutInvaderEvidence`), Inhalt nicht mehr im expandierten
+Material (`ItemNotInExpansion`), Laufzeit- oder Altersfenster-Bruch eines Slots
+(`SlotSequenceMismatch`) oder gebrochene Ring-Kontiguität eines geordneten Strangs
+(`StrandSequenceBroken`). Die Enum-Werte `OutsideOccurrenceWindow`, `ClipChainBroken`,
+`HeadPickInconsistent` und `RemainderNotReproducible` stammen aus der entfernten
+Re-Simulation, werden nicht mehr erzeugt und bleiben nur für die Stufenordnung des
+Enums erhalten. Pro Regelgruppe wird nur der erste invalide Block geprüft und protokolliert —
 die nachfolgenden Ausstrahlungen derselben Regel werden als Suffix mitverdrängt, ohne
 eigene Diagnose-Zeile, weil ihr Cursor-Kontext nach der ersten Ablehnung ohnehin
 veraltet ist. Im Anwendungslog erscheint sie als
@@ -842,8 +907,10 @@ alle Slots mit `End <= coverageStart` bilden eine eigene Historien-Gruppe, die
 `ReconcileWindow.Validate` überspringt — bereits ausgestrahlte Titel werden nie
 erneut bewertet oder neu geplant (Issue #315). Der Slot, der den Lauf-Rand
 überspannt, koepft die Zukunfts-Gruppe; so bleibt die Clip-Zeit-Projektion einer
-laufenden Clip-Ausstrahlung intakt, und die Tail-Prüfung sieht einen verträglichen
-Rest-Kopf statt eines abgeschnittenen Prefix.
+laufenden Clip-Ausstrahlung intakt, und der Kopf-Anker sieht einen verträglichen
+Rest-Kopf statt eines abgeschnittenen Prefix — `AiringRealStart` faltet das
+abgetrennte bereits-ausgestrahlte Fragment auf den realen Start zurück
+(`AnchorProvable`, `UnwrittenHeadroom`).
 
 Der laufende Slot (`Start < coverageStart < End`) wird an keinem
 Verdrängungspfad geschnitten: `Displace`, `DisplaceRuleFuture`, die
@@ -887,17 +954,22 @@ Schleifeniterationen hinweg — ein frischer `ReadAsync` je Umlauf hinterließ e
 - **Weiche Referenzen:** Ein am Sendeplatz hinterlegtes Item, das inzwischen gelöscht oder
   entlinkt wurde, steht nicht unter `MediaItemAlternates` — Verdrängung und Neuplanung
   genau einmal, wie bisher.
-- **`SlotDuration`-Ausstrahlungen mit abweichender Alternativ-Laufzeit:** Die
-  Neusimulation zählt Picks über die Repräsentanten-Laufzeit; weicht die hinterlegte
-  Datei ab, kann die Take-Anzahl nicht reproduziert werden — einmalige Verdrängung
-  (echte Änderung, bewusst konservativ).
-- **Rekonstruktionsbasis unbeobachteter Stränge (Issue #315):** Für einen
-  Interleaved-Strang ohne geschriebenen Beitrag rekonstruiert die Prüfung den
-  Scan-Head aus dem persistierten `NextIndex` — dem Plan-End-Cursor, nicht dem
-  Occurrence-lokalen Prefix-Stand. Ein Strang, der in einer späteren
-  nicht-kontigüren Gruppe derselben Regel Picks nahm, erzeugt Hypothesen von der
-  falschen Position — kippt dann konservativ in Verdrängung statt fälschlicher
-  Stabilität (der laufende Titel bleibt dennoch geschützt).
+- **Abweichende Alternativ-Laufzeit:** `MatchingItemDuration` verlangt, dass die
+  geschriebene Sendeplatz-Länge zur Laufzeit der hinterlegten Datei passt — der
+  Item-Laufzeit oder der passenden `MediaItemAlternates`-Variante. Ist die Datei
+  weder Repräsentant noch bemessene Alternative oder weicht ihre Laufzeit ab, gilt
+  die Ausstrahlung als geändert und wird einmalig verdrängt.
+- **Toleranzen der titelweisen Validierung:** Innerhalb des `UnwrittenHeadroom`
+  gilt ein Gruppenkopf auch ohne Invader-Beleg als verankert — seine Lage ist von
+  einem ungeschriebenen Präfix nicht unterscheidbar (eine neue Occurrence, die
+  näher als der Headroom vor einem alten Kopf liegt, verdrängt ihn daher nicht).
+  In lückenlosen `GroupAirings`-Ketten trägt nur der Gruppenkopf den Anker-Beweis;
+  ein mitten in der Kette entfallener Occurrence-Anker wird toleriert. Für
+  ungeordnete Ringe gibt es keine Positions-/Skip-Nachweise — bei einem durch
+  Wachstum umsortierten Ring wären sie nicht verifizierbar. Ein Slot, der in ein
+  neuerdings höherpriores Fenster ragt, wird nicht von der Validierung verdrängt,
+  sondern über die unveränderte Materialisierungs-Konfliktlogik
+  (`MaterializeOccurrenceEvicting`/`Evicts`/`DisplaceRuleFuture`) gelöst.
 - **Laufender Slot ohne auflösbares Rating:** Ist der Inhalt des laufenden Slots
   nicht in der Expansion seiner Regel auflösbar (Medium/Regel gelöscht), liefert
   `SlotMinAge` `null` — im Modus „Jederzeit planbar" bleibt er geschützt, auch wenn

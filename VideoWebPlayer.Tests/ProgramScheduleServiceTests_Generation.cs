@@ -410,14 +410,14 @@ public sealed class ProgramScheduleServiceTests_Generation
 
         var slots = await fixture.SlotsAsync(ct);
         var episodeOrder = slots.Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime).Select(s => s.TVShowEpisodeId).ToList();
-        // 48 h horizon at 2 episodes/day → 3 airings in the window; the lookback airing
-        // (yesterday 20:00) already consumed episodes 1+2 → today gets 3,4 | 5,wrap→1.
-        var expected = episodes.Skip(2).Select(e => (long?)e.Id).Concat(new long?[] { episodes[0].Id }).ToList();
+        // 48 h horizon at 2 episodes/day → 2 airings in the window; the lookback airing
+        // (yesterday 20:00) was already over and consumes nothing → today gets 1,2 | 3,4.
+        var expected = episodes.Take(4).Select(e => (long?)e.Id).ToList();
         Assert.Equal(expected, episodeOrder);
 
         var cursor = await fixture.Db.ProgramRuleCursors.SingleAsync(ct);
         Assert.Equal(ProgramCursorContentType.TVShowEpisode, cursor.LastContentType);
-        Assert.Equal(episodes[0].Id, cursor.LastContentId);
+        Assert.Equal(episodes[3].Id, cursor.LastContentId);
 
         // A second run continues where the first stopped (extends coverage).
         var later = now.AddHours(30);
@@ -446,8 +446,8 @@ public sealed class ProgramScheduleServiceTests_Generation
         var order = (await fixture.SlotsAsync(ct)).Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime)
             .Select(s => s.TVShowEpisodeId).ToList();
         // 3 episodes/airing but only 2 episodes exist → wraps 1,2,1|2,1,2...; the lookback airing
-        // consumed 1,2,1 already → the first placed airing is 2,1,2.
-        Assert.Equal(new long?[] { episodes[1].Id, episodes[0].Id, episodes[1].Id }, order.Take(3).ToList());
+        // was already over and consumes nothing → the first placed airing is 1,2,1.
+        Assert.Equal(new long?[] { episodes[0].Id, episodes[1].Id, episodes[0].Id }, order.Take(3).ToList());
     }
 
     [Fact]

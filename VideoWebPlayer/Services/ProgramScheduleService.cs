@@ -2143,8 +2143,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 if (target is not null && accumulated >= target)
                     break;
             }
-            if (graceHit || !progressed)
-                break;
+            if (graceHit || !progressed || (target is { } reached && accumulated >= reached))
+                break; // the for-break on reaching the period target only ends the lap — the
+                       // airing is complete, so the outer rotation must stop here too
             noProgressLaps = accumulated > lapAccumulated ? 0 : noProgressLaps + 1;
             if (noProgressLaps > maxLap)
                 break; // every strand cycled a full lap without gaining airtime — degenerate durations

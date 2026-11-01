@@ -74,10 +74,13 @@ public sealed class ProgramScheduleServiceTests_Purge
         Assert.True(summary.SlotsDisplaced > 0);
         var slots = await fixture.SlotsAsync(ct);
         // Soft-Referenz: die Slots bleiben als Zeilen (Historie) und tragen weiter die Regel-Id;
-        // nur der noch laufende Rest wird Displaced, der ausgestrahlte Kopf bleibt Scheduled.
+        // nur der noch laufende Rest wird Displaced, der ausgestrahlte Kopf bleibt Scheduled —
+        // und der die Abspielposition tragende Slot läuft zu Ende (Issue #315), weil ein
+        // Purge kein Altersfenster-Grund ist.
         var orphaned = slots.Where(s => s.ProgramRuleId == rule.Id).ToList();
         Assert.NotEmpty(orphaned);
-        Assert.All(orphaned.Where(s => s.End > purgeNow.UtcDateTime), s => Assert.Equal(ProgramSlotStatus.Displaced, s.Status));
+        Assert.All(orphaned.Where(s => s.Start >= purgeNow.UtcDateTime), s => Assert.Equal(ProgramSlotStatus.Displaced, s.Status));
+        Assert.All(orphaned.Where(s => s.Start < purgeNow.UtcDateTime && s.End > purgeNow.UtcDateTime), s => Assert.Equal(ProgramSlotStatus.Scheduled, s.Status));
     }
 
     [Fact]

@@ -111,7 +111,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         await fixture.SaveDiagAsync();
         var summary = await service.ReconcileAsync(now.AddMinutes(30), ct);
 
-        Assert.True(summary.SlotsDisplaced > 0);
+        Assert.True(summary.SlotsDisplaced > 0, $"displaced={summary.SlotsDisplaced} created={summary.SlotsCreated} dropped={summary.DroppedConflicts}");
         var displaced = await DisplacedAsync(fixture, ct);
         // Soft reference: the displaced slots still carry the deleted rule's id.
         Assert.All(displaced, s => Assert.Equal(rule.Id, s.ProgramRuleId));
@@ -154,7 +154,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         await fixture.SaveDiagAsync();
         var summary = await service.ReconcileAsync(now.AddMinutes(30), ct);
 
-        Assert.True(summary.SlotsDisplaced > 0);
+        Assert.True(summary.SlotsDisplaced > 0, $"displaced={summary.SlotsDisplaced} created={summary.SlotsCreated} dropped={summary.DroppedConflicts}");
         var displaced = await DisplacedAsync(fixture, ct);
         Assert.All(displaced, s => Assert.Equal(rule.Id, s.ProgramRuleId));
         Assert.Contains(displaced, s =>
@@ -188,7 +188,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         await fixture.SaveDiagAsync();
         var summary = await service.ReconcileAsync(now.AddMinutes(30), ct);
 
-        Assert.True(summary.SlotsDisplaced > 0);
+        Assert.True(summary.SlotsDisplaced > 0, $"displaced={summary.SlotsDisplaced} created={summary.SlotsCreated} dropped={summary.DroppedConflicts}");
         var ruleSlots = (await ScheduledAsync(fixture, ct)).Where(s => s.ProgramRuleId == rule.Id).ToList();
         Assert.NotEmpty(ruleSlots);
         Assert.All(ruleSlots, s =>
@@ -314,7 +314,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         await fixture.SaveDiagAsync();
         var summary = await service.ReconcileAsync(now.AddMinutes(30), ct);
 
-        Assert.True(summary.SlotsDisplaced > 0);
+        Assert.True(summary.SlotsDisplaced > 0, $"displaced={summary.SlotsDisplaced} created={summary.SlotsCreated} dropped={summary.DroppedConflicts}");
         var displaced = await DisplacedAsync(fixture, ct);
         // Neben As Ausstrahlungen werden auch Bs zuvor verschobene Slots verdrängt — B
         // materialisiert nach der Prio-Erhöhung neu auf seinem 20:00-Fenster.
@@ -353,7 +353,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
 
         var summary = await service.ReconcileAsync(now.AddMinutes(30), ct);
 
-        Assert.True(summary.SlotsDisplaced > 0);
+        Assert.True(summary.SlotsDisplaced > 0, $"displaced={summary.SlotsDisplaced} created={summary.SlotsCreated} dropped={summary.DroppedConflicts}");
         var scheduledEpisodes = (await ScheduledAsync(fixture, ct))
             .Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime)
             .Select(s => s.TVShowEpisodeId).ToList();
@@ -686,6 +686,8 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         var channel = await fixture.GetChannelAsync(ct);
         var movie = await fixture.CreateMovieAsync("Marathonfilm", duration: TimeSpan.FromHours(30));
 
+        var replacement = await fixture.CreateMovieAsync("Ersatzfilm", duration: TimeSpan.FromHours(30));
+
         var now = new DateTimeOffset(LocalUtc(2026, 11, 1, 12, 0));
         var rule = await fixture.CreateRuleAsync(channel.Id, "Marathon", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
             new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id, episodeCount: 1);
@@ -693,18 +695,26 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         var service = fixture.CreateService();
         await service.EnsureCoverageAsync(now, ct);
 
-        rule.TimeOfDay = new TimeOnly(22, 0);
+        var running = (await fixture.SlotsAsync(ct))
+            .Single(s => s.Start < LocalUtc(2026, 11, 3, 10, 0) && s.End > LocalUtc(2026, 11, 3, 10, 0));
+
+        rule.MaterialId = replacement.Id;
         await fixture.SaveDiagAsync();
         var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 11, 3, 10, 0)), ct);
 
-        Assert.True(summary.SlotsDisplaced > 0);
-        Assert.Contains(await DisplacedAsync(fixture, ct), s => s.ProgramRuleId == rule.Id);
-        // Re-planned at the new time.
-        Assert.Contains(await ScheduledAsync(fixture, ct), s => s.ProgramRuleId == rule.Id);
+        // The running slot is never cut mid-air (Issue #315) — it finishes the old movie
+        // while the stale tail is re-planned with the new material.
+        var runningAfter = await fixture.Db.ProgramSlots.AsNoTracking().SingleAsync(s => s.Id == running.Id, ct);
+        Assert.Equal(ProgramSlotStatus.Scheduled, runningAfter.Status);
+        Assert.Equal(movie.Id, runningAfter.MovieId);
+        var scheduled = await ScheduledAsync(fixture, ct);
+        Assert.DoesNotContain(scheduled, s => s.ProgramRuleId == rule.Id && s.MovieId == movie.Id && s.Start > running.End);
+        Assert.Contains(scheduled, s => s.ProgramRuleId == rule.Id && s.MovieId == replacement.Id);
     }
 
     // Documented bound: airings whose real start is older than MaxOccurrenceLookbackDays are
-    // still displaced and re-planned (deliberate, configurable limit).
+    // still displaced and re-planned (deliberate, configurable limit) — but the running slot
+    // finishes its title mid-air instead of being cut (Issue #315).
     [Fact]
     public async Task Reconcile_LongAiring_BeyondMaxLookback_Displaced()
     {
@@ -712,6 +722,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-long-maxlookback", ct);
         var channel = await fixture.GetChannelAsync(ct);
         var movie = await fixture.CreateMovieAsync("Marathonfilm", duration: TimeSpan.FromHours(30));
+        var replacement = await fixture.CreateMovieAsync("Ersatzfilm", duration: TimeSpan.FromHours(30));
 
         var now = new DateTimeOffset(LocalUtc(2026, 11, 1, 12, 0));
         var rule = await fixture.CreateRuleAsync(channel.Id, "Marathon", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
@@ -721,11 +732,21 @@ public sealed class ProgramScheduleServiceTests_Reconcile
             new Configuration.ProgramScheduleOptions { MaxOccurrenceLookbackDays = 1 }));
         await service.EnsureCoverageAsync(now, ct);
 
+        var running = (await fixture.SlotsAsync(ct))
+            .Single(s => s.Start < LocalUtc(2026, 11, 3, 10, 0) && s.End > LocalUtc(2026, 11, 3, 10, 0));
+
+        // A stale airing the bound cannot re-prove (material changed) is still re-planned —
+        // but the running slot finishes its title mid-air instead of being cut (Issue #315).
+        rule.MaterialId = replacement.Id;
+        await fixture.SaveDiagAsync();
         var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 11, 3, 10, 0)), ct);
 
-        Assert.True(summary.SlotsDisplaced > 0);
-        Assert.Contains(await DisplacedAsync(fixture, ct), s => s.ProgramRuleId == rule.Id);
-        Assert.Contains(await ScheduledAsync(fixture, ct), s => s.ProgramRuleId == rule.Id);
+        var runningAfter = await fixture.Db.ProgramSlots.AsNoTracking().SingleAsync(s => s.Id == running.Id, ct);
+        Assert.Equal(ProgramSlotStatus.Scheduled, runningAfter.Status);
+        Assert.Equal(movie.Id, runningAfter.MovieId);
+        var scheduled = await ScheduledAsync(fixture, ct);
+        Assert.DoesNotContain(scheduled, s => s.ProgramRuleId == rule.Id && s.MovieId == movie.Id && s.Start > running.End);
+        Assert.Contains(scheduled, s => s.ProgramRuleId == rule.Id && s.MovieId == replacement.Id);
     }
 
     // Issue #290 reproduction: the movie's lower-id file is unprobed, so the second (higher-id)
@@ -889,7 +910,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         await fixture.SaveDiagAsync();
         var summary = await service.ReconcileAsync(now.AddMinutes(30), ct);
 
-        Assert.True(summary.SlotsDisplaced > 0);
+        Assert.True(summary.SlotsDisplaced > 0, $"displaced={summary.SlotsDisplaced} created={summary.SlotsCreated} dropped={summary.DroppedConflicts}");
         // Keine Occurrence der geänderten Sendezeit kann die geschriebenen Sendeplätze
         // erzeugen — die tiefste erreichte Ablehnungsstufe wird protokolliert.
         var lines = messages.Where(m => m.Contains("invalide")).ToList();

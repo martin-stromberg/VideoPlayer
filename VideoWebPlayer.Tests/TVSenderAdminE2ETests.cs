@@ -282,12 +282,17 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
             using var scope = Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
             var channel = await db.TVChannels.FirstAsync(TestContext.Current.CancellationToken);
-            seedSlotStart = DateTime.UtcNow.AddHours(2);
+            // Fixed local day/time: the "+2h/+3h" seeds used to land on different local days
+            // whenever the test ran between 21:00 and 22:00 — the displaced slot sat on the
+            // following day, while the day-bar click below selects only the first slot's
+            // day (deterministic 15 s wait timeout, Issue #321).
+            seedSlotStart = TimeZoneInfo.ConvertTimeToUtc(
+                DateTime.Today.AddDays(1).AddHours(12), TimeZoneInfo.Local);
             db.ProgramSlots.Add(new VideoWebPlayer.Data.ProgramSlot
             {
                 TVChannelId = channel.Id,
                 Start = seedSlotStart,
-                End = DateTime.UtcNow.AddHours(3),
+                End = seedSlotStart.AddHours(1),
                 MediaItemId = 1,
                 MovieId = 1,
                 RuleType = VideoWebPlayer.Data.ProgramRuleType.Filler
@@ -295,8 +300,8 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
             db.ProgramSlots.Add(new VideoWebPlayer.Data.ProgramSlot
             {
                 TVChannelId = channel.Id,
-                Start = DateTime.UtcNow.AddHours(3),
-                End = DateTime.UtcNow.AddHours(4),
+                Start = seedSlotStart.AddHours(1),
+                End = seedSlotStart.AddHours(2),
                 MediaItemId = 2,
                 MovieId = 2,
                 RuleType = VideoWebPlayer.Data.ProgramRuleType.SeriesFixedTime,

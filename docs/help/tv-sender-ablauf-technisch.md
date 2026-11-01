@@ -805,6 +805,28 @@ Bereinigung steht nicht hinter einer Admin-Berechtigung — sie läuft innerhalb
 (`DeleteDisplacedSlotsAsync`) bleibt unverändert eine Verwaltungs-Aktion mit anderen
 Auswirkungen (sie entfernt auch die Evidenz, voriger Abschnitt).
 
+### Laufender Sendeplatz und Gruppenteilung am Lauf-Rand
+
+`GroupAirings` teilt eine Sendeplatzkette zusätzlich am `coverageStart` des Laufs:
+alle Slots mit `End <= coverageStart` bilden eine eigene Historien-Gruppe, die
+`ReconcileWindow.Validate` überspringt — bereits ausgestrahlte Titel werden nie
+erneut bewertet oder neu geplant (Issue #315). Der Slot, der den Lauf-Rand
+überspannt, koepft die Zukunfts-Gruppe; so bleibt die Clip-Zeit-Projektion einer
+laufenden Clip-Ausstrahlung intakt, und die Tail-Prüfung sieht einen verträglichen
+Rest-Kopf statt eines abgeschnittenen Prefix.
+
+Der laufende Slot (`Start < coverageStart < End`) wird an keinem
+Verdrängungspfad geschnitten: `Displace`, `DisplaceRuleFuture`, die
+Evict-Verlierer-Behandlung und der Filler-Einzelpfad prüfen `Protected(slot)` —
+ein Evict-Veto lässt die konkurrierende Occurrence dann fallen (sie geht an Füller
+bzw. die nächste Occurrence), statt den laufenden Titel zu killen. Einzige legitime
+Ausnahme: die **aktuellen** Jugendschutz-Einstellungen verbieten den Inhalt an
+seinem eigenen Slot-Start (`IsAllowedAt(SlotMinAge(slot), slot.Start, ageRule)` =
+falsch). `SlotMinAge` löst das FSK-Minimum über die Expansion der erzeugenden Regel;
+Clip-Füller (inkl. Trailer-Clips, die die `MovieId` des beworbenen Films tragen)
+und nicht auflösbare Inhalte liefern `null` und unterliegen dem Modus
+„Material ohne Altersfreigabe".
+
 ### Gebündelte Auslöse-Signale
 
 `MediaDurationProbeWorker.ExecuteAsync` öffnet um die
@@ -819,6 +841,17 @@ löst keine leere Neu-Bewertung aus. Den Rennfall (letztes Scope-Ende zwischen
 Statusprüfung und Zähler-Erhöhung) fängt `NotifyScheduleChanged` ab, indem es die Meldung
 dann direkt zustellt.
 
+Seit Issue #315 besitzt `ProgramScheduleSignal` zwei Kanäle: `WaitAsync` versorgt den
+Sendeplan-Worker, `WaitLiveAsync` einen dedizierten Live-Kanal für den
+LiveStreamWorker. `NotifyScheduleChanged` schreibt beide (Eingabeänderungen
+betreffen auch den Stream); `NotifyLiveScheduleChanged` schreibt nur den
+Live-Kanal — den feuert der Sendeplan-Worker nach einem Lauf mit
+materialisierten Änderungen (`SlotsDisplaced > 0 || SlotsCreated > 0`), damit ein
+mitten in der Ausstrahlung verdrängter Sendeplatz den Player sofort und nicht erst
+im Poll-Takt erreicht. Beide Worker wiederverwenden ihre Signal-Task über die
+Schleifeniterationen hinweg — ein frischer `ReadAsync` je Umlauf hinterließ einen
+„Geister-Leser" in der Kanal-Queue, der das nächste Signal unbesehen verbrauchte.
+
 ### Grenzen
 
 - **Weiche Referenzen:** Ein am Sendeplatz hinterlegtes Item, das inzwischen gelöscht oder
@@ -828,3 +861,15 @@ dann direkt zustellt.
   Neusimulation zählt Picks über die Repräsentanten-Laufzeit; weicht die hinterlegte
   Datei ab, kann die Take-Anzahl nicht reproduziert werden — einmalige Verdrängung
   (echte Änderung, bewusst konservativ).
+- **Rekonstruktionsbasis unbeobachteter Stränge (Issue #315):** Für einen
+  Interleaved-Strang ohne geschriebenen Beitrag rekonstruiert die Prüfung den
+  Scan-Head aus dem persistierten `NextIndex` — dem Plan-End-Cursor, nicht dem
+  Occurrence-lokalen Prefix-Stand. Ein Strang, der in einer späteren
+  nicht-kontigüren Gruppe derselben Regel Picks nahm, erzeugt Hypothesen von der
+  falschen Position — kippt dann konservativ in Verdrängung statt fälschlicher
+  Stabilität (der laufende Titel bleibt dennoch geschützt).
+- **Laufender Slot ohne auflösbares Rating:** Ist der Inhalt des laufenden Slots
+  nicht in der Expansion seiner Regel auflösbar (Medium/Regel gelöscht), liefert
+  `SlotMinAge` `null` — im Modus „Jederzeit planbar" bleibt er geschützt, auch wenn
+  die Mediendatei inzwischen fehlt (bewusst gewählt: fehlende Bewertung ist kein
+  Grund für einen Mid-Air-Kill).

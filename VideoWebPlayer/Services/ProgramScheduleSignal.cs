@@ -27,12 +27,28 @@ public interface IProgramScheduleSignal
     IDisposable BeginScan();
 
     /// <summary>
+    /// Reports that the materialized schedule actually changed (slots were created or displaced —
+    /// e.g. after a reconcile/coverage run). Only the live-stream worker consumes this line, so
+    /// the schedule worker can fire it after its own run without waking itself (Issue #315).
+    /// </summary>
+    void NotifyLiveScheduleChanged();
+
+    /// <summary>
     /// Waits until the worker should re-evaluate the schedule. Several signals raised while nobody
     /// waits are coalesced into one.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task completing when a signal is pending.</returns>
     ValueTask WaitAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Waits until the live stream should re-synchronize against the schedule. Fed by both
+    /// <see cref="NotifyScheduleChanged"/> (input changes also matter to the stream) and
+    /// <see cref="NotifyLiveScheduleChanged"/> (materialized changes).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task completing when a signal is pending.</returns>
+    ValueTask WaitLiveAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -51,6 +67,15 @@ public sealed class ProgramScheduleSignal : IProgramScheduleSignal
         SingleReader = true
     });
 
+    // Dedicated line to the live-stream worker (Issue #315): a single channel could only ever
+    // wake one of the two waiting workers nondeterministically, and the schedule worker would
+    // consume a self-fired signal as a busy loop — this channel is read by the live worker only.
+    private readonly Channel<bool> _liveChannel = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
+    {
+        FullMode = BoundedChannelFullMode.DropWrite,
+        SingleReader = true
+    });
+
     private int _activeScans;
     private int _suppressedNotifications;
 
@@ -64,12 +89,19 @@ public sealed class ProgramScheduleSignal : IProgramScheduleSignal
             // counter without seeing this notification — deliver it directly then.
             if (Volatile.Read(ref _activeScans) == 0
                 && Interlocked.Exchange(ref _suppressedNotifications, 0) > 0)
+            {
                 _channel.Writer.TryWrite(true);
+                _liveChannel.Writer.TryWrite(true);
+            }
             return;
         }
 
         _channel.Writer.TryWrite(true);
+        _liveChannel.Writer.TryWrite(true);
     }
+
+    /// <inheritdoc />
+    public void NotifyLiveScheduleChanged() => _liveChannel.Writer.TryWrite(true);
 
     /// <inheritdoc />
     public IDisposable BeginScan()
@@ -82,11 +114,18 @@ public sealed class ProgramScheduleSignal : IProgramScheduleSignal
     public async ValueTask WaitAsync(CancellationToken cancellationToken)
         => await _channel.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
 
+    /// <inheritdoc />
+    public async ValueTask WaitLiveAsync(CancellationToken cancellationToken)
+        => await _liveChannel.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+
     private void EndScan()
     {
         if (Interlocked.Decrement(ref _activeScans) == 0
             && Interlocked.Exchange(ref _suppressedNotifications, 0) > 0)
+        {
             _channel.Writer.TryWrite(true);
+            _liveChannel.Writer.TryWrite(true);
+        }
     }
 
     private sealed class ScanScope : IDisposable

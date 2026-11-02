@@ -138,20 +138,58 @@ else
                 {
                     <span class="livetv-kicker">Die nächsten Stunden</span>
                     <ul class="livetv-upcoming-list" id="live-tv-upcoming">
-                        @foreach (var entry in upcoming)
+                        @foreach (var item in BuildUpcomingDisplayItems(upcoming))
                         {
-                            <li class="livetv-upcoming-row program-card compact" data-slot-id="@entry.SlotId">
-                                <div class="program-poster"><img src="@PosterUrl(entry)" alt="" /></div>
-                                <div class="program-body">
-                                    <span class="program-time">@FormatTime(entry.StartUtc)</span>
-                                    <span class="program-title">@CardTitle(entry)</span>
-                                    @if (CardSub(entry) is { } sub)
-                                    {
-                                        <span class="program-sub">@sub</span>
-                                    }
-                                    <p class="program-desc">@Desc(entry)</p>
-                                </div>
-                            </li>
+                            if (item is UpcomingClipBlockItem block)
+                            {
+                                var blockFirst = block.Clips[0];
+                                var blockLast = block.Clips[^1];
+                                var blockExpanded = expandedClipBlockId == blockFirst.SlotId;
+                                @* Block-Karte wie im Sendeplan: ein Eintrag fuer den lueckenlosen
+                                   Clip-Fuell-Lauf statt einer Karte je Kurz-Clip; der Icon-Button
+                                   klappt die Einzelclips in der Karte auf. *@
+                                <li class="livetv-upcoming-row program-card compact livetv-clip-block" data-first-slot-id="@blockFirst.SlotId" data-clip-count="@block.Clips.Count">
+                                    <div class="program-poster"><img src="/images/placeholder.png" alt="" /></div>
+                                    <div class="program-body">
+                                        <span class="program-time">@FormatTime(blockFirst.StartUtc)&nbsp;–&nbsp;@FormatTime(blockLast.EndUtc)</span>
+                                        <span class="program-title">Platzhalter-Clips</span>
+                                        <span class="program-sub">@block.Clips.Count Clips · Gesamtdauer @((blockLast.EndUtc - blockFirst.StartUtc).ToString(@"hh\:mm\:ss"))</span>
+                                        <p class="program-desc">Automatische Restzeit-Auffüllung aus Clip-Gruppen.</p>
+                                        <button class="livetv-clip-block-toggle" title="Platzhalter-Clips anzeigen" aria-label="Platzhalter-Clips anzeigen" aria-expanded="@(blockExpanded ? "true" : "false")" @onclick="() => expandedClipBlockId = blockExpanded ? null : blockFirst.SlotId">
+                                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+                                        </button>
+                                        @if (blockExpanded)
+                                        {
+                                            <ul class="livetv-clip-block-detail">
+                                                @foreach (var clip in block.Clips)
+                                                {
+                                                    <li class="livetv-clip-block-row" data-slot-id="@clip.SlotId">
+                                                        <span class="livetv-clip-block-time">@FormatTime(clip.StartUtc)</span>
+                                                        <span class="livetv-clip-block-duration">@((clip.EndUtc - clip.StartUtc).ToString(@"hh\:mm\:ss"))</span>
+                                                        <span class="livetv-clip-block-title" title="@CardTitle(clip)">@CardTitle(clip)</span>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                    </div>
+                                </li>
+                            }
+                            else if (item is UpcomingEntryItem single)
+                            {
+                                var entry = single.Entry;
+                                <li class="livetv-upcoming-row program-card compact" data-slot-id="@entry.SlotId">
+                                    <div class="program-poster"><img src="@PosterUrl(entry)" alt="" /></div>
+                                    <div class="program-body">
+                                        <span class="program-time">@FormatTime(entry.StartUtc)</span>
+                                        <span class="program-title">@CardTitle(entry)</span>
+                                        @if (CardSub(entry) is { } sub)
+                                        {
+                                            <span class="program-sub">@sub</span>
+                                        }
+                                        <p class="program-desc">@Desc(entry)</p>
+                                    </div>
+                                </li>
+                            }
                         }
                     </ul>
                 }
@@ -177,6 +215,9 @@ else
 
     private DtoProgramGuideNow? guide;
     private DtoProgramGuideEntry[] upcoming = [];
+    // SlotId des ersten Clips des aufgeklapten Clip-Blocks — ueber die 15-s-Pollings hinweg
+    // stabil, so dass die Detail-Liste offen bleibt, solange der Block im Plan steht.
+    private long? expandedClipBlockId;
 
     private ElementReference _videoRef;
     private DotNetObjectReference<LiveTv>? _dotNetRef;
@@ -349,6 +390,73 @@ else
         unsupportedBrowser = true;
         StateHasChanged();
         return Task.CompletedTask;
+    }
+
+    // Anzeige-Sequenz der Vorschau: entweder eine Einzelkarte je Eintrag oder eine
+    // Block-Karte fuer >= 2 lueckenlose Clip-Fuell-Eintraege derselben Programmregel
+    // (dieselbe Anzeige-Gruppierung wie der Sendeplan, vgl. TVSenderAdmin.BuildScheduleDisplayItems).
+    internal abstract record UpcomingDisplayItem;
+
+    internal sealed record UpcomingEntryItem(DtoProgramGuideEntry Entry) : UpcomingDisplayItem;
+
+    internal sealed record UpcomingClipBlockItem : UpcomingDisplayItem
+    {
+        // Invariante wie im Sendeplan: ein Block umfasst immer mindestens 2 Clips — weniger
+        // wird als Einzelkarte gerendert (siehe FlushClipRun).
+        public UpcomingClipBlockItem(IReadOnlyList<DtoProgramGuideEntry> clips)
+        {
+            ArgumentNullException.ThrowIfNull(clips);
+            if (clips.Count < 2)
+                throw new ArgumentOutOfRangeException(nameof(clips), clips.Count,
+                    "Ein Platzhalter-Clip-Block umfasst mindestens 2 Clips.");
+            Clips = clips;
+        }
+
+        public IReadOnlyList<DtoProgramGuideEntry> Clips { get; }
+    }
+
+    // Reine Anzeige-Gruppierung der Vorschau: lueckenlose Laeufe von Clip-Fuell-Eintraegen
+    // derselben Programmregel kollabieren ab 2 Clips zu einer Block-Karte. Blockgrenzen sind
+    // der ProgramRuleId-Wechsel, eine Zeitluecke (entry.StartUtc != prev.EndUtc) und jeder
+    // Nicht-Clip-Fuell-Eintrag. Die Programmauskunft liefert nur Scheduled-Slots — ein
+    // Status-Filter wie im Sendeplan entfaellt hier.
+    internal static IReadOnlyList<UpcomingDisplayItem> BuildUpcomingDisplayItems(IReadOnlyList<DtoProgramGuideEntry> entries)
+    {
+        var items = new List<UpcomingDisplayItem>();
+        var run = new List<DtoProgramGuideEntry>();
+        foreach (var entry in entries)
+        {
+            var continuesRun = entry.IsClipFill && run.Count > 0
+                && entry.ProgramRuleId == run[^1].ProgramRuleId && entry.StartUtc == run[^1].EndUtc;
+            if (continuesRun)
+            {
+                run.Add(entry);
+            }
+            else
+            {
+                FlushClipRun(items, run);
+                if (entry.IsClipFill)
+                    run.Add(entry);
+                else
+                    items.Add(new UpcomingEntryItem(entry));
+            }
+        }
+        FlushClipRun(items, run);
+        return items;
+    }
+
+    private static void FlushClipRun(List<UpcomingDisplayItem> items, List<DtoProgramGuideEntry> run)
+    {
+        if (run.Count >= 2)
+        {
+            items.Add(new UpcomingClipBlockItem(run.ToList()));
+        }
+        else
+        {
+            foreach (var entry in run)
+                items.Add(new UpcomingEntryItem(entry));
+        }
+        run.Clear();
     }
 
     // Bei Serien traegt die Karte den Serientitel als Hauptzeile, die Episoden-Kurzinfo als

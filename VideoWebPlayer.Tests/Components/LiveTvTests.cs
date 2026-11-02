@@ -380,4 +380,76 @@ public class LiveTvTests
         Assert.Contains("nicht verfügbar", cut.Find("#live-tv-stream-error").TextContent);
         Assert.Contains("erneut versucht", cut.Find("#live-tv-stream-error").TextContent);
     }
+
+    // Lückenloser Clip-Fuell-Lauf derselben Regel (Issue #328): eine Block-Karte wie im
+    // Sendeplan statt einer Karte je Kurz-Clip.
+    private static DtoProgramGuideEntry[] UpcomingWithClipRun()
+    {
+        var now = DateTimeOffset.UtcNow;
+        return
+        [
+            new DtoProgramGuideEntry { SlotId = 20, Title = "Abendfilm", MediaItemId = 10, ProgramRuleId = 7, StartUtc = now, EndUtc = now.AddMinutes(90) },
+            new DtoProgramGuideEntry { SlotId = 21, Title = "clip-eins.mkv", MediaItemId = 11, ProgramRuleId = 7, IsClipFill = true, StartUtc = now.AddMinutes(90), EndUtc = now.AddMinutes(95) },
+            new DtoProgramGuideEntry { SlotId = 22, Title = "clip-zwei.mkv", MediaItemId = 12, ProgramRuleId = 7, IsClipFill = true, StartUtc = now.AddMinutes(95), EndUtc = now.AddMinutes(100) },
+            new DtoProgramGuideEntry { SlotId = 23, Title = "clip-drei.mkv", MediaItemId = 13, ProgramRuleId = 7, IsClipFill = true, StartUtc = now.AddMinutes(100), EndUtc = now.AddMinutes(105) },
+            new DtoProgramGuideEntry { SlotId = 24, Title = "Spätshow", MediaItemId = 14, ProgramRuleId = 8, StartUtc = now.AddMinutes(105), EndUtc = now.AddMinutes(165) },
+        ];
+    }
+
+    [Fact]
+    public void Upcoming_ClipRun_RendersSingleBlockRow_WithAggregates()
+    {
+        var guide = CreateGuideMock(
+            now: new DtoProgramGuideNow { ServerTimeUtc = DateTimeOffset.UtcNow },
+            upcoming: UpcomingWithClipRun());
+        using var ctx = CreateContext(guide);
+
+        var cut = ctx.Render<LiveTv>();
+
+        // Zwei reguläre Karten + eine Block-Karte statt fünf Einzelkarten.
+        Assert.Equal(3, cut.FindAll(".livetv-upcoming-row").Count);
+        var block = Assert.Single(cut.FindAll(".livetv-upcoming-row.livetv-clip-block"));
+        Assert.Equal("21", block.GetAttribute("data-first-slot-id"));
+        Assert.Equal("3", block.GetAttribute("data-clip-count"));
+        Assert.Contains("Platzhalter-Clips", block.TextContent);
+        Assert.Contains("3 Clips", block.TextContent);
+        Assert.Contains("Gesamtdauer 00:15:00", block.TextContent);
+        Assert.Contains("Restzeit-Auffüllung", block.TextContent);
+        Assert.Contains("placeholder.png", block.QuerySelector(".program-poster img")!.GetAttribute("src"));
+
+        // Die Einzelclips erscheinen nicht als eigene Karten — erst im aufgeklappten Detail.
+        Assert.DoesNotContain("clip-eins.mkv", cut.Find("#live-tv-upcoming").TextContent);
+        var toggle = block.QuerySelector(".livetv-clip-block-toggle");
+        Assert.NotNull(toggle);
+        Assert.Equal("Platzhalter-Clips anzeigen", toggle!.GetAttribute("aria-label"));
+        Assert.Equal("false", toggle.GetAttribute("aria-expanded"));
+    }
+
+    [Fact]
+    public void Upcoming_ClipBlock_Toggle_ExpandsClipListInOrder()
+    {
+        var guide = CreateGuideMock(
+            now: new DtoProgramGuideNow { ServerTimeUtc = DateTimeOffset.UtcNow },
+            upcoming: UpcomingWithClipRun());
+        using var ctx = CreateContext(guide);
+        var cut = ctx.Render<LiveTv>();
+
+        Assert.Empty(cut.FindAll(".livetv-clip-block-detail"));
+        cut.Find(".livetv-clip-block-toggle").Click();
+
+        var detail = cut.Find(".livetv-clip-block-detail");
+        var detailRows = detail.QuerySelectorAll(".livetv-clip-block-row[data-slot-id]");
+        // Reihenfolge = Abspielreihenfolge (StartUtc der Einträge).
+        Assert.Equal(
+            new[] { "21", "22", "23" },
+            detailRows.Select(r => r.GetAttribute("data-slot-id")).ToArray());
+        Assert.Contains("clip-eins.mkv", detailRows[0].TextContent);
+        Assert.Contains("clip-zwei.mkv", detailRows[1].TextContent);
+        Assert.Contains("clip-drei.mkv", detailRows[2].TextContent);
+        Assert.Equal("true", cut.Find(".livetv-clip-block-toggle").GetAttribute("aria-expanded"));
+
+        // Erneuter Klick klappt die Detail-Liste wieder zu.
+        cut.Find(".livetv-clip-block-toggle").Click();
+        Assert.Empty(cut.FindAll(".livetv-clip-block-detail"));
+    }
 }

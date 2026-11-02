@@ -139,6 +139,8 @@ public sealed class ProgramGuideService : IProgramGuideService
             SlotId = slot.Id,
             MediaItemId = slot.MediaItemId,
             IsFiller = slot.RuleType == ProgramRuleType.Filler,
+            IsClipFill = slot.IsClipFill,
+            ProgramRuleId = slot.ProgramRuleId,
             StartUtc = new DateTimeOffset(DateTime.SpecifyKind(slot.Start, DateTimeKind.Utc)),
             EndUtc = new DateTimeOffset(DateTime.SpecifyKind(slot.End, DateTimeKind.Utc)),
             DurationSeconds = (slot.End - slot.Start).TotalSeconds,

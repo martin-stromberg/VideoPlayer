@@ -529,6 +529,8 @@ Antwort:
     "mediaId": 77,
     "mediaItemId": 1234,
     "isFiller": false,
+    "isClipFill": false,
+    "programRuleId": 5,
     "startUtc": "2026-10-21T20:00:00+00:00",
     "endUtc": "2026-10-21T20:45:00+00:00",
     "durationSeconds": 2700,
@@ -542,6 +544,10 @@ Antwort:
 `now` ist `null`, wenn eine Sendelücke oder noch kein Sender existiert; `next` ist `null`, wenn
 nichts weiter geplant ist. `positionSeconds`/`remainingSeconds` sind nur bei der laufenden
 Sendung gesetzt. Kann ein Inhalt nicht mehr aufgelöst werden, lautet `title` `"Unbekannt"`.
+`isClipFill` kennzeichnet Platzhalter-Clips aus der Restzeit-Auffüllung einer Clip-Gruppe;
+`programRuleId` nennt die erzeugende Programmregel (`null`, falls sie nicht mehr existiert) —
+beide Angaben erlauben Clients, lückenlose Clip-Läufe derselben Regel wie die Live-TV-Seite zu
+einem Block zusammenzufassen.
 
 ### GET /api/program-guide/upcoming?hours=N
 

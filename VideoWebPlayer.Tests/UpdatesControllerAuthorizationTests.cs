@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using msTools.Updater;
@@ -91,7 +92,11 @@ public sealed class UpdatesControllerAuthorizationTests
             settings.Object,
             NullLogger<UpdateAdminService>.Instance);
 
-        return new UpdatesController(service, antiforgery, NullLogger<UpdatesController>.Instance);
+        return new UpdatesController(
+            service,
+            antiforgery,
+            Mock.Of<IServiceScopeFactory>(),
+            NullLogger<UpdatesController>.Instance);
     }
 
     private static AutoUpdateStatusSnapshot Status(AutoUpdateState state)

@@ -31,9 +31,15 @@ Nach Abschluss zeigt die Seite die Erfolgsmeldung oder Fehlermeldung im Bereich 
 
 Mit `Update installieren` wird eine bekannte neue Version installiert. Der Button ist nur aktiv, wenn eine installierbare Version bekannt ist.
 
+Der Button öffnet zunächst eine statische Fortschrittsseite. Diese Seite startet die Installation selbst und überlebt den folgenden Neustart der Anwendung, weil sie vollständig im Browser läuft und keinen Serverkontext benötigt — es erscheint daher kein Verbindungsfehler mehr, während der Server neu startet. Die Seite wartet zuerst, bis der Server für das Update abschaltet, prüft danach weiter, bis er wieder erreichbar ist, und leitet dann automatisch auf die Startseite weiter.
+
 Ist das Update gefunden, aber noch nicht heruntergeladen, startet die Anwendung zuerst den Download und danach die Installation. Während Download oder Installation laufen, sind weitere Update-Aktionen gesperrt.
 
-Je nach Serverkonfiguration kann die Installation einen Neustart der Anwendung oder des Dienstes auslösen. Der konfigurierte Dienstname wird für diesen Neustart verwendet.
+Kann die Installation nicht gestartet werden — etwa weil bereits eine Update-Aktion läuft oder doch keine installierbare Version bekannt ist —, kehrt die Fortschrittsseite selbstständig zur Update-Verwaltung zurück.
+
+Bleibt der Server über einen längeren Zeitraum erreichbar, ohne dass ein Neustart beginnt (z. B. weil die Installation vorab gescheitert ist), kehrt die Fortschrittsseite ebenfalls zur Update-Verwaltung zurück; dort zeigt der Statusbereich die Details.
+
+Je nach Serverkonfiguration kann die Installation einen Neustart der Anwendung oder des Dienstes auslösen. Der konfigurierte Dienstname wird für diesen Neustart verwendet. Direktaufrufe der Anwendung während des Neustarts liefern weiterhin keine Antwort — erst nach dem Neustart ist die Anwendung wieder erreichbar.
 
 **Wichtig — deployment-seitige Dateien:** Eine Update-Installation schützt deployment-seitige Anpassungen an `web.config` und `appsettings*.json` über die ausgelieferte `AutoUpdate:ProtectedFiles`-Schutzliste: Das Installationsskript sichert die Dateien vor dem Paketkopiervorgang unter `Updates/backup/` (manuelle Restore-Ablage, wird nicht automatisch aufgeräumt) und übernimmt danach die konfigurierten Bereiche — XML-Elemente/-Attribute wie `<environmentVariables>` und `security/ipSecurity` sowie aufgezählte JSON-Schlüssel — aus der Bestandsdatei in die Paketversion. Der Schutz greift erst ab dem ersten Update **nach** dieser Version; das Update auf diese Version selbst ersetzt die Dateien noch vollständig. Zusätzlich angelegte Dateien, die nicht im Paket enthalten sind, bleiben weiterhin erhalten — darunter die optionale `appsettings.Local.json` im Anwendungsverzeichnis, die für beliebige deployment-seitige Konfigurationswerte außerhalb der `JsonKeys`-Liste verwendet werden kann. Secrets sollten weiterhin bevorzugt als maschinenweite Umgebungsvariablen (`Jwt__*`) abgelegt werden.
 
@@ -97,7 +103,7 @@ Die Generation dieser Sicherungen ist `ProgramUpdate`. Dadurch sind Update-Backu
 1. `Nach Updates suchen` ausführen.
 2. Prüfen, welche verfügbare Version angezeigt wird.
 3. Sicherstellen, dass `Backup vor Installation erstellen` und `Installation bei Backupfehler abbrechen` aktiviert sind.
-4. `Update installieren` ausführen.
+4. `Update installieren` ausführen — die Fortschrittsseite startet die Installation und leitet nach dem Neustart automatisch zur Startseite weiter.
 5. Nach dem Neustart den Status erneut prüfen.
 
 ### Automatische Updates vorbereiten

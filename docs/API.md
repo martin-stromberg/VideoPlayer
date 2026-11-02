@@ -1157,6 +1157,7 @@ Die folgenden Controller sind browser-/adminintern und nicht als allgemeine öff
 
 - `admin/backups/api/*`
 - `admin/updates/api/*`
+- `POST /api/updates/install`
 - `api/admin/sources/*`
 - `POST /api/auth/impersonate`
 - Formular-, Razor- und Blazor-Komponentenrouten

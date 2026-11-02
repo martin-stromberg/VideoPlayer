@@ -69,22 +69,13 @@ public sealed class ProgramScheduleWorker : BackgroundService
                             : await gate.EnterOperationAsync("Sendeplan", stoppingToken);
 
                         var service = scope.ServiceProvider.GetRequiredService<IProgramScheduleService>();
-                        // Ablauf-Bereinigung zuerst: das folgende Reconcile verdrängt die
-                        // Sendeplätze der geloeschten Regeln (weiche Referenz, Muster der
-                        // manuellen Loeschung). Danach bewiesene Selbst-Verdraengungs-
-                        // Duplikate entfernen — bewusst VOR dem Reconcile, damit eine im selben
-                        // Takt frisch erzeugte Verdraengung sichtbar bleibt und nicht verdeckt
-                        // wird.
-                        await service.PurgeExpiredRulesAsync(_timeProvider.GetUtcNow(), stoppingToken);
-                        await service.CleanupSelfDisplacedSlotsAsync(stoppingToken);
-                        var reconcile = await service.ReconcileAsync(_timeProvider.GetUtcNow(), stoppingToken);
-                        var coverage = await service.EnsureCoverageAsync(_timeProvider.GetUtcNow(), stoppingToken);
+                        var pass = await service.ExecutePassAsync(_timeProvider.GetUtcNow(), stoppingToken);
                         // Materialized changes wake the live stream immediately (dedicated
                         // channel — the shared one is consumed by this worker itself, Issue
                         // #315): a slot displaced mid-air must reach the player at once, not
                         // up to 30 s later.
                         if (_signal is not null
-                            && (reconcile.SlotsDisplaced > 0 || reconcile.SlotsCreated > 0 || coverage.SlotsCreated > 0))
+                            && (pass.Reconcile.SlotsDisplaced > 0 || pass.Reconcile.SlotsCreated > 0 || pass.Coverage.SlotsCreated > 0))
                             _signal.NotifyLiveScheduleChanged();
                     }
                     // Feature-Flag aus: Sendeplan pausiert (kein Reconcile, kein Ausbau) —

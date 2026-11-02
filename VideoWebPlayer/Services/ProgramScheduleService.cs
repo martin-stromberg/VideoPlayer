@@ -72,6 +72,20 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     }
 
     /// <inheritdoc />
+    public async Task<ProgramSchedulePassSummary> ExecutePassAsync(DateTimeOffset utcNow, CancellationToken cancellationToken = default)
+    {
+        // The production pass order: housekeeping first so the following re-evaluation
+        // displaces the slots of purged rules (soft reference, mirroring manual deletion),
+        // and proven self-displacement duplicates are removed BEFORE the reconcile run so a
+        // displacement created in this very pass stays visible and is not masked.
+        var purged = await PurgeExpiredRulesAsync(utcNow, cancellationToken);
+        var cleaned = await CleanupSelfDisplacedSlotsAsync(cancellationToken);
+        var reconcile = await ReconcileAsync(utcNow, cancellationToken);
+        var coverage = await EnsureCoverageAsync(utcNow, cancellationToken);
+        return new ProgramSchedulePassSummary(purged, cleaned, reconcile, coverage);
+    }
+
+    /// <inheritdoc />
     public async Task<ProgramScheduleRunSummary> EnsureCoverageAsync(DateTimeOffset utcNow, CancellationToken cancellationToken = default)
     {
         var channel = await _ruleService.GetOrCreateChannelAsync(cancellationToken);

@@ -72,6 +72,20 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     }
 
     /// <inheritdoc />
+    public async Task<ProgramSchedulePassSummary> ExecutePassAsync(DateTimeOffset utcNow, CancellationToken cancellationToken = default)
+    {
+        // The production pass order: housekeeping first so the following re-evaluation
+        // displaces the slots of purged rules (soft reference, mirroring manual deletion),
+        // and proven self-displacement duplicates are removed BEFORE the reconcile run so a
+        // displacement created in this very pass stays visible and is not masked.
+        var purged = await PurgeExpiredRulesAsync(utcNow, cancellationToken);
+        var cleaned = await CleanupSelfDisplacedSlotsAsync(cancellationToken);
+        var reconcile = await ReconcileAsync(utcNow, cancellationToken);
+        var coverage = await EnsureCoverageAsync(utcNow, cancellationToken);
+        return new ProgramSchedulePassSummary(purged, cleaned, reconcile, coverage);
+    }
+
+    /// <inheritdoc />
     public async Task<ProgramScheduleRunSummary> EnsureCoverageAsync(DateTimeOffset utcNow, CancellationToken cancellationToken = default)
     {
         var channel = await _ruleService.GetOrCreateChannelAsync(cancellationToken);
@@ -123,8 +137,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // The rule id rides along: a persisted slot of a strictly-higher-priority rule is a
         // take-over, not a mere overshooting tail — the materialization's window-loss check
         // tells the two shift kinds apart by it.
+        // Occupancy reaches back through the occurrence lookback: a re-materialized
+        // occurrence replays takes from its (possibly much earlier) start, and a take
+        // landing inside an already-written airing must be seen as occupied — a chain
+        // ending exactly on the coverage boundary is still the collision partner.
         var persistedOccupancy = (await _db.ProgramSlots
-                .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled && s.End > coverageStart && s.Start < horizonEnd.UtcDateTime)
+                .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled && s.End > coverageStart - OccurrenceLookback && s.Start < horizonEnd.UtcDateTime)
                 .Select(s => new { s.Start, s.End, s.ProgramRuleId })
                 .ToListAsync(cancellationToken))
             .Select(s => (Slot: new Interval(s.Start, s.End), s.ProgramRuleId))

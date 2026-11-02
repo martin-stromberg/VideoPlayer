@@ -91,11 +91,40 @@ public readonly record struct ProgramRuleDiagnosis(
 public readonly record struct ProgramScheduleResetResult(int SlotsDeleted, int CursorsDeleted);
 
 /// <summary>
+/// The outcome of one full maintenance pass of <see cref="IProgramScheduleService.ExecutePassAsync"/>.
+/// </summary>
+/// <param name="ExpiredRulesPurged">How many expired one-off rules were deleted.</param>
+/// <param name="SelfDisplacedCleaned">How many proven self-displacement duplicates were deleted.</param>
+/// <param name="Reconcile">What the re-evaluation step did.</param>
+/// <param name="Coverage">What the extend step did.</param>
+/// <returns>What the pass did, per step.</returns>
+public readonly record struct ProgramSchedulePassSummary(
+    int ExpiredRulesPurged,
+    int SelfDisplacedCleaned,
+    ProgramScheduleReconcileSummary Reconcile,
+    ProgramScheduleRunSummary Coverage);
+
+/// <summary>
 /// Generates the rolling, gapless program schedule ("Sendeplan") of the delivered
 /// <see cref="TVChannel"/> from its active <see cref="ProgramRule"/>s.
 /// </summary>
 public interface IProgramScheduleService
 {
+    /// <summary>
+    /// Runs one complete maintenance pass of the rolling schedule — the single entry point the
+    /// schedule worker (and every simulation of it) uses. The pass always performs, in order:
+    /// purging expired one-off rules (<see cref="PurgeExpiredRulesAsync"/>), cleaning up proven
+    /// self-displacement duplicates (<see cref="CleanupSelfDisplacedSlotsAsync"/>), re-evaluating
+    /// and repairing the existing plan (<see cref="ReconcileAsync"/>) and extending coverage to
+    /// the horizon (<see cref="EnsureCoverageAsync"/>). The individual steps stay on the interface
+    /// for targeted calls; planning a whole pass through them manually is not the production
+    /// sequence.
+    /// </summary>
+    /// <param name="utcNow">The current time.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>What each step of the pass did.</returns>
+    Task<ProgramSchedulePassSummary> ExecutePassAsync(DateTimeOffset utcNow, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Extends the channel's program schedule so it covers the configured horizon starting at
     /// <paramref name="utcNow"/>. Existing slots are never modified — the run only appends coverage

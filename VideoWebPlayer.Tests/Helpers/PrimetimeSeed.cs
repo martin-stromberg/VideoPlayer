@@ -208,8 +208,8 @@ internal static class PrimetimeSeed
         return item;
     }
 
-    /// <summary>One worker iteration of the simulation: reconcile first, then extend
-    /// coverage — the same order <see cref="ProgramScheduleWorker"/> runs them.</summary>
+    /// <summary>One worker iteration of the simulation — the single pass entry point
+    /// <see cref="IProgramScheduleService.ExecutePassAsync"/> the worker itself calls.</summary>
     /// <param name="Reconcile">The reconcile summary of the iteration (return tuple element).</param>
     /// <param name="Coverage">The coverage-run summary of the iteration (return tuple element).</param>
     /// <param name="fixture">The seeded test database.</param>
@@ -220,9 +220,8 @@ internal static class PrimetimeSeed
         ProgramScheduleTestDb fixture, DateTimeOffset now, CancellationToken ct)
     {
         var service = fixture.CreateService();
-        var reconcile = await service.ReconcileAsync(now, ct);
-        var coverage = await service.EnsureCoverageAsync(now, ct);
-        return (reconcile, coverage);
+        var pass = await service.ExecutePassAsync(now, ct);
+        return (pass.Reconcile, pass.Coverage);
     }
 
     /// <summary>Full-inventory preservation check: every previously scheduled slot must

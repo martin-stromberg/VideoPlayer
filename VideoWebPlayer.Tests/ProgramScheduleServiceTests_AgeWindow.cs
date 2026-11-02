@@ -359,8 +359,11 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         Assert.All(slots, s => Assert.Equal(fsk0.Id, s.MovieId));
 
         // From 22:00 the FSK-16 window is open — the previously skipped position airs.
+        // The worker pass order applies: the re-evaluation displaces the stale 21:30
+        // airings before coverage plans the new 22:30 occurrences.
         rule.TimeOfDay = new TimeOnly(22, 30);
         await fixture.Db.SaveChangesAsync(ct);
+        await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 10, 25, 12, 0)), ct);
         await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 25, 12, 0)), ct);
 
         var nightSlots = (await fixture.SlotsAsync(ct))

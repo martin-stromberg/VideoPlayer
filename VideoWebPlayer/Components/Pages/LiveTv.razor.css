@@ -92,3 +92,76 @@
     flex-direction: column;
     gap: 10px;
 }
+
+/* Platzhalter-Clip-Block: kompakter Icon-Button rechtsbuendig; das Aufklappen zeigt die
+   Einzelclips (Zeit, Dauer, Titel) direkt in der Karte — wie der Detail-Dialog im Sendeplan. */
+.livetv-clip-block .livetv-clip-block-toggle {
+    align-self: flex-end;
+    display: inline-grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--vp-radius-sm);
+    color: var(--vp-text-muted);
+    background: transparent;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.livetv-clip-block .livetv-clip-block-toggle:hover {
+    color: var(--vp-text);
+    background: var(--vp-surface-high);
+    border-color: var(--vp-border);
+}
+
+.livetv-clip-block .livetv-clip-block-toggle:focus-visible {
+    outline: none;
+    box-shadow: var(--vp-focus);
+}
+
+.livetv-clip-block-detail {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 6px 0 0;
+    border-top: 1px solid var(--vp-border);
+    display: flex;
+    flex-direction: column;
+    max-height: 40vh;
+    overflow-y: auto;
+}
+
+.livetv-clip-block-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.2rem 0.25rem;
+    border-bottom: 1px solid var(--vp-border);
+    font-size: 0.8rem;
+}
+
+.livetv-clip-block-row:last-child {
+    border-bottom: none;
+}
+
+.livetv-clip-block-time {
+    color: var(--vp-secondary-soft);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 3rem;
+}
+
+.livetv-clip-block-duration {
+    color: var(--vp-text-muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 3rem;
+}
+
+.livetv-clip-block-title {
+    color: var(--vp-text);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

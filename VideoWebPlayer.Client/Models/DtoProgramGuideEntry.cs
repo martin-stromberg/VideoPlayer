@@ -46,6 +46,21 @@ namespace VideoWebPlayer.Client.Models
         public bool IsFiller { get; set; }
 
         /// <summary>
+        /// Gets or sets whether the slot was produced as clip fill — a placeholder clip from a
+        /// clip group filling the remainder of a broadcast slot (a denormalized snapshot set at
+        /// creation time, mirroring <see cref="IsFiller"/>). The Live-TV page collapses
+        /// consecutive clip-fill entries into a single block row.
+        /// </summary>
+        public bool IsClipFill { get; set; }
+
+        /// <summary>
+        /// Gets or sets the identifier of the program rule that produced this slot, or
+        /// <see langword="null"/> when the rule no longer exists (soft reference). Clip-fill
+        /// entries only merge into a shared block row while the rule stays the same.
+        /// </summary>
+        public long? ProgramRuleId { get; set; }
+
+        /// <summary>
         /// Gets or sets the UTC start of the broadcast.
         /// </summary>
         public DateTimeOffset StartUtc { get; set; }

@@ -373,9 +373,10 @@ geprüft). Im Regel-Panel zeigt der Material-Eintrag zugeordnete Gruppen als Anz
 - Ist an einer Regel **keine** Clip-Gruppe hinterlegt, verhält sich der Sendeplatz exakt
   wie bisher (Titel-Overshoot über das Periodenende hinaus).
 - In der Sendeplan-Anzeige erscheinen die so eingefüllten Clips als kompakte
-  **Block-Karte** „Platzhalter-Clips" mit Detailansicht (siehe [Sendeplan](#sendeplan)) —
-  in der Programmauskunft und auf der Live-TV-Seite bleibt jeder Clip ein eigener
-  Eintrag in Abspielreihenfolge.
+  **Block-Karte** „Platzhalter-Clips" mit Detailansicht (siehe [Sendeplan](#sendeplan)).
+  Die Live-TV-Vorschau fasst lückenlose Clip-Läufe derselben Regel genauso zu
+  Block-Karten zusammen (einzelne Clips bleiben eigene Karten); nur in der
+  Programmauskunft-API bleibt jeder Clip ein eigener Eintrag in Abspielreihenfolge.
 
 Technische Einzelheiten zu Ablauf und Datenmodell: [TV-Sender — Technischer Ablauf](tv-sender-ablauf-technisch.md),
 [TV-Sender — Datenmodell](tv-sender-datenmodell.md).
@@ -697,7 +698,9 @@ Standard zurückgesetzt — das nächste „Speichern" räumt die Referenz ohne 
 Sender. Die Ansicht zeigt den laufenden Stream im Videoplayer sowie daneben (auf schmalen
 Bildschirmen darunter) kompakte Programm-Karten: „Jetzt läuft" (Poster, LIVE-Badge,
 Fortschrittsbalken, Beschreibung), „Gleich" (nächste Sendung) und eine begrenzte
-Vorschau der nächsten Stunden; der vollständige Sendeplan bleibt der Administration
+Vorschau der nächsten Stunden, in der zusammenhängende Platzhalter-Clip-Läufe wie im
+Sendeplan als eine „Platzhalter-Clips"-Karte mit aufklappbarer Clip-Liste erscheinen;
+der vollständige Sendeplan bleibt der Administration
 vorbehalten. Die Ansicht aktualisiert sich selbstständig — zu Sendebeginn wechselt sie ohne
 Neuladen in die Wiedergabe.
 

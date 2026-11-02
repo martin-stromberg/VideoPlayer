@@ -120,12 +120,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             states[rule.Id] = state;
         }
 
-        var blocked = (await _db.ProgramSlots
+        // The rule id rides along: a persisted slot of a strictly-higher-priority rule is a
+        // take-over, not a mere overshooting tail — the materialization's window-loss check
+        // tells the two shift kinds apart by it.
+        var persistedOccupancy = (await _db.ProgramSlots
                 .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled && s.End > coverageStart && s.Start < horizonEnd.UtcDateTime)
-                .Select(s => new { s.Start, s.End })
+                .Select(s => new { s.Start, s.End, s.ProgramRuleId })
                 .ToListAsync(cancellationToken))
-            .Select(s => new Interval(s.Start, s.End))
+            .Select(s => (Slot: new Interval(s.Start, s.End), s.ProgramRuleId))
             .ToList();
+        var blocked = persistedOccupancy.Select(p => p.Slot).ToList();
 
         var newSlots = new List<ProgramSlot>();
         var occurrences = BuildOccurrences(rules.Where(r => r.RuleType != ProgramRuleType.Filler), coverageStart, horizonEnd, federalState, OccurrenceLookback);
@@ -134,7 +138,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .GroupBy(o => o.Rule.Id)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<DateTime>)g.Select(o => o.StartUtc).OrderBy(s => s).ToList());
         foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
-            MaterializeOccurrence(occurrence, states, blocked, newSlots, coverageStart, BoundaryAfter(boundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary, ageRule);
+            MaterializeOccurrence(occurrence, states, blocked, persistedOccupancy, newSlots, coverageStart, BoundaryAfter(boundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary, ageRule);
 
         var movieAirings = await LoadMovieAiringsAsync(channel.Id, coverageStart, newSlots, cancellationToken);
         await ExpandTrailerStatesAsync(states, cursors, access, movieAirings, coverageStart, summary, cancellationToken);
@@ -1065,11 +1069,17 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // Beside overshooting tails, intervals of strictly-higher-priority airings (kept or
         // freshly materialized) push a displaced occurrence behind their occupying chain —
         // they took its window over (Issue #314).
-        var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked,
-            keptSlots.Concat(newSlots)
-                .Where(s => s.ProgramRuleId is { } pid
-                    && states.TryGetValue(pid, out var st) && st.Rule.Priority > occurrence.Rule.Priority)
-                .Select(s => new Interval(s.Start, s.End)).ToList());
+        var outranked = keptSlots.Concat(newSlots)
+            .Where(s => s.ProgramRuleId is { } pid
+                && states.TryGetValue(pid, out var st) && st.Rule.Priority > occurrence.Rule.Priority)
+            .Select(s => new Interval(s.Start, s.End)).ToList();
+        var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked, outranked);
+
+        // Same take-over discard as <see cref="MaterializeOccurrence"/>: a displaced occurrence
+        // whose whole nominal window the invader chain covers defers to its next occurrence —
+        // no slots, no cursor progress, no losers (it evicts nothing from a lost window).
+        if (WindowLostToTakeover(occurrence, airingStart, blocked.Except(outranked)))
+            return null;
 
         var selection = SelectItems(state, occurrence.Rule, airingStart, bound, ageRule);
         var taken = selection.Taken;
@@ -1421,6 +1431,25 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return startUtc;
     }
 
+    // Whether a strictly-higher-priority take-over forfeited the occurrence's whole nominal
+    // window: the displaced start lands on or past the nominal window end (occurrence start +
+    // slot duration), although the same shift replayed without the invader chain
+    // (<paramref name="nonTakeoverOccupied"/> = all occupancy except the outranking intervals)
+    // would still have started inside the window. The occurrence then defers to its next one
+    // instead of materializing a stale copy of the lost window — no slots, no cursor progress.
+    // A pure overshooting tail may legitimately push the start even past the window end: the
+    // begun airing airing to its end is sacred and the displaced airing simply starts behind
+    // it, so tail-only shifts never defer here. EpisodeCount-only rules have no nominal
+    // period — their window already ends at the next bound occurrence, which defers them the
+    // same way through the empty selection.
+    private static bool WindowLostToTakeover(
+        Occurrence occurrence, DateTime airingStart, IEnumerable<Interval> nonTakeoverOccupied)
+    {
+        if (occurrence.Rule.SlotDuration is not { } period || airingStart < occurrence.StartUtc + period)
+            return false;
+        return ShiftPastInvaders(occurrence.StartUtc, nonTakeoverOccupied) < occurrence.StartUtc + period;
+    }
+
     private sealed class SummaryCounters
     {
         public int SlotsCreated;
@@ -1587,7 +1616,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return occurrences;
     }
 
-    private void MaterializeOccurrence(Occurrence occurrence, Dictionary<long, RuleState> states, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, (DateTime StartUtc, bool Hard)? bound, SummaryCounters summary, ProgramScheduleAgeWindowRule ageRule)
+    private void MaterializeOccurrence(Occurrence occurrence, Dictionary<long, RuleState> states, List<Interval> blocked, List<(Interval Slot, long? RuleId)> persistedOccupancy, List<ProgramSlot> newSlots, DateTime coverageStart, (DateTime StartUtc, bool Hard)? bound, SummaryCounters summary, ProgramScheduleAgeWindowRule ageRule)
     {
         var state = states[occurrence.Rule.Id];
         if (state.Items.Count == 0)
@@ -1597,10 +1626,24 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // it always airs to the end, so this airing starts behind it ("verschiebt sich").
         // Strictly-higher-priority airings of this very run additionally slide a displaced
         // occurrence behind their whole occupying chain — they took the window over.
-        var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked,
-            newSlots.Where(s => s.ProgramRuleId is { } pid
+        var outranked = newSlots.Where(s => s.ProgramRuleId is { } pid
+                && states.TryGetValue(pid, out var st) && st.Rule.Priority > occurrence.Rule.Priority)
+            .Select(s => new Interval(s.Start, s.End)).ToList();
+        var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked, outranked);
+
+        // A strictly-higher-priority take-over covering the occurrence's whole nominal window
+        // (occurrence start + slot duration) forfeits the airing entirely: it defers to its
+        // next occurrence instead of materializing a stale copy behind the invader chain —
+        // no slots and no cursor progress. The take-over set is the fresh invaders plus the
+        // persisted slots of higher-priority rules; the without-take-over probe decides
+        // whether the take-over did the pushing (see <see cref="WindowLostToTakeover"/>).
+        var takeover = outranked.Concat(persistedOccupancy
+                .Where(p => p.RuleId is { } pid
                     && states.TryGetValue(pid, out var st) && st.Rule.Priority > occurrence.Rule.Priority)
-                .Select(s => new Interval(s.Start, s.End)).ToList());
+                .Select(p => p.Slot))
+            .ToList();
+        if (WindowLostToTakeover(occurrence, airingStart, blocked.Except(takeover)))
+            return;
 
         var selection = SelectItems(state, occurrence.Rule, airingStart, bound, ageRule);
         var taken = selection.Taken;

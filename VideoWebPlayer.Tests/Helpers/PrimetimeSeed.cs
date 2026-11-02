@@ -94,6 +94,34 @@ internal static class PrimetimeSeed
             slotDuration: Period, genreIds: genreIds, mediaSourceIds: [1],
             clipGroupIds: clipGroupIds, placeholderGrace: Grace);
 
+    /// <summary>Creates a genre-rotation rule with an annually recurring validity window —
+    /// the holiday-rule shape of scenario group 2 („Halloween"): daily recurrence, own
+    /// time-of-day, slot duration and priority; it fires only inside the month-day window.
+    /// Media-source filter 1 and the 15-minute placeholder grace mirror the primetime rule.</summary>
+    /// <param name="fixture">The seeded test database.</param>
+    /// <param name="channelId">The channel the rule is created on.</param>
+    /// <param name="name">The rule name.</param>
+    /// <param name="timeOfDay">The daily occurrence start (local time).</param>
+    /// <param name="slotDuration">The nominal period length of one airing.</param>
+    /// <param name="priority">The rule priority — the higher value wins a competing window.</param>
+    /// <param name="genreIds">The genre ids of the rotation.</param>
+    /// <param name="clipGroupIds">The clip group ids of the rotation.</param>
+    /// <param name="annualFrom">The annual window start as month-day (the year is ignored —
+    /// leap-year-2000 convention, see <see cref="ProgramRuleValidityInput.From"/>).</param>
+    /// <param name="annualTo">The inclusive annual window end (same convention).</param>
+    /// <returns>The created rule.</returns>
+    public static Task<ProgramRule> CreateHolidayRuleAsync(
+        ProgramScheduleTestDb fixture, long channelId, string name,
+        TimeOnly timeOfDay, TimeSpan slotDuration, int priority,
+        IEnumerable<long> genreIds, IEnumerable<long> clipGroupIds,
+        DateOnly annualFrom, DateOnly annualTo)
+        => fixture.CreateRuleAsync(channelId, name, ProgramRuleType.GenreRotation,
+            ProgramRuleRecurrence.Daily, timeOfDay, ProgramRuleMaterialType.Genre, 0,
+            priority: priority, slotDuration: slotDuration, genreIds: genreIds,
+            mediaSourceIds: [1], clipGroupIds: clipGroupIds, placeholderGrace: Grace,
+            validity: new ProgramRuleValidityInput(ProgramRuleValidityMode.AnnualWindow,
+                From: annualFrom, To: annualTo));
+
     /// <summary>Seeds a genre on source 1 with <paramref name="movieCount"/> movies of
     /// equal duration, all linked to the genre.</summary>
     /// <param name="Genre">The seeded genre (return tuple element).</param>

@@ -22,6 +22,13 @@ Zusätzlich bindet das Formular die Checkbox `Im Menü ausblenden` (`InputCheckb
 
 ### 2. Scan einer Quelle
 
+Alle drei Auslöser des Scans laufen über den Einstiegspunkt `MediaSourceScanCoordinator` (`VideoWebPlayer/Services/MediaSourceScanCoordinator.cs`), damit die Reihenfolge überall gleich ist:
+
+- `RunFullScanAsync(operationName, maxCollectionsPerRun, ct)` — Worker (`MediaSourceScanService.ExecuteAsync`, Operation „Automatischer Scanprozess", Obergrenze 64 Collections je Lauf) und Admin-Komplettscan (`MediaSourceAdmin.razor::RunFullScan`, „Manueller Komplettscan", ohne Obergrenze).
+- `RescanCollectionTreeAsync(collectionId, operationName, ct)` — „Neu erfassen" im Dateiexplorer (`MediaSourceExplorer.razor::RescanCurrent`), beschränkt auf die Collection und ihre Unterordner.
+
+Reihenfolge von `RunFullScanAsync`: `IPlaylistBackfillSignal.BeginScan()` und `IProgramScheduleSignal.BeginScan()` öffnen (Wecksignale während des Laufs unterdrückt), `IBackgroundProcessingGate.EnterOperationAsync` (Lease), `MediaSourceScanner.ScanAllSourcesAsync`, Benachrichtigung `NotifyNewVideosScannedAsync`, `MediaSourceClassifier.CheckReloadGenres`, Schleife `ScanNextMediaCollection` (gedeckelt, falls angegeben), danach bei mindestens einer gescannten Collection `ClassifyMediaItemsAsync` und anschließend `ClassifyMediaCollectionsAsync`, letzteres aber nur, wenn unklassifizierte Collections vorliegen. Wurde keine Collection gescannt, läuft nur `ClassifyMediaCollectionsAsync`, ohne Vorprüfung. `RescanCollectionTreeAsync` folgt derselben Logik mit `ScanCollectionTreeAsync` und `ClassifyCollectionTreeAsync`; liefert letztere `false`, ist die Klassifizierung bereits aktiv und der Teilbaum wird in die Warteschlange gestellt (`ClassificationDeferred`).
+
 `MediaSourceScanner.ScanAllSourcesAsync` ruft `_reader.ReadRootDirectory(source)` auf; `ScanMediaCollectionInternalAsync` ruft `_reader.ReadDirectoryEntries(next)`.
 
 - `LocalMediaSourceReader.ReadRootDirectory` — liefert eine Root-`MediaCollection` mit `Path = source.Path`, `Name` = letztes Pfadsegment (`DirectoryInfo.Name`, Fallback `source.Path`) und `CreatedAt = Directory.GetLastWriteTimeUtc` (echte Änderungserkennung; fehlendes Verzeichnis liefert den stabilen Sentinel `1601-01-01`).

@@ -5,11 +5,9 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
-@inject VideoWebPlayer.Services.MediaSourceScanner MediaSourceScanner
-@inject VideoWebPlayer.Services.MediaSourceClassifier MediaSourceClassifier
+@inject VideoWebPlayer.Services.MediaSourceScanCoordinator MediaSourceScanCoordinator
 @inject ILogger<MediaSourceAdmin> Logger
 @inject VideoWebPlayer.Services.Backups.IBackgroundProcessingGate BackgroundGate
-@inject VideoWebPlayer.Services.IPlaylistBackfillSignal PlaylistBackfillSignal
 @rendermode InteractiveServer
 
 <PageTitle>Quellen verwalten</PageTitle>
@@ -41,10 +39,6 @@
             {
                 <div class="alert alert-info" role="alert">
                     @fullScanStatus
-                    @if (isFullScanRunning)
-                    {
-                        <span class="ms-2">(gescannte Collections: @fullScanScannedCollections)</span>
-                    }
                 </div>
             }
 
@@ -139,7 +133,6 @@
 
     private bool isFullScanRunning;
     private string? fullScanStatus;
-    private int fullScanScannedCollections;
 
     protected override async Task OnInitializedAsync()
     {
@@ -220,37 +213,13 @@
         }
 
         isFullScanRunning = true;
-        fullScanScannedCollections = 0;
-        fullScanStatus = "Starte Komplettscan: ScanAllSourcesAsync...";
+        fullScanStatus = "Läuft…";
         await InvokeAsync(StateHasChanged);
 
         try
         {
-            await using var processingLease = await BackgroundGate.EnterOperationAsync("Manueller Komplettscan", CancellationToken.None);
-            // Marker commits during the scan do not wake the playlist backfill; the end of the scan does.
-            using var playlistBackfillScanScope = PlaylistBackfillSignal.BeginScan();
-            await MediaSourceScanner.ScanAllSourcesAsync(CancellationToken.None);
-
-            fullScanStatus = "Komplettscan: ScanNextMediaCollection...";
-            await InvokeAsync(StateHasChanged);
-
-            while (await MediaSourceScanner.ScanNextMediaCollection(CancellationToken.None))
-            {
-                fullScanScannedCollections++;
-                fullScanStatus = "Komplettscan: Scanne Collections...";
-                await InvokeAsync(StateHasChanged);
-                await Task.Yield();
-            }
-
-            fullScanStatus = "Komplettscan: Klassifizierung...";
-            await InvokeAsync(StateHasChanged);
-            await MediaSourceClassifier.ClassifyAllAsync(CancellationToken.None);
-
-            fullScanStatus = "Komplettscan: Prüfe Genre-Reload...";
-            await InvokeAsync(StateHasChanged);
-            await MediaSourceClassifier.CheckReloadGenres(CancellationToken.None);
-
-            fullScanStatus = "Komplettscan abgeschlossen.";
+            var result = await MediaSourceScanCoordinator.RunFullScanAsync("Manueller Komplettscan", null, CancellationToken.None);
+            fullScanStatus = $"Komplettscan abgeschlossen. {result.CollectionsScanned} Collections gescannt, {result.NewItemsCount} neue Videos gefunden.";
             await LoadSources();
         }
         catch (Exception ex)

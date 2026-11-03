@@ -53,6 +53,25 @@
 1. Ein Administrator kann die Freigabe im Editiermodus der Detailansicht aus der Auswahlliste setzen.
 2. Sollen fehlende Angaben automatisch ergänzt werden, muss der Betreiber die Online-Anbindung in der Serverkonfiguration freischalten.
 
+## „Klassifizierung läuft im Hintergrund, das Ergebnis erscheint nach Abschluss."
+
+**Symptom:** Nach einem Klick auf `Neu erfassen` im Dateiexplorer einer Quelle erscheint diese Meldung statt einer Abschlussmeldung mit Anzahl der neuen Videos.
+
+**Ursache:** Die Klassifizierung läuft bereits für einen anderen Lauf (z. B. den automatischen Scanprozess oder ein weiteres „Neu erfassen"). Der neu erfasste Ordner wurde bereits gescannt und wird automatisch nachklassifiziert, sobald der laufende Vorgang fertig ist.
+
+**Lösung:**
+1. Keine Aktion nötig — die neuen Inhalte erscheinen nach kurzer Zeit automatisch in der Medienbibliothek.
+2. Bei Bedarf die Ansicht später erneut aufrufen, um das Ergebnis zu sehen.
+
+## „Collection nicht mehr vorhanden."
+
+**Symptom:** Nach einem Klick auf `Neu erfassen` im Dateiexplorer erscheint diese Meldung.
+
+**Ursache:** Der angezeigte Ordner wurde zwischen dem Laden der Seite und dem Klick gelöscht (z. B. durch die Löschung der Quelle in einem anderen Browser-Tab).
+
+**Lösung:**
+1. Zur Quellenübersicht zurückkehren und die Quelle erneut öffnen.
+
 ## Eine Quelle fehlt im Navigationsmenü
 
 **Symptom:** Eine angelegte Quelle erscheint nicht als Eintrag unter `Quellen` im Navigationsmenü, obwohl sie in der Quellenübersicht der Einrichtung aufgeführt wird.

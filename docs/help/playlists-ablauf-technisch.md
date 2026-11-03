@@ -877,7 +877,7 @@ Fachliche Regeln: `playlists-business-rules.md`, BR-18/BR-19. Hier der Ablauf au
    Version + 1` (je 200 Zeilen) → Commit. Besteht bereits eine äußere Transaktion, nimmt der Upsert daran teil.
    Beim EF-InMemory-Provider (nur Tests) gibt es einen Fallback ohne Roh-SQL.
 2. **Signal:** Nach dem Commit ruft der Kontext `IPlaylistBackfillSignal.NotifyMarkersWritten()`. Solange ein Scan
-   läuft (`BeginScan()` in `MediaSourceScanService` und im manuellen Komplettscan `MediaSourceAdmin.razor`), weckt das
+   läuft (`BeginScan()` in `MediaSourceScanService` und im manuellen Komplettscan `MediaSourceAdmin.razor` und „Neu erfassen" `MediaSourceExplorer.razor`, jeweils über `MediaSourceScanCoordinator`), weckt das
    nicht; das Ende des letzten offenen Scan-Bereichs weckt den Worker einmal. Mehrere Signale werden zu einem
    zusammengefasst (Kanal mit einem Platz).
 3. **Worker** (`PlaylistBackfillWorker`): Nach einer Anlaufverzögerung (30 s) verarbeitet er einmal offene

@@ -545,7 +545,7 @@ als Eintrag enthalten. Ohne Änderung im Medienbestand entsteht dadurch keine Gr
 **3. Auslöser (`PlaylistBackfillWorker`, `PlaylistBackfillSignal`) - kein Takt:**
 - **Ende eines Scans** (automatischer Scan-Prozess, manueller Komplettscan der Administration und „Neu
   erfassen“ einer Collection im Quellen-Explorer): Der Scan meldet sich über
-  `IPlaylistBackfillSignal.BeginScan()` an; am Ende wird der Worker einmal geweckt.
+  `IPlaylistBackfillSignal.BeginScan()` an (zentral in `MediaSourceScanCoordinator`); am Ende wird der Worker einmal geweckt.
 - **Medien außerhalb eines Scans** (jeder andere Weg über Entity Framework, der ein Medium anlegt oder
   umhängt; einen solchen Weg über die Oberfläche gibt es derzeit nicht - die Metadaten-Bearbeitung hängt
   keine Filme um): Der

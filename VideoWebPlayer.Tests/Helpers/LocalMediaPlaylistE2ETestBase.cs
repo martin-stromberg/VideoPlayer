@@ -163,19 +163,8 @@ public abstract class LocalMediaPlaylistE2ETestBase : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         using var scope = _factory.Services.CreateScope();
-        var scanner = scope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
-        var classifier = scope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
-        var signal = scope.ServiceProvider.GetRequiredService<IPlaylistBackfillSignal>();
-
-        using (signal.BeginScan())
-        {
-            await scanner.ScanAllSourcesAsync(ct);
-            while (await scanner.ScanNextMediaCollection(ct))
-            {
-            }
-
-            await classifier.ClassifyAllAsync(ct);
-        }
+        var coordinator = scope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
+        await coordinator.RunFullScanAsync("Automatischer Scanprozess", null, ct);
     }
 
     /// <summary>
@@ -188,15 +177,8 @@ public abstract class LocalMediaPlaylistE2ETestBase : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         using var scope = _factory.Services.CreateScope();
-        var scanner = scope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
-        var classifier = scope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
-        var signal = scope.ServiceProvider.GetRequiredService<IPlaylistBackfillSignal>();
-
-        using (signal.BeginScan())
-        {
-            await scanner.ScanCollectionTreeAsync(collectionId, ct);
-            await classifier.ClassifyCollectionTreeAsync(collectionId, ct);
-        }
+        var coordinator = scope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
+        await coordinator.RescanCollectionTreeAsync(collectionId, "Manueller Collection-Scan", ct);
     }
 
     /// <summary>

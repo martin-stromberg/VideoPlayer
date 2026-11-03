@@ -224,12 +224,8 @@ public sealed class AgeRatingE2ETests : IAsyncLifetime
 
         using (var scope = _factory.Services.CreateScope())
         {
-            var scanner = scope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
-            var classifier = scope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
-
-            await scanner.ScanAllSourcesAsync(ct);
-            while (await scanner.ScanNextMediaCollection(ct)) { }
-            await classifier.ClassifyAllAsync(ct);
+            var coordinator = scope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
+            await coordinator.RunFullScanAsync("Automatischer Scanprozess", null, ct);
         }
 
         using (var scope = _factory.Services.CreateScope())

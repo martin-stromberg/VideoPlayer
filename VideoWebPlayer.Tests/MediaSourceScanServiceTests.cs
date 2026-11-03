@@ -52,6 +52,11 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
         services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
+        services.AddSingleton<MediaUpdateNotificationService>(TestableMediaSourceScanService.CreateNullNotificationService());
+        services.AddSingleton<IPlaylistBackfillSignal, PlaylistBackfillSignal>();
+        services.AddSingleton<IProgramScheduleSignal, ProgramScheduleSignal>();
+        services.AddScoped<MediaSourceScanCoordinator>();
+        services.AddSingleton<ILogger<MediaSourceScanCoordinator>>(new ListLogger<MediaSourceScanCoordinator>(messages));
 
         var serviceProvider = services.BuildServiceProvider();
 
@@ -121,6 +126,11 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
         services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
+        services.AddSingleton<MediaUpdateNotificationService>(TestableMediaSourceScanService.CreateNullNotificationService());
+        services.AddSingleton<IPlaylistBackfillSignal, PlaylistBackfillSignal>();
+        services.AddSingleton<IProgramScheduleSignal, ProgramScheduleSignal>();
+        services.AddScoped<MediaSourceScanCoordinator>();
+        services.AddSingleton<ILogger<MediaSourceScanCoordinator>>(new ListLogger<MediaSourceScanCoordinator>(messages));
 
         var serviceProvider = services.BuildServiceProvider();
 
@@ -203,6 +213,11 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
         services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
+        services.AddSingleton<MediaUpdateNotificationService>(TestableMediaSourceScanService.CreateNullNotificationService());
+        services.AddSingleton<IPlaylistBackfillSignal, PlaylistBackfillSignal>();
+        services.AddSingleton<IProgramScheduleSignal, ProgramScheduleSignal>();
+        services.AddScoped<MediaSourceScanCoordinator>();
+        services.AddSingleton<ILogger<MediaSourceScanCoordinator>>(new ListLogger<MediaSourceScanCoordinator>(messages));
 
         var serviceProvider = services.BuildServiceProvider();
 
@@ -299,6 +314,11 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
         services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
+        services.AddSingleton<MediaUpdateNotificationService>(TestableMediaSourceScanService.CreateNullNotificationService());
+        services.AddSingleton<IPlaylistBackfillSignal, PlaylistBackfillSignal>();
+        services.AddSingleton<IProgramScheduleSignal, ProgramScheduleSignal>();
+        services.AddScoped<MediaSourceScanCoordinator>();
+        services.AddSingleton<ILogger<MediaSourceScanCoordinator>>(new ListLogger<MediaSourceScanCoordinator>(messages));
 
         var serviceProvider = services.BuildServiceProvider();
 
@@ -562,6 +582,234 @@ public class MediaSourceScanServiceTests
             var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             Assert.Equal(seasons + 1, await db.TVShowSeasons.CountAsync(ct));
             Assert.Equal((seasons + 1) * episodesPerSeason, await db.TVShowEpisodes.CountAsync(ct));
+        }
+    }
+
+    [Fact]
+    public async Task Worker_AndManualFullScan_ProduceSameResult()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string showName = "TestShow";
+        const string rootPath = "/media";
+        const int seasons = 2;
+        const int episodesPerSeason = 3;
+
+        var workerResult = await RunViaWorkerAsync("scan-tests-regression-worker", rootPath, showName, seasons, episodesPerSeason, ct);
+        var coordinatorResult = await RunViaCoordinatorAsync("scan-tests-regression-coordinator", rootPath, showName, seasons, episodesPerSeason, ct);
+
+        Assert.Equal(seasons * episodesPerSeason * 3 + 2, workerResult.MediaItemCount);
+        Assert.Equal(1, workerResult.TvShowCount);
+        Assert.Equal(seasons, workerResult.TvShowSeasonCount);
+        Assert.Equal(seasons * episodesPerSeason, workerResult.TvShowEpisodeCount);
+        Assert.False(workerResult.GenresChanged);
+
+        Assert.Equal(workerResult.MediaItemCount, coordinatorResult.MediaItemCount);
+        Assert.Equal(workerResult.TvShowCount, coordinatorResult.TvShowCount);
+        Assert.Equal(workerResult.TvShowSeasonCount, coordinatorResult.TvShowSeasonCount);
+        Assert.Equal(workerResult.TvShowEpisodeCount, coordinatorResult.TvShowEpisodeCount);
+        Assert.Equal(workerResult.GenresChanged, coordinatorResult.GenresChanged);
+        Assert.Equal(workerResult.BackfillWakeCount, coordinatorResult.BackfillWakeCount);
+        Assert.Equal(workerResult.ScheduleWakeCount, coordinatorResult.ScheduleWakeCount);
+    }
+
+    private static async Task<ScanRunComparisonResult> RunViaWorkerAsync(
+        string dbName, string rootPath, string showName, int seasons, int episodesPerSeason, CancellationToken ct)
+    {
+        var messages = new ConcurrentQueue<string>();
+        var logger = new ListLogger<MediaSourceScanService>(messages);
+
+        var connectionString = $"Data Source=file:{dbName}?mode=memory&cache=shared";
+        using var keeperConnection = new SqliteConnection(connectionString);
+        keeperConnection.Open();
+
+        var timeProvider = new IncrementingTimeProvider(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(11));
+        var reader = new SeriesSftpMediaSourceReader(rootPath, showName, seasons, episodesPerSeason);
+
+        var serviceProvider = BuildScanRunServices(timeProvider, connectionString, reader, messages);
+        await SeedAsync(serviceProvider, rootPath, ct);
+
+        var backfillSignal = serviceProvider.GetRequiredService<IPlaylistBackfillSignal>();
+        var scheduleSignal = serviceProvider.GetRequiredService<IProgramScheduleSignal>();
+        await using var backfillWakes = new WakeCounter(backfillSignal.WaitAsync, ct);
+        await using var scheduleWakes = new WakeCounter(scheduleSignal.WaitAsync, ct);
+
+        var service = new TestableMediaSourceScanService(
+            serviceProvider,
+            serviceProvider.GetRequiredService<EventManager>(),
+            logger,
+            TimeSpan.Zero,
+            TimeSpan.FromMinutes(10),
+            skipUpgrade: true,
+            timeProvider);
+
+        using var cts = new CancellationTokenSource();
+        var runTask = service.RunAsync(cts.Token);
+
+        // Erst auf das vollständige Ergebnis warten (nicht nur die erste Logmeldung): Bei mehreren
+        // Seasons läuft die zweite Klassifizierungsstufe (ClassifyMediaCollectionsAsync) noch, wenn die
+        // erste "Klassifizierung abgeschlossen."-Meldung bereits erscheint.
+        var expectedEpisodeCount = seasons * episodesPerSeason;
+        await TestHelpers.WaitForTvShowEpisodeCountAsync(serviceProvider, expectedEpisodeCount, TimeSpan.FromSeconds(10));
+        await TestHelpers.WaitForMessageCountAsync(messages, "Klassifizierung abgeschlossen.", 2, TimeSpan.FromSeconds(10));
+
+        cts.Cancel();
+        await runTask;
+
+        return await ReadResultAsync(serviceProvider, backfillWakes, scheduleWakes, ct);
+    }
+
+    private static async Task<ScanRunComparisonResult> RunViaCoordinatorAsync(
+        string dbName, string rootPath, string showName, int seasons, int episodesPerSeason, CancellationToken ct)
+    {
+        var messages = new ConcurrentQueue<string>();
+        var connectionString = $"Data Source=file:{dbName}?mode=memory&cache=shared";
+        using var keeperConnection = new SqliteConnection(connectionString);
+        keeperConnection.Open();
+
+        var timeProvider = new IncrementingTimeProvider(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(11));
+        var reader = new SeriesSftpMediaSourceReader(rootPath, showName, seasons, episodesPerSeason);
+
+        var serviceProvider = BuildScanRunServices(timeProvider, connectionString, reader, messages);
+        await SeedAsync(serviceProvider, rootPath, ct);
+
+        var backfillSignal = serviceProvider.GetRequiredService<IPlaylistBackfillSignal>();
+        var scheduleSignal = serviceProvider.GetRequiredService<IProgramScheduleSignal>();
+        await using var backfillWakes = new WakeCounter(backfillSignal.WaitAsync, ct);
+        await using var scheduleWakes = new WakeCounter(scheduleSignal.WaitAsync, ct);
+
+        using (var scope = serviceProvider.CreateScope())
+        {
+            var coordinator = scope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
+            await coordinator.RunFullScanAsync("Automatischer Scanprozess", 64, ct);
+        }
+
+        return await ReadResultAsync(serviceProvider, backfillWakes, scheduleWakes, ct);
+    }
+
+    private static ServiceProvider BuildScanRunServices(
+        TimeProvider timeProvider,
+        string connectionString,
+        IMediaSourceReader reader,
+        ConcurrentQueue<string> messages)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(timeProvider);
+        services.AddSingleton<EventManager>();
+        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
+        services.AddSingleton<IMediaSourceReader>(reader);
+        services.AddScoped<ProgramSettingsService>();
+        services.AddScoped<MediaSourceScanner>();
+        services.AddScoped<RecentEntryService>();
+        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
+        services.AddScoped<MediaSourceClassifier>();
+        services.AddScoped<HttpClient>(_ => new HttpClient());
+        services.AddMemoryCache();
+        services.AddScoped<EpisodeBackgroundImageGenerator>();
+        services.AddScoped<EpisodeBackgroundImageService>();
+        services.AddSingleton<Microsoft.Extensions.Options.IOptions<EpisodeBackgroundImageOptions>>(
+            Microsoft.Extensions.Options.Options.Create(new EpisodeBackgroundImageOptions()));
+        services.AddSingleton<ILogger<EpisodeBackgroundImageGenerator>>(NullLogger<EpisodeBackgroundImageGenerator>.Instance);
+        services.AddSingleton<ILogger<EpisodeBackgroundImageService>>(NullLogger<EpisodeBackgroundImageService>.Instance);
+        services.AddSingleton<IAuthService, TestAuthService>();
+        services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
+        services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
+        services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
+        services.AddSingleton<MediaUpdateNotificationService>(TestableMediaSourceScanService.CreateNullNotificationService());
+        services.AddSingleton<IPlaylistBackfillSignal, PlaylistBackfillSignal>();
+        services.AddSingleton<IProgramScheduleSignal, ProgramScheduleSignal>();
+        services.AddScoped<MediaSourceScanCoordinator>();
+        services.AddSingleton<ILogger<MediaSourceScanCoordinator>>(new ListLogger<MediaSourceScanCoordinator>(messages));
+
+        return services.BuildServiceProvider();
+    }
+
+    private static async Task SeedAsync(ServiceProvider serviceProvider, string rootPath, CancellationToken ct)
+    {
+        using var scope = serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.Database.EnsureCreated();
+        db.Setups.Add(new Setup { DataVersion = DataUpgradeManager.CurrentVersion, GenresChanged = true });
+        db.MediaSources.Add(new MediaSource
+        {
+            Name = "Test Source",
+            Path = rootPath,
+            Host = "localhost",
+            Port = 22,
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task<ScanRunComparisonResult> ReadResultAsync(
+        ServiceProvider serviceProvider, WakeCounter backfillWakes, WakeCounter scheduleWakes, CancellationToken ct)
+    {
+        // Grace window so the single wake triggered by disposing the coordinator's/worker's
+        // scan scope has time to reach the counting readers before they are stopped.
+        await Task.Delay(TimeSpan.FromMilliseconds(400), ct);
+        await backfillWakes.DisposeAsync();
+        await scheduleWakes.DisposeAsync();
+
+        using var scope = serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return new ScanRunComparisonResult(
+            await db.MediaItems.CountAsync(ct),
+            await db.TVShows.CountAsync(ct),
+            await db.TVShowSeasons.CountAsync(ct),
+            await db.TVShowEpisodes.CountAsync(ct),
+            (await db.Setups.SingleAsync(ct)).GenresChanged,
+            backfillWakes.Count,
+            scheduleWakes.Count);
+    }
+
+    private sealed record ScanRunComparisonResult(
+        int MediaItemCount,
+        int TvShowCount,
+        int TvShowSeasonCount,
+        int TvShowEpisodeCount,
+        bool GenresChanged,
+        int BackfillWakeCount,
+        int ScheduleWakeCount);
+
+    /// <summary>
+    /// Zählt Wecksignale eines Wecksignal-Kanals, indem es dessen <c>WaitAsync</c> in einer
+    /// Schleife im Hintergrund abwartet (Muster <c>MediaDurationProbeWorkerTests</c>).
+    /// </summary>
+    private sealed class WakeCounter : IAsyncDisposable
+    {
+        private readonly CancellationTokenSource _cts;
+        private readonly Task _loopTask;
+        private int _count;
+
+        public WakeCounter(Func<CancellationToken, ValueTask> waitAsync, CancellationToken cancellationToken)
+        {
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _loopTask = Task.Run(async () =>
+            {
+                while (!_cts.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await waitAsync(_cts.Token);
+                        Interlocked.Increment(ref _count);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+            });
+        }
+
+        public int Count => Volatile.Read(ref _count);
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_cts.IsCancellationRequested)
+                return;
+
+            await _cts.CancelAsync();
+            try { await _loopTask; } catch (OperationCanceledException) { }
+            _cts.Dispose();
         }
     }
 }

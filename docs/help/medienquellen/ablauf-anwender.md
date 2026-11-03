@@ -36,7 +36,7 @@ Klicken Sie auf `Anlegen`. Bei einer lokalen Quelle wird der Pfad dabei geprüft
 
 ### 6. Einlesen anstoßen oder abwarten
 
-Die Inhalte der neuen Quelle werden automatisch im Scan-Intervall eingelesen. Für ein sofortiges Einlesen klicken Sie in der Übersicht auf `Komplettscan aller Quellen`.
+Die Inhalte der neuen Quelle werden automatisch im Scan-Intervall eingelesen. Für ein sofortiges Einlesen klicken Sie in der Übersicht auf `Komplettscan aller Quellen`. Während des Laufs steht dort `Läuft…`; danach erscheint die Meldung `Komplettscan abgeschlossen.` mit der Anzahl der gescannten Collections und der neu gefundenen Videos.
 
 ## Ergebnis
 

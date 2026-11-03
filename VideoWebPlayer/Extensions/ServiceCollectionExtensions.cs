@@ -237,6 +237,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<EventManager>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddScoped<MediaSourceScanCoordinator>();
         services.Configure<MediaProbeOptions>(configuration.GetSection("MediaProbe"));
         services.Configure<TmdbOptions>(configuration.GetSection("Tmdb"));
         services.AddHttpClient(TmdbAgeRatingService.HttpClientName);

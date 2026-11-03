@@ -103,12 +103,8 @@ public sealed class LocalMediaSourcePipelineE2ETests : IDisposable
         // Scan + Klassifizierung über die echten Dienste des Hosts.
         using (var scope = _factory.Services.CreateScope())
         {
-            var scanner = scope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
-            var classifier = scope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
-
-            await scanner.ScanAllSourcesAsync(ct);
-            while (await scanner.ScanNextMediaCollection(ct)) { }
-            await classifier.ClassifyAllAsync(ct);
+            var coordinator = scope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
+            await coordinator.RunFullScanAsync("Automatischer Scanprozess", null, ct);
         }
 
         long showId;

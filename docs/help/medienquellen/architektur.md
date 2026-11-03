@@ -14,6 +14,7 @@
 | `MediaSourceReaderDispatcher` | Service (scoped, als `IMediaSourceReader` registriert) | Wählt pro Aufruf anhand von `SourceType` den konkreten Reader |
 | `MediaEntryFilter` | Interne Hilfsklasse | Gemeinsame `.`-Ignorierregel beider Reader |
 | `MediaSourceScanner` / `MediaSourceClassifier` | Services | Scan und Klassifizierung über `IMediaSourceReader` |
+| `MediaSourceScanCoordinator` | Service (scoped) | Einstiegspunkt für Komplettscan (Worker, Admin) und Collection-Neu-Erfassen (Explorer): Wecksignal-Scopes, Gate-Lease, Scan, Benachrichtigung, Genre-Reload, Klassifizierung in fester Reihenfolge |
 | `AgeRatingNormalizer` / `AgeRatingResult` | Statische Hilfsklasse / Record (`VideoWebPlayer/Utils`) | Normalisiert Altersfreigabe-Rohwerte aus NFO/TMDB auf kanonische FSK-/MPAA-Stufen plus `MinAge`; `CanonicalOptions` ist die einzige Quelle der UI-Auswahlwerte |
 | `ITmdbAgeRatingService` / `TmdbAgeRatingService` | Interface / Service (Singleton) | Optionaler Online-Fallback für fehlende Freigaben (TMDB `release_dates`/`content_ratings`) über named `HttpClient` „Tmdb"; liefert `null` statt Fehler |
 | `TmdbOptions` | Optionsklasse | Konfigurationsabschnitt `Tmdb` (`Enabled`, `ApiKey`, `BaseUrl`, `PreferredCountry`, `TimeoutSeconds`) |

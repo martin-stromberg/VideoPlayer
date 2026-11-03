@@ -105,3 +105,18 @@
 - Eine Änderung des Merkmals wirkt im Menü bereits angemeldeter Clients erst beim nächsten Laden des `NavMenu` (gleiches Bestandsverhalten wie bei Quell-Umbenennungen).
 
 **Umsetzung:** `NavMenu.OnInitializedAsync` (Filterung), `MediaSourceAdminDetails` (Checkbox `InputCheckbox` an `editSource.HiddenInMenu`, manuelle `editSource`-Kopie), `MediaSourceExtensions.Update` (Kopierpfad beim Speichern), Migration `AddMediaSourceHiddenInMenu`.
+
+## Komplettscan und „Neu erfassen" laufen identisch ab
+
+**Beschreibung:** Der Worker, der manuelle Komplettscan und „Neu erfassen" im Dateiexplorer verarbeiten Scan, Benachrichtigung, Genre-Reload und Klassifizierung in derselben Reihenfolge. Der Anwender sieht dadurch unabhängig vom Auslöser dasselbe Ergebnis.
+
+**Bedingungen:**
+- Komplettscan (Admin) und Worker scannen alle Quellen; „Neu erfassen" nur die aktuell geöffnete Collection mit ihren Unterordnern.
+
+**Verhalten:**
+- Der Komplettscan ist nicht gedeckelt. Der automatische Lauf verarbeitet höchstens 64 Collections je Lauf; der Rest folgt im nächsten Lauf.
+- „Neu erfassen" meldet neu gefundene Videos. Läuft bereits eine Klassifizierung, wird der Teilbaum eingereiht; die Meldung weist darauf hin, dass das Ergebnis nach Abschluss erscheint.
+- Ist die Collection beim Klick nicht mehr vorhanden, endet der Lauf ohne Scan mit der Meldung „Collection nicht mehr vorhanden.".
+- Während eines Laufs werden Sendeplan- und Playlist-Nachbearbeitung nicht bei jedem Schreibvorgang angestoßen, sondern einmal am Laufende.
+
+**Umsetzung:** `MediaSourceScanCoordinator.RunFullScanAsync` / `RescanCollectionTreeAsync` (aufgerufen von `MediaSourceScanService.ExecuteAsync`, `MediaSourceAdmin.razor::RunFullScan`, `MediaSourceExplorer.razor::RescanCurrent`).

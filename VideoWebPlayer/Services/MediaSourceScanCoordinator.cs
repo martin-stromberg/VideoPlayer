@@ -174,7 +174,6 @@ namespace VideoWebPlayer.Services
 
             _logger.LogInformation("Scan abgeschlossen. Starte Klassifizierung ({UnclassifiedCount} unclassifizierte Collections).", unclassifiedBefore);
             await _classifier.ClassifyMediaCollectionsAsync(cancellationToken);
-            _logger.LogInformation("Klassifizierung der Collections abgeschlossen.");
             _logger.LogInformation("Klassifizierung abgeschlossen.");
 
             await _notificationService.NotifyNewVideosScannedAsync(0L, unclassifiedBefore, cancellationToken);

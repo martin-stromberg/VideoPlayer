@@ -625,7 +625,8 @@ public class MediaSourceScanServiceTests
         var timeProvider = new IncrementingTimeProvider(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(11));
         var reader = new SeriesSftpMediaSourceReader(rootPath, showName, seasons, episodesPerSeason);
 
-        var serviceProvider = BuildScanRunServices(timeProvider, connectionString, reader, messages);
+        var serviceProvider = MediaSourceScanCoordinatorTestServices.Build(
+            connectionString, messages, timeProvider: timeProvider, mediaSourceReader: reader);
         await SeedAsync(serviceProvider, rootPath, ct);
 
         var backfillSignal = serviceProvider.GetRequiredService<IPlaylistBackfillSignal>();
@@ -669,7 +670,8 @@ public class MediaSourceScanServiceTests
         var timeProvider = new IncrementingTimeProvider(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(11));
         var reader = new SeriesSftpMediaSourceReader(rootPath, showName, seasons, episodesPerSeason);
 
-        var serviceProvider = BuildScanRunServices(timeProvider, connectionString, reader, messages);
+        var serviceProvider = MediaSourceScanCoordinatorTestServices.Build(
+            connectionString, messages, timeProvider: timeProvider, mediaSourceReader: reader);
         await SeedAsync(serviceProvider, rootPath, ct);
 
         var backfillSignal = serviceProvider.GetRequiredService<IPlaylistBackfillSignal>();
@@ -684,43 +686,6 @@ public class MediaSourceScanServiceTests
         }
 
         return await ReadResultAsync(serviceProvider, backfillWakes, scheduleWakes, ct);
-    }
-
-    private static ServiceProvider BuildScanRunServices(
-        TimeProvider timeProvider,
-        string connectionString,
-        IMediaSourceReader reader,
-        ConcurrentQueue<string> messages)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton(timeProvider);
-        services.AddSingleton<EventManager>();
-        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
-        services.AddSingleton<IMediaSourceReader>(reader);
-        services.AddScoped<ProgramSettingsService>();
-        services.AddScoped<MediaSourceScanner>();
-        services.AddScoped<RecentEntryService>();
-        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
-        services.AddScoped<MediaSourceClassifier>();
-        services.AddScoped<HttpClient>(_ => new HttpClient());
-        services.AddMemoryCache();
-        services.AddScoped<EpisodeBackgroundImageGenerator>();
-        services.AddScoped<EpisodeBackgroundImageService>();
-        services.AddSingleton<Microsoft.Extensions.Options.IOptions<EpisodeBackgroundImageOptions>>(
-            Microsoft.Extensions.Options.Options.Create(new EpisodeBackgroundImageOptions()));
-        services.AddSingleton<ILogger<EpisodeBackgroundImageGenerator>>(NullLogger<EpisodeBackgroundImageGenerator>.Instance);
-        services.AddSingleton<ILogger<EpisodeBackgroundImageService>>(NullLogger<EpisodeBackgroundImageService>.Instance);
-        services.AddSingleton<IAuthService, TestAuthService>();
-        services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
-        services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
-        services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
-        services.AddSingleton<MediaUpdateNotificationService>(TestableMediaSourceScanService.CreateNullNotificationService());
-        services.AddSingleton<IPlaylistBackfillSignal, PlaylistBackfillSignal>();
-        services.AddSingleton<IProgramScheduleSignal, ProgramScheduleSignal>();
-        services.AddScoped<MediaSourceScanCoordinator>();
-        services.AddSingleton<ILogger<MediaSourceScanCoordinator>>(new ListLogger<MediaSourceScanCoordinator>(messages));
-
-        return services.BuildServiceProvider();
     }
 
     private static async Task SeedAsync(ServiceProvider serviceProvider, string rootPath, CancellationToken ct)

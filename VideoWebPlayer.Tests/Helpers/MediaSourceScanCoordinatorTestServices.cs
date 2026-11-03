@@ -28,6 +28,8 @@ internal static class MediaSourceScanCoordinatorTestServices
     /// <param name="programScheduleSignal">Das zu verwendende Wecksignal, oder <c>null</c> für die Standardimplementierung.</param>
     /// <param name="notificationService">Der zu verwendende Benachrichtigungsdienst, oder <c>null</c> für einen mit Null-Hub.</param>
     /// <param name="writeCoordinator">Der optionale Schreibsperren-Koordinator des Classifiers.</param>
+    /// <param name="timeProvider">Der zu verwendende <see cref="TimeProvider"/>, oder <c>null</c> für <see cref="TimeProvider.System"/>.</param>
+    /// <param name="mediaSourceReader">Der zu verwendende <see cref="IMediaSourceReader"/>, oder <c>null</c> für einen <see cref="LocalMediaSourceReader"/>.</param>
     /// <returns>Der aufgebaute Provider (am Testende disposen).</returns>
     public static ServiceProvider Build(
         string connectionString,
@@ -36,13 +38,15 @@ internal static class MediaSourceScanCoordinatorTestServices
         IPlaylistBackfillSignal? playlistBackfillSignal = null,
         IProgramScheduleSignal? programScheduleSignal = null,
         MediaUpdateNotificationService? notificationService = null,
-        IMediaMetadataWriteCoordinator? writeCoordinator = null)
+        IMediaMetadataWriteCoordinator? writeCoordinator = null,
+        TimeProvider? timeProvider = null,
+        IMediaSourceReader? mediaSourceReader = null)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddSingleton(timeProvider ?? TimeProvider.System);
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
-        services.AddSingleton<IMediaSourceReader>(new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance));
+        services.AddSingleton(mediaSourceReader ?? new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance));
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();

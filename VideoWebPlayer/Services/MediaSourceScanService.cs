@@ -12,6 +12,8 @@ namespace VideoWebPlayer.Services
     /// </summary>
     public class MediaSourceScanService : BackgroundService
     {
+        private const int MaxCollectionsPerAutomaticRun = 64;
+
         private readonly IServiceProvider _serviceProvider;
         private readonly EventManager _eventManager;
         private readonly ILogger<MediaSourceScanService> _logger;
@@ -97,7 +99,7 @@ namespace VideoWebPlayer.Services
                             _logger.LogInformation("Starte Scanprozess (Intervall: {Interval}).", scanProcessInterval);
 
                             var coordinator = innerScope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
-                            await coordinator.RunFullScanAsync("Automatischer Scanprozess", 64, stoppingToken);
+                            await coordinator.RunFullScanAsync("Automatischer Scanprozess", MaxCollectionsPerAutomaticRun, stoppingToken);
                         }
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

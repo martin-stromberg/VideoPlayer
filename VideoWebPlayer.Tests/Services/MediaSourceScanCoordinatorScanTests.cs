@@ -113,13 +113,22 @@ public sealed class MediaSourceScanCoordinatorScanTests : IDisposable
         var cappedServiceProvider = MediaSourceScanCoordinatorTestServices.Build(cappedConnectionString, new ConcurrentQueue<string>());
         await MediaSourceScanCoordinatorTestServices.SeedAsync(cappedServiceProvider, _rootDir, genresChanged: false, ct);
 
-        using (var scope = cappedServiceProvider.CreateScope())
-        {
-            var coordinator = scope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
-            var cappedResult = await coordinator.RunFullScanAsync("Automatischer Scanprozess", 1, ct);
-            Assert.Equal(1, cappedResult.CollectionsScanned);
-            Assert.True(cappedResult.CapReached);
-        }
+        using var scope = cappedServiceProvider.CreateScope();
+        var coordinator = scope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
+        var cappedResult = await coordinator.RunFullScanAsync("Automatischer Scanprozess", 1, ct);
+        Assert.Equal(1, cappedResult.CollectionsScanned);
+        Assert.True(cappedResult.CapReached);
+    }
+
+    [Fact]
+    public async Task RunFullScanAsync_ScansAllCollections_WhenCapNotProvided()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        Directory.CreateDirectory(Path.Combine(_rootDir, "A"));
+        Directory.CreateDirectory(Path.Combine(_rootDir, "B"));
+        File.WriteAllText(Path.Combine(_rootDir, "A", "a.mp4"), "video");
+        File.WriteAllText(Path.Combine(_rootDir, "B", "b.mp4"), "video");
 
         var uncappedConnectionString = $"Data Source=file:coordinator-scan-uncapped-{Guid.NewGuid():N}?mode=memory&cache=shared";
         using var uncappedKeeper = new SqliteConnection(uncappedConnectionString);
@@ -127,13 +136,11 @@ public sealed class MediaSourceScanCoordinatorScanTests : IDisposable
         var uncappedServiceProvider = MediaSourceScanCoordinatorTestServices.Build(uncappedConnectionString, new ConcurrentQueue<string>());
         await MediaSourceScanCoordinatorTestServices.SeedAsync(uncappedServiceProvider, _rootDir, genresChanged: false, ct);
 
-        using (var scope = uncappedServiceProvider.CreateScope())
-        {
-            var coordinator = scope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
-            var uncappedResult = await coordinator.RunFullScanAsync("Automatischer Scanprozess", null, ct);
-            Assert.Equal(3, uncappedResult.CollectionsScanned);
-            Assert.False(uncappedResult.CapReached);
-        }
+        using var scope = uncappedServiceProvider.CreateScope();
+        var coordinator = scope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
+        var uncappedResult = await coordinator.RunFullScanAsync("Automatischer Scanprozess", null, ct);
+        Assert.Equal(3, uncappedResult.CollectionsScanned);
+        Assert.False(uncappedResult.CapReached);
     }
 
     [Fact]

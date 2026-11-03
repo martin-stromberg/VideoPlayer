@@ -104,8 +104,8 @@ beim Zurückschalten verdrängt der Mitgliedschafts-Check die betroffenen Slots
    ungeordneter Ringe durch eine Hash-Ordnung — `ItemOrderKey` (FNV-1a über
    `{ruleId}:{strandKey}:{contentType}:{contentId}`, geteilter Kern mit `StrandOrderKey`)
    plus `ContentId`-Tiebreak. Betroffen sind alle Ringe, deren sämtliche Elemente
-   `ContentType` `Movie` oder `MediaItem` tragen: Film-Sammlungen, der `other`-Strang
-   mehrsträngiger Genre-Expansionen (Seed `"other"`; der einsträngige Flachpfad seedet
+   `ContentType` `Movie` oder `MediaItem` tragen: sammlungslose Filme (der `other`-Strang
+   mehrsträngiger Genre-Expansionen, Seed `"other"`; der einsträngige Flachpfad seedet
    `null`), Clip-Quellen und Nutzer-Clip-Gruppen. Ohne die Mischung startete jede Regel am
    selben Sortier-Ersten (Alphabet/Id/Releasedatum) und bevorzugte ihn systematisch, weil
    Cursor-Anker (`NextIndexFor`) ohne Treffer auf Index 0 zurückfallen. Geordnet bleiben
@@ -115,6 +115,16 @@ beim Zurückschalten verdrängt der Mitgliedschafts-Check die betroffenen Slots
    Funktion der Expansion — die Cursor-Verankerung bleibt stabil (`NextIndexFor`
    lokalisiert den persistierten Inhalt im neu gemischten Ring); die titelweise
    Validierung des Reconcile fragt Ringpositionen ohnehin nicht mehr ab.
+   **Filmsammlungen (Issue #334):** Filme mit `MovieCollectionId` sind seitdem
+   `Sequenced`-Items — `TryMovieItem` vergibt ihnen den Strang-Schlüssel
+   `collection:{id}` (eigener persistierter Cursor je Sammlung, wie `show:{id}`) und das
+   `Sequenced`-Flag hält jeden Ring, den sie bilden, aus `IsUnorderedRing` heraus. Damit
+   laufen Sammlungsfilme strikt in `ReleaseDate ?? PremieredAt`-Reihenfolge — in
+   `MovieCollection`-Regeln als geordneter Flachring, in Genre-Rotationen als eigener
+   `collection:{id}`-Strang, der mit den übrigen Strängen interleaved; ein gesperrter
+   Kopf wartet (`PreservesOrder`), statt übersprungen zu werden. Unvollständige Reihen
+   ordnen schlicht die vorhandenen Teile; andere Titel dürfen zwischen zwei
+   Sammlungsfilmen liegen — garantiert ist nur die Reihenfolge.
 2. `SelectItems` übergibt `clipGrace = rule.PlaceholderGrace`, sofern die Regel Gruppen trägt
    und `SlotDuration` gesetzt ist. `SelectAiringItems`/`SelectAiringItemsInterleaved` brechen
    die Titel-Auswahl zusätzlich ab, sobald `target - accumulated < clipGrace`; die
@@ -678,7 +688,7 @@ Jugendschutzfenster: ein Titel darf nur starten, wenn seine normalisierte Mindes
 ### Auswahl- und Commit-Semantik
 
 `StrandState` kennt neu `PreservesOrder` (true, wenn alle Items vom Typ `TVShowEpisode` oder
-`PlaylistEntry` sind — strenge Sendereihenfolge). `SelectAiringItems` und
+`PlaylistEntry` sind oder `Sequenced` tragen — strenge Sendereihenfolge). `SelectAiringItems` und
 `SelectAiringItemsInterleaved` werten je Scan-Position `IsAllowedAt` gegen den laufenden
 `slotStart` aus:
 

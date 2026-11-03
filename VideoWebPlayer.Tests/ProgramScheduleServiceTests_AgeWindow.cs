@@ -34,16 +34,19 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         await SetModeAsync(fixture, ProgramScheduleUnknownRatingMode.RestrictToNightWindow, ct);
 
         await fixture.EnsureSourceAsync(1);
-        var collection = new MovieCollection { Name = "Abendfilme", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
-        fixture.Db.MovieCollections.Add(collection);
-        await fixture.SaveDiagAsync();
-        // Under the ItemOrderKey mix the blocked title sits behind the allowed one — its
-        // ring position is consumed-without-airing (skipped) at every daytime occurrence.
-        var blocked18 = await fixture.CreateMovieAsync("FSK18-Film", collectionId: collection.Id, releaseDate: new DateTime(2000, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 18);
-        var allowed0 = await fixture.CreateMovieAsync("FSK0-Film", collectionId: collection.Id, releaseDate: new DateTime(2001, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 0);
+        // Ungeordneter Film-Ring: sammlungslose Filme eines Genres (Filmsammlungen sind
+        // seit Issue #334 geordnete Stränge — ein gesperrter Kopf wartet dort statt zu
+        // überspringen). Unter der ItemOrderKey-Mischung sitzt der gesperrte Titel auf
+        // einer Ringposition, die tagsüber ohne Ausstrahlung konsumiert wird (Skip).
+        var genre = await fixture.CreateGenreAsync("Abendfilme");
+        var blocked18 = await fixture.CreateMovieAsync("FSK18-Film", releaseDate: new DateTime(2000, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 18);
+        var allowed0 = await fixture.CreateMovieAsync("FSK0-Film", releaseDate: new DateTime(2001, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 0);
+        await fixture.LinkMovieGenreAsync(blocked18.Id, genre.Id);
+        await fixture.LinkMovieGenreAsync(allowed0.Id, genre.Id);
 
-        var rule = await fixture.CreateRuleAsync(channel.Id, "Nachtmagazin", ProgramRuleType.MoviePrimeTime,
-            ProgramRuleRecurrence.Daily, new TimeOnly(12, 0), ProgramRuleMaterialType.MovieCollection, collection.Id);
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Nachtmagazin", ProgramRuleType.GenreRotation,
+            ProgramRuleRecurrence.Daily, new TimeOnly(12, 0), ProgramRuleMaterialType.Genre, genre.Id,
+            genreIds: [genre.Id]);
 
         var service = fixture.CreateService();
         await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 8, 0)), ct);
@@ -339,17 +342,18 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         var channel = await fixture.GetChannelAsync(ct);
         await SetModeAsync(fixture, ProgramScheduleUnknownRatingMode.RestrictToNightWindow, ct);
 
-        var collection = new MovieCollection { Name = "Spielfilme", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
-        fixture.Db.MovieCollections.Add(collection);
-        await fixture.SaveDiagAsync();
-        // At 21:30 the FSK-12 window is already open but the FSK-16 one is not — under the
-        // ItemOrderKey mix the FSK-16 title sits behind the FSK-0 head and its ring position
-        // is consumed-without-airing (skipped) at the 21:30 occurrences.
-        var fsk16 = await fixture.CreateMovieAsync("FSK16-Film", collectionId: collection.Id, releaseDate: new DateTime(2000, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 16);
-        var fsk0 = await fixture.CreateMovieAsync("FSK0-Film", collectionId: collection.Id, releaseDate: new DateTime(2001, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 0);
+        // At 21:30 the FSK-12 window is already open but the FSK-16 one is not — in the
+        // unordered genre movie ring the FSK-16 position is consumed-without-airing
+        // (skipped) at the 21:30 occurrences.
+        var genre = await fixture.CreateGenreAsync("Spielfilme");
+        var fsk16 = await fixture.CreateMovieAsync("FSK16-Film", releaseDate: new DateTime(2000, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 16);
+        var fsk0 = await fixture.CreateMovieAsync("FSK0-Film", releaseDate: new DateTime(2001, 1, 1), duration: TimeSpan.FromMinutes(90), ageRatingMinAge: 0);
+        await fixture.LinkMovieGenreAsync(fsk16.Id, genre.Id);
+        await fixture.LinkMovieGenreAsync(fsk0.Id, genre.Id);
 
-        var rule = await fixture.CreateRuleAsync(channel.Id, "Vorabend", ProgramRuleType.MoviePrimeTime,
-            ProgramRuleRecurrence.Daily, new TimeOnly(21, 30), ProgramRuleMaterialType.MovieCollection, collection.Id);
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Vorabend", ProgramRuleType.GenreRotation,
+            ProgramRuleRecurrence.Daily, new TimeOnly(21, 30), ProgramRuleMaterialType.Genre, genre.Id,
+            genreIds: [genre.Id]);
 
         var service = fixture.CreateService();
         await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 0)), ct);
@@ -471,18 +475,20 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         var channel = await fixture.GetChannelAsync(ct);
         await SetModeAsync(fixture, ProgramScheduleUnknownRatingMode.RestrictToNightWindow, ct);
 
-        // Unordered ring under the ItemOrderKey mix [FSK 18, FSK 0, FSK 0]: the blocked
-        // position is consumed-without-airing (scanned and skipped) at every daytime
-        // occurrence — regardless of which position it lands on.
-        var collection = new MovieCollection { Name = "Rotation", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
-        fixture.Db.MovieCollections.Add(collection);
-        await fixture.SaveDiagAsync();
-        var a = await fixture.CreateMovieAsync("Film A", collectionId: collection.Id, releaseDate: new DateTime(2000, 1, 1), duration: TimeSpan.FromMinutes(60), ageRatingMinAge: 0);
-        var b = await fixture.CreateMovieAsync("Film B", collectionId: collection.Id, releaseDate: new DateTime(2001, 1, 1), duration: TimeSpan.FromMinutes(60), ageRatingMinAge: 18);
-        var c = await fixture.CreateMovieAsync("Film C", collectionId: collection.Id, releaseDate: new DateTime(2002, 1, 1), duration: TimeSpan.FromMinutes(60), ageRatingMinAge: 0);
+        // Unordered genre movie ring [FSK 0, FSK 18, FSK 0] under the ItemOrderKey mix:
+        // the blocked position is consumed-without-airing (scanned and skipped) at every
+        // daytime occurrence — regardless of which position it lands on.
+        var genre = await fixture.CreateGenreAsync("Rotation");
+        var a = await fixture.CreateMovieAsync("Film A", releaseDate: new DateTime(2000, 1, 1), duration: TimeSpan.FromMinutes(60), ageRatingMinAge: 0);
+        var b = await fixture.CreateMovieAsync("Film B", releaseDate: new DateTime(2001, 1, 1), duration: TimeSpan.FromMinutes(60), ageRatingMinAge: 18);
+        var c = await fixture.CreateMovieAsync("Film C", releaseDate: new DateTime(2002, 1, 1), duration: TimeSpan.FromMinutes(60), ageRatingMinAge: 0);
+        await fixture.LinkMovieGenreAsync(a.Id, genre.Id);
+        await fixture.LinkMovieGenreAsync(b.Id, genre.Id);
+        await fixture.LinkMovieGenreAsync(c.Id, genre.Id);
 
-        var rule = await fixture.CreateRuleAsync(channel.Id, "Mittagsplatz", ProgramRuleType.MoviePrimeTime,
-            ProgramRuleRecurrence.Daily, new TimeOnly(12, 0), ProgramRuleMaterialType.MovieCollection, collection.Id, episodeCount: 2);
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Mittagsplatz", ProgramRuleType.GenreRotation,
+            ProgramRuleRecurrence.Daily, new TimeOnly(12, 0), ProgramRuleMaterialType.Genre, genre.Id,
+            episodeCount: 2, genreIds: [genre.Id]);
 
         var service = fixture.CreateService();
         await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 8, 0)), ct);

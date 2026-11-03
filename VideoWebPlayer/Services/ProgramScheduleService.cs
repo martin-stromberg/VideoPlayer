@@ -1171,10 +1171,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // Every probed media file linked to the same content — the slot comparison accepts any
         // of them: a representative switch alone changes nothing about the airing.
         public IReadOnlyList<MediaItemVariant> MediaItemAlternates { get; init; } = [];
+
+        // Films of a movie collection carry their own air order (release date, like episode
+        // strands): their strand is an ordered ring — the hash mix of unordered rings must
+        // not touch them and a window-blocked head defers instead of being skipped.
+        public bool Sequenced { get; init; }
     }
 
-    // Strand key of the shared strand holding all non-episode content of a genre expansion
-    // (movies rotate through it like a series of their own — sequential, not looping daily).
+    // Strand key of the shared strand holding all non-episode genre content without its own
+    // air order (movies rotate through it like a series of their own — sequential, not
+    // looping daily). Collection films keep their own "collection:{id}" strand instead.
     private const string OtherStrandKey = "other";
 
     // One ring per strand ("Sendestrang") of a rule's material: for interleaved genre rules
@@ -1188,13 +1194,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public int NextIndex { get; private set; } = nextIndex;
         public SchedulableItem? LastPlaced { get; private set; }
 
-        // Ordered strands hold air-order material (series episodes, playlist entries): their
-        // head may never be reordered, so a window-blocked head defers instead of being
-        // skipped. Unordered rings (movies, "other" genre material, clips) may skip. Computed
-        // once — the item list never changes for a strand's lifetime, while the selection scan
-        // and the title-wise slot check read this per candidate.
-        public bool PreservesOrder { get; } = items.Count > 0 && items.All(i => i.ContentType
-            is ProgramCursorContentType.TVShowEpisode or ProgramCursorContentType.PlaylistEntry);
+        // Ordered strands hold air-order material (series episodes, playlist entries, movie
+        // collection sequences): their head may never be reordered, so a window-blocked head
+        // defers instead of being skipped. Unordered rings (standalone movies, "other" genre
+        // material, clips) may skip. Computed once — the item list never changes for a
+        // strand's lifetime, while the selection scan and the title-wise slot check read
+        // this per candidate.
+        public bool PreservesOrder { get; } = items.Count > 0 && items.All(i => i.Sequenced
+            || i.ContentType is ProgramCursorContentType.TVShowEpisode or ProgramCursorContentType.PlaylistEntry);
 
         public SchedulableItem? PeekAt(int offset)
             => Items.Count == 0 ? null : Items[(NextIndex + offset) % Items.Count];
@@ -1310,7 +1317,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     // Serien. Der Hash-Mix nach (Regel, Strang) ist reproduzierbar, variiert
                     // aber von Regel zu Regel; Cursors und Slot-Positionen bleiben stabil.
                     // Innerhalb der Stränge mischen dieselben Schluessel die ungeordneten
-                    // Ringe ("other"-Filme); show:-Stränge bleiben in Sendedreihenfolge.
+                    // Ringe ("other"-Filme); show:- und collection:-Stränge bleiben in
+                    // Sendedreihenfolge.
                     // Items bleibt die Expansionsliste — dort findet nur die
                     // Mitgliedschaftspruefung der titelweisen Slot-Validierung statt.
                     Items = items;
@@ -1379,11 +1387,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     }
 
     // Ungeordnete Ringe tragen ausschliesslich Inhalt ohne fachliche Abspielreihenfolge
-    // (Filme, Clip-MediaItems) — das Komplement der PreservesOrder-Stränge (Episoden,
-    // Playlist-Eintraege). Der Trailer-Ring ist weder das eine noch das andere: seine
-    // Airings-Reihenfolge (Vorlauf-Relevanz) bleibt erhalten.
+    // (sammlungslose Filme, Clip-MediaItems) — das Komplement der PreservesOrder-Stränge
+    // (Episoden, Playlist-Eintraege, Filmsammlungen). Der Trailer-Ring ist weder das eine
+    // noch das andere: seine Airings-Reihenfolge (Vorlauf-Relevanz) bleibt erhalten.
     private static bool IsUnorderedRing(IReadOnlyList<SchedulableItem> items)
-        => items.Count > 0 && items.All(i => i.ContentType
+        => items.Count > 0 && items.All(i => !i.Sequenced && i.ContentType
             is ProgramCursorContentType.Movie or ProgramCursorContentType.MediaItem);
 
     // Deterministische Mischung ungeordneter Ringe beim Ringaufbau: die Expansionen liefern
@@ -2284,9 +2292,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             summary.SkippedNoAccess++;
             return null;
         }
-        return new SchedulableItem(ProgramCursorContentType.Movie, movie.Id, media.MediaItemId, movie.Id, null, media.Duration.Value, AgeRatingMinAge: movie.AgeRatingMinAge)
+        // Collection films air as an ordered strand in release order (the expansions deliver
+        // ReleaseDate ?? PremieredAt): the "collection:{id}" strand key groups them inside
+        // genre rules, "Sequenced" keeps every ring they form out of the unordered mix —
+        // sequels never air before their predecessors (Issue #334).
+        return new SchedulableItem(ProgramCursorContentType.Movie, movie.Id, media.MediaItemId, movie.Id, null, media.Duration.Value,
+                StrandKey: movie.MovieCollectionId is { } collectionId ? $"collection:{collectionId}" : "",
+                AgeRatingMinAge: movie.AgeRatingMinAge)
         {
-            MediaItemAlternates = choice!.Alternates
+            MediaItemAlternates = choice!.Alternates,
+            Sequenced = movie.MovieCollectionId is not null
         };
     }
 
@@ -2481,13 +2496,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .ToDictionaryAsync(s => s.Id, s => s.AgeRatingMinAge, cancellationToken);
 
         // Strand keys drive the series interleaving (N19): every show is its own strand so its
-        // episodes continue in air order at a stable slot position; movies share the "other"
-        // strand and keep flowing through it in release order like a series of their own.
+        // episodes continue in air order at a stable slot position; movies of a collection keep
+        // the "collection:{id}" strand TryMovieItem already assigned (ordered by release date),
+        // collection-free movies share the "other" strand.
         var movieItems = movies
             .Select(m => TryMovieItem(m, mediaByMovie, access, summary))
             .Where(i => i is not null)
             .Cast<SchedulableItem>()
-            .Select(i => i with { StrandKey = OtherStrandKey });
+            .Select(i => i.StrandKey.Length == 0 ? i with { StrandKey = OtherStrandKey } : i);
         var episodeItems = episodes
             .Select(e => (Item: ToItem(new ProxyEpisode(e.Id, e.MediaSourceId), e.ShowId, mediaByEpisode, access, summary, showMinAges.GetValueOrDefault(e.ShowId)), e.ShowId))
             .Where(x => x.Item is not null)

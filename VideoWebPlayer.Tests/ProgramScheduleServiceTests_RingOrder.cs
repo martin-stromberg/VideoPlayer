@@ -92,15 +92,16 @@ public sealed class ProgramScheduleServiceTests_RingOrder
     }
 
     [Fact]
-    public async Task EnsureCoverage_MovieCollectionRing_FirstPick_FollowsItemOrderKey()
+    public async Task EnsureCoverage_MovieCollectionRing_FirstPick_IsReleaseFirst()
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await ProgramScheduleTestDb.CreateAsync("ringorder-collection-head", ct);
         var channel = await fixture.GetChannelAsync(ct);
         var collection = await CreateCollectionAsync(fixture, "Abendkino");
 
-        // Film-Ids 1-4: unter ItemOrderKey(Regel 1) ist die Ringordnung [2,3,1,4] — der
-        // Kopf ist nicht der Release-/Id-Erste, die Erwartung unterscheidet die Ordnungen.
+        // Issue #334: Filmsammlungen bilden geordnete Stränge — der Kopf ist der
+        // Release-Erste, nicht mehr der ItemOrderKey-Gemischte. Der Seed bleibt
+        // diskriminierend: unter Regel 1 waere der Hash-Kopf Id 2, nicht Id 1.
         var movies = new List<Movie>();
         for (var i = 0; i < 4; i++)
             movies.Add(await fixture.CreateMovieAsync($"Film {i}", collectionId: collection.Id,
@@ -113,14 +114,14 @@ public sealed class ProgramScheduleServiceTests_RingOrder
         await fixture.CreateService().EnsureCoverageAsync(Now, ct);
 
         var slots = (await fixture.SlotsAsync(ct)).Where(s => s.ProgramRuleId == rule.Id).ToList();
-        var expectedHead = HashOrder(movies,
+        var hashHead = HashOrder(movies,
             m => ProgramScheduleService.ItemOrderKey(rule.Id, null, ProgramCursorContentType.Movie, m.Id),
             m => m.Id).First();
 
         // Die Seed-Praemisse: Hash-Kopf ≠ Release-Erster — sonst pruefte der Test nichts.
-        Assert.NotEqual(movies.OrderBy(m => m.ReleaseDate).First().Id, expectedHead.Id);
+        Assert.NotEqual(movies.OrderBy(m => m.ReleaseDate).First().Id, hashHead.Id);
         var slot = Assert.Single(slots);
-        Assert.Equal(expectedHead.Id, slot.MovieId);
+        Assert.Equal(movies.OrderBy(m => m.ReleaseDate).First().Id, slot.MovieId);
     }
 
     [Fact]
@@ -129,24 +130,28 @@ public sealed class ProgramScheduleServiceTests_RingOrder
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await ProgramScheduleTestDb.CreateAsync("ringorder-distribution", ct);
         var channel = await fixture.GetChannelAsync(ct);
-        var collection = await CreateCollectionAsync(fixture, "Rotation");
+        // Ungeordnetes Filmmaterial: sammlungslose Filme eines Genres (Filmsammlungen sind
+        // seit Issue #334 geordnete Straenge und verteilen ihre Koepfe nicht mehr).
+        var genre = await fixture.CreateGenreAsync("Rotation");
 
         const int n = 6;
         const int r = 24;
         var movies = new List<Movie>();
         for (var i = 0; i < n; i++)
-            movies.Add(await fixture.CreateMovieAsync($"Rotation {i}", collectionId: collection.Id,
+            movies.Add(await fixture.CreateMovieAsync($"Rotation {i}",
                 duration: TimeSpan.FromMinutes(10), releaseDate: new DateTime(2000 + i, 1, 1)));
+        foreach (var m in movies)
+            await fixture.LinkMovieGenreAsync(m.Id, genre.Id);
 
         // 24 Once-Regeln ueber denselben Materialsatz: verschiedene TimeOfDay, damit sich
         // die Ausstrahlungen nicht ueberlappen; jede Regel zieht ihren eigenen Hash-Kopf.
         var rules = new List<ProgramRule>();
         for (var i = 0; i < r; i++)
         {
-            rules.Add(await fixture.CreateRuleAsync(channel.Id, $"Abend {i}", ProgramRuleType.MoviePrimeTime,
+            rules.Add(await fixture.CreateRuleAsync(channel.Id, $"Abend {i}", ProgramRuleType.GenreRotation,
                 ProgramRuleRecurrence.Once, new TimeOnly(0, 30).Add(TimeSpan.FromMinutes(45 * i)),
-                ProgramRuleMaterialType.MovieCollection, collection.Id,
-                episodeCount: 1, singleDate: OnceDate));
+                ProgramRuleMaterialType.Genre, genre.Id,
+                episodeCount: 1, singleDate: OnceDate, genreIds: [genre.Id]));
         }
 
         await fixture.CreateService().EnsureCoverageAsync(Now, ct);

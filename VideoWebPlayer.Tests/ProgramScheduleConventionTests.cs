@@ -31,6 +31,7 @@ public sealed class ProgramScheduleConventionTests
         "ProgramScheduleServiceTests_ClipFillPeriodBounds.cs",
         "ProgramScheduleServiceTests_ClipGroups.cs",
         "ProgramScheduleServiceTests_ClipSource.cs",
+        "ProgramScheduleServiceTests_CollectionOrder.cs",
         "ProgramScheduleServiceTests_Conflicts.cs",
         "ProgramScheduleServiceTests_ContentScope.cs",
         "ProgramScheduleServiceTests_CoverageBoundary.cs",

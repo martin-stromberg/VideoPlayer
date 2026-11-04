@@ -73,9 +73,9 @@ ab 18 ab der dritten — alle Fenster laufen jeweils bis zum gemeinsamen Nachten
 MPAA-Freigaben wirken über ihr normalisiertes Mindestalter auf dieselben Fenster
 (z. B. „R" im Ab-16-Fenster). Ein begonnener Beitrag läuft immer zu Ende, auch wenn er
 über die Fenstergrenze hinausreicht. Episoden übernehmen die Freigabe ihrer Serie; bei
-Strängen mit Sendereihenfolge (Serien, Playlists) wartet ein gesperrter Kopf, bei
-ungeordneten Ringen (Filme, Genre-„Sonstiges", Clips) wird ein gesperrter Titel
-übersprungen und auf der nächsten Runde erneut angeboten. Füller und Clip-Füllung
+Strängen mit Sendereihenfolge (Serien, Playlists, Filmsammlungen) wartet ein gesperrter
+Kopf, bei ungeordneten Ringen (sammlungslose Filme, Genre-„Sonstiges", Clips) wird ein
+gesperrter Titel übersprungen und auf der nächsten Runde erneut angeboten. Füller und Clip-Füllung
 unterliegen denselben Regeln. Bereits eingeplante Sendeplätze, die gegen ein verschärftes
 Fenster verstoßen, werden beim nächsten Planlauf verdrängt und regelkonform neu geplant —
 das Speichern der Einstellungen stößt die Neubewertung sofort an.
@@ -115,9 +115,13 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
   Fensters über die Tage hinweg und setzt ihre Folgen in aufsteigender Reihenfolge fort —
   statt eine einzelne Serie blockweise zu „strippen", bekommt pro Ausstrahlung jede Serie
   der Reihe nach ihren Sendeplatz (z. B. 12:00 Serie A, 12:45 Serie B — am Folgetag die
-  nächste Folge jeder Serie an derselben Stelle). Filme des Genres laufen als gemeinsamer
-  Strang mit — in einer festen, je Regel gemischten Reihenfolge statt nach
-  Veröffentlichungsdatum, damit sich die Auswahl gleichmäßig über den Filmbestand verteilt.
+  nächste Folge jeder Serie an derselben Stelle). Filme derselben Filmsammlung bilden je
+  einen eigenen geordneten Strang und laufen in der Reihenfolge ihres
+  Veröffentlichungsdatums — Fortsetzungen erst nach ihrem Vorgänger; zwischen zwei
+  Sammlungsfilmen dürfen andere Titel liegen, garantiert ist die Reihenfolge.
+  Sammlungslose Filme des Genres laufen als gemeinsamer Strang mit — in einer festen, je
+  Regel gemischten Reihenfolge statt nach Veröffentlichungsdatum, damit sich die Auswahl
+  gleichmäßig über den Filmbestand verteilt.
   Zusätzlich gibt es für Füller-Regeln die Materialart **„Trailer anstehender Filme"**
   (Checkbox ohne weitere Auswahl): Damit werden Trailer-Dateien eingeplanter Filme bevorzugt als
   Füllmaterial gesendet — siehe Abschnitt „Trailer" weiter unten.
@@ -232,17 +236,23 @@ Dabei gilt:
   wird ebenfalls nichts eingeplant — die Restlücke füllen Füller.
 - **Serien** werden je Regel in Sendedreihenfolge fortgesetzt; der Fortschritt überlebt Neustarts
   und beginnt nach dem letzten Titel wieder vorn.
-- **Reihenfolge des Materials ohne eigene Abspielreihenfolge** — Filmsammlungen, die Filme
-  einer Genre-Rotation, Clips aus Clip-Quellen und Clip-Gruppen — ist je Regel fest, aber
-  gemischt: nicht alphabetisch und nicht nach Erscheinungsdatum, sondern so gestreut, dass
-  sich die Auswahl über die Planläufe gleichmäßig über den gesamten Bestand verteilt und
-  nicht bevorzugt immer dieselben Titel zuerst zum Zug kommen. Die Mischung bleibt für
-  denselben Bestand über Neustarts und Planläufe hinweg stabil, damit die Rotation an
-  derselben Stelle fortgesetzt wird. Kommt Material hinzu, ordnet sich die Mischung neu —
-  das wirkt nur auf künftige Planungen; bereits eingeplante Sendeplätze bleiben davon
-  unberührt und werden nicht verdrängt. Geordnete Abspielreihenfolgen bleiben unverändert:
-  Serienfolgen, die Sortierung von Playlists und Trailer, die ihren anstehenden Filmen
-  vorauslaufen.
+- **Reihenfolge des Materials ohne eigene Abspielreihenfolge** — sammlungslose Filme
+  (auch die einer Genre-Rotation), Clips aus Clip-Quellen und Clip-Gruppen — ist je Regel
+  fest, aber gemischt: nicht alphabetisch und nicht nach Erscheinungsdatum, sondern so
+  gestreut, dass sich die Auswahl über die Planläufe gleichmäßig über den gesamten
+  Bestand verteilt und nicht bevorzugt immer dieselben Titel zuerst zum Zug kommen. Die
+  Mischung bleibt für denselben Bestand über Neustarts und Planläufe hinweg stabil, damit
+  die Rotation an derselben Stelle fortgesetzt wird. Kommt Material hinzu, ordnet sich
+  die Mischung neu — das wirkt nur auf künftige Planungen; bereits eingeplante
+  Sendeplätze bleiben davon unberührt und werden nicht verdrängt.
+- **Filmsammlungen** laufen dagegen geordnet: Alle Filme derselben Sammlung werden in der
+  Reihenfolge ihres Veröffentlichungsdatums gesendet — eine Fortsetzung läuft nie vor
+  ihrem Vorgänger, auch in Genre-Rotationen (dort bildet jede Sammlung einen eigenen
+  Strang, der wie die Serien mit den übrigen Inhalten abwechselt) und unabhängig davon,
+  ob die Reihe im Bestand vollständig ist. Der Fortschritt je Sammlung überlebt
+  Neustarts und beginnt nach dem neuesten Film wieder vorn.
+- Weitere geordnete Abspielreihenfolgen bleiben unverändert: Serienfolgen, die Sortierung
+  von Playlists und Trailer, die ihren anstehenden Filmen vorauslaufen.
 - **Lücken** füllen die Regeln der Art „Platzhalter/Füller" — nur Inhalte, die vollständig in die
   Lücke passen; der letzte Füller darf über das Planungsende hinauslaufen.
 - Eingeplant werden ausschließlich Inhalte mit bekannter Laufzeit, die für das gesamte

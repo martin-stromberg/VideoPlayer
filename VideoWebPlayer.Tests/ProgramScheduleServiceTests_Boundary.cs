@@ -367,8 +367,10 @@ public sealed class ProgramScheduleServiceTests_Boundary
         var collection = new MovieCollection { Name = "Sammlung", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         fixture.Db.MovieCollections.Add(collection);
         await fixture.SaveDiagAsync();
-        var big = await fixture.CreateMovieAsync("Riesenfilm", collectionId: collection.Id, duration: TimeSpan.FromMinutes(300), releaseDate: new DateTime(2000, 1, 1));
-        var small = await fixture.CreateMovieAsync("Kurzfilm", collectionId: collection.Id, duration: TimeSpan.FromMinutes(60), releaseDate: new DateTime(2001, 1, 1));
+        // Geordneter Sammlungs-Ring in Releasedatum-Reihenfolge (Issue #334): der
+        // Kurzfilm führt, der Riesenfilm folgt und überschießt bis 16:00.
+        var big = await fixture.CreateMovieAsync("Riesenfilm", collectionId: collection.Id, duration: TimeSpan.FromMinutes(300), releaseDate: new DateTime(2001, 1, 1));
+        var small = await fixture.CreateMovieAsync("Kurzfilm", collectionId: collection.Id, duration: TimeSpan.FromMinutes(60), releaseDate: new DateTime(2000, 1, 1));
 
         var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 9, 0));
         // Two adjacent daily windows: 10:00 (4 h) and 14:00 (4 h) — the 300-min head item
@@ -382,8 +384,8 @@ public sealed class ProgramScheduleServiceTests_Boundary
 
         var scheduled = await ScheduledAsync(fixture, ct);
         // The big movie airs — complete, never cut or silently skipped. It crosses the 14:00
-        // boundary (the lookback occurrence already consumed the ring head, so today the small
-        // one leads; the big one follows and overshoots to 16:00).
+        // boundary (release order leads with the small one; the big one follows and
+        // overshoots to 16:00).
         var bigSlot = Assert.Single(scheduled, s => s.MovieId == big.Id
             && s.Start < LocalUtc(2026, 10, 24, 14, 0) && s.End > LocalUtc(2026, 10, 24, 14, 0));
         Assert.Equal(LocalUtc(2026, 10, 24, 16, 0), bigSlot.End);
@@ -465,9 +467,8 @@ public sealed class ProgramScheduleServiceTests_Boundary
         var collection = new MovieCollection { Name = "Sammlung", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         fixture.Db.MovieCollections.Add(collection);
         await fixture.SaveDiagAsync();
-        // The 45-minute title must head the ring — under the ItemOrderKey mix (issue #297)
-        // that is Id 2 for rule 1, not the release-date order; the seed order is chosen so
-        // "Lang" leads (verified: ItemOrderKey(1, null, Movie, 2) < (…, 1)).
+        // The 45-minute title must head the ring — with the ordered collection ring
+        // (Issue #334) the release order decides, so "Lang" (2000) leads "Kurz" (2001).
         await fixture.CreateMovieAsync("Kurz", collectionId: collection.Id, duration: TimeSpan.FromMinutes(2), releaseDate: new DateTime(2001, 1, 1));
         var longMovie = await fixture.CreateMovieAsync("Lang", collectionId: collection.Id, duration: TimeSpan.FromMinutes(45), releaseDate: new DateTime(2000, 1, 1));
         var prime = await fixture.CreateMovieAsync("Prime", duration: TimeSpan.FromMinutes(60));

@@ -1538,7 +1538,7 @@ else
         scheduleStatus = "Plan-Aktualisierung wurde angestoßen — der Hintergrundlauf bewertet den Sendeplan jetzt neu.";
         try
         {
-            ScheduleSignal.NotifyScheduleChanged();
+            ScheduleSignal.NotifyScheduleChangedNow();
             await Task.Delay(TimeSpan.FromSeconds(4));
             if (disposed)
                 return;

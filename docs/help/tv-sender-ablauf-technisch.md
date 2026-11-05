@@ -948,6 +948,27 @@ löst keine leere Neu-Bewertung aus. Den Rennfall (letztes Scope-Ende zwischen
 Statusprüfung und Zähler-Erhöhung) fängt `NotifyScheduleChanged` ab, indem es die Meldung
 dann direkt zustellt.
 
+Außerhalb eines Scopes bündelt `ProgramScheduleSignal` die Meldungen seit Issue #337
+zusätzlich über ein festes Bündelfenster
+(`ProgramSchedule:ScheduleChangedDebounceSeconds`, Standard 5 s — `0` stellt das
+bisherige Sofortverhalten wieder her, Werte < 0 fallen auf den Standard zurück): Die
+erste scope-freie `NotifyScheduleChanged`-Meldung öffnet das Fenster, weitere Meldungen
+darin setzen nur die ausstehende Markierung, und am Fensterende schreibt der Flush genau
+einmal in `_channel` **und** `_liveChannel` — eine Folge schnell aufeinanderfolgender
+Einzel-Commits (Regel-Edit, Clip-Gruppen-Pflege, Backfill-Marker-Hook) löst so nur noch
+einen `ExecutePassAsync`-Lauf statt eines je Commit aus. Die Live-Leitung wird dabei
+mitgebündelt — der Weckruf aus einer Eingabeänderung ist für den Stream ohnehin
+spekulativ —, während `NotifyLiveScheduleChanged` (materialisierte Änderungen)
+weiterhin unmittelbar zustellt. Läuft der Flush in einen gerade geöffneten Scan-Scope,
+überführt er die ausstehende Meldung in `_suppressedNotifications` (mit derselben
+Doppelcheck-Race-Behandlung), und das Scope-Ende weckt einmal. Jede sofortige
+Zustellung löscht eine ausstehende Markierung — sowohl der neue ungebündelte Sofort-Pfad
+`NotifyScheduleChangedNow` als auch das `EndScan`-Wecken —, sodass ein nachträglich
+ablaufender Flush keine zweite Weckung schreibt. `NotifyScheduleChangedNow` (weiterhin
+scan-supprimiert) nutzt nur die explizit nutzergetriggerte Aktion „Jetzt generieren" in
+`TVSenderAdmin`, deren Rückmeldung unverzögert bleiben muss; alle übrigen Aufrufer
+bleiben unverändert auf dem gebündelten Pfad.
+
 Seit Issue #315 besitzt `ProgramScheduleSignal` zwei Kanäle: `WaitAsync` versorgt den
 Sendeplan-Worker, `WaitLiveAsync` einen dedizierten Live-Kanal für den
 LiveStreamWorker. `NotifyScheduleChanged` schreibt beide (Eingabeänderungen

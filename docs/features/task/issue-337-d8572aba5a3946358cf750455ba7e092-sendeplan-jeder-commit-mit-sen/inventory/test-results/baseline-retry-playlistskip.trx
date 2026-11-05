@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="5cbe9626-dfe6-4d4c-a5fe-241dfcac74cf" name="Martin@DESKTOP-CM8OBSG 2026-11-05 18:55:48" runUser="DESKTOP-CM8OBSG\Martin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-05T18:55:48.4762509+01:00" queuing="2026-11-05T18:55:48.4762510+01:00" start="2026-11-05T18:55:36.1216404+01:00" finish="2026-11-05T18:55:48.4801448+01:00" />
+  <TestSettings name="default" id="21ad5d26-64ee-4011-80b8-8f7881499ff2">
+    <Deployment runDeploymentRoot="Martin_DESKTOP-CM8OBSG_2026-11-05_18_55_48" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="4f559089-b5e2-47db-863b-3bae9f70c0bd" testId="a115ba0e-9bd7-e347-7396-18dc7cd20de5" testName="VideoWebPlayer.Tests.PlaylistPlaybackE2ETests.PlaylistSkipLockedEntriesE2ETest" computerName="DESKTOP-CM8OBSG" duration="00:00:10.8089522" startTime="2026-11-05T18:55:37.5408986+01:00" endTime="2026-11-05T18:55:48.3564147+01:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4f559089-b5e2-47db-863b-3bae9f70c0bd" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="VideoWebPlayer.Tests.PlaylistPlaybackE2ETests.PlaylistSkipLockedEntriesE2ETest" storage="d:\repositories\softwareschmiede\d8572aba-5a39-4635-8cf7-50455ba7e092\videowebplayer.tests\bin\debug\net10.0\videowebplayer.tests.dll" id="a115ba0e-9bd7-e347-7396-18dc7cd20de5">
+      <Execution id="4f559089-b5e2-47db-863b-3bae9f70c0bd" />
+      <TestMethod codeBase="D:\Repositories\softwareschmiede\d8572aba-5a39-4635-8cf7-50455ba7e092\VideoWebPlayer.Tests\bin\Debug\net10.0\VideoWebPlayer.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="VideoWebPlayer.Tests.PlaylistPlaybackE2ETests" name="PlaylistSkipLockedEntriesE2ETest" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="a115ba0e-9bd7-e347-7396-18dc7cd20de5" executionId="4f559089-b5e2-47db-863b-3bae9f70c0bd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Ergebnisse nicht in einer Liste" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Alle geladenen Ergebnisse" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="1" executed="1" passed="1" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.14)&#xD;
+[xUnit.net 00:00:00.22]   Discovering: VideoWebPlayer.Tests&#xD;
+[xUnit.net 00:00:00.99]   Discovered:  VideoWebPlayer.Tests&#xD;
+[xUnit.net 00:00:01.13]   Starting:    VideoWebPlayer.Tests&#xD;
+[xUnit.net 00:00:12.01]   Finished:    VideoWebPlayer.Tests (ID = 'e8679edd80adcf2b206d8b22c89cd4863f49eab5f9cc63cbd7dfa9259514de31')&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

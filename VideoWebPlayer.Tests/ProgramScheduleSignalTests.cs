@@ -251,4 +251,46 @@ public sealed class ProgramScheduleSignalTests
         Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
             "ScheduleChangedDebounceSeconds = 0 must restore immediate delivery without a timer tick.");
     }
+
+    [Fact]
+    public async Task DebounceAboveCap_IsClamped_AndStillDelivers()
+    {
+        var options = new ProgramScheduleOptions { ScheduleChangedDebounceSeconds = int.MaxValue };
+        Assert.Equal(TimeSpan.FromHours(1), options.EffectiveScheduleChangedDebounce);
+
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider, debounceSeconds: int.MaxValue);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        timeProvider.TickTimers();
+        var wait = signal.WaitAsync(ct).AsTask();
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
+            "An absurdly large configured window must be clamped so the flush still delivers.");
+    }
+
+    [Fact]
+    public async Task FlushTimerFailure_DeliversImmediately_AndKeepsWorking()
+    {
+        var signal = new ProgramScheduleSignal(
+            Options.Create(new ProgramScheduleOptions { ScheduleChangedDebounceSeconds = 5 }),
+            new ThrowingTimeProvider());
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        var wait = signal.WaitAsync(ct).AsTask();
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
+            "A failing window timer must not stall the batch — delivery falls back to immediate.");
+
+        signal.NotifyScheduleChanged();
+        var second = signal.WaitAsync(ct).AsTask();
+        Assert.True(await Task.WhenAny(second, Task.Delay(2000, ct)) == second,
+            "Later notifications must still be delivered after a flush failure.");
+    }
+
+    private sealed class ThrowingTimeProvider : TimeProvider
+    {
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+            => throw new InvalidOperationException("Timer creation failed.");
+    }
 }

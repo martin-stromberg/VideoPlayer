@@ -56,14 +56,16 @@ public sealed class ProgramScheduleOptions
     /// outside a scan scope: the first notification opens the window, further notifications inside
     /// it only keep the delivery pending, and at the window's end the schedule and live workers are
     /// woken exactly once. Default: 5 seconds; 0 delivers every notification immediately (the
-    /// behaviour before batching existed); values &lt; 0 fall back to the default.
+    /// behaviour before batching existed); values &lt; 0 fall back to the default, values above
+    /// 3600 are clamped (a batching window beyond an hour defers the plan past a regular
+    /// generation pass anyway — and past <c>Timer.MaxSupportedTimeout</c>).
     /// </summary>
     public int ScheduleChangedDebounceSeconds { get; set; } = 5;
 
     /// <summary>
     /// Gets the normalized batching window (values &lt; 0 fall back to the 5-second default,
-    /// 0 means immediate delivery without a window).
+    /// 0 means immediate delivery without a window, values above 3600 seconds are clamped).
     /// </summary>
     /// <returns>The normalized batching window.</returns>
-    public TimeSpan EffectiveScheduleChangedDebounce => ScheduleChangedDebounceSeconds < 0 ? TimeSpan.FromSeconds(5) : TimeSpan.FromSeconds(ScheduleChangedDebounceSeconds);
+    public TimeSpan EffectiveScheduleChangedDebounce => ScheduleChangedDebounceSeconds < 0 ? TimeSpan.FromSeconds(5) : TimeSpan.FromSeconds(Math.Min(ScheduleChangedDebounceSeconds, 3600));
 }

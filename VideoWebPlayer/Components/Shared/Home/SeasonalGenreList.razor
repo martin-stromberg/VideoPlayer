@@ -1,124 +1,96 @@
-@using Microsoft.EntityFrameworkCore
-@using VideoWebPlayer.Data
-@using VideoWebPlayer.Services
-@inject ApplicationDbContext DbContext
-@inject IGenreService GenreService
+@using VideoWebPlayer.Client.Models
+@rendermode InteractiveServer
+@implements IDisposable
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
-@inject AuthenticationStateProvider AuthStateProvider;
+@inject AuthenticationStateProvider AuthStateProvider
+@inject TimeProvider Clock
+@inject ILogger<SeasonalGenreList> Logger
 
 <div>
-    @if (activeGenres.Any())
+    @foreach (var genre in sections)
     {
-        @foreach (var genre in activeGenres)
-        {
-            var entries = new List<MediaBaseEntry>();
-            if (mediaEntriesByGenre.TryGetValue(genre.Id, out var list))
-                entries = list;
-
-            if (entries.Any())
-            {
-                <section class="media-section" aria-labelledby="@($"genre-{genre.Id}")">
-                    <h3 id="@($"genre-{genre.Id}")">@genre.Name</h3>
-                    <MediaBaseEntryList Entries="entries" AuthorizationToken="@authToken" WatchedAtByEntryKey="watchedAtByEntryKey" />
-                </section>
-            }
-        }
+        <section class="media-section" aria-labelledby="@($"genre-{genre.GenreId}")" @key="genre.GenreId">
+            <h3 id="@($"genre-{genre.GenreId}")">@genre.Name</h3>
+            <div class="seasonal-genre-list">
+                @foreach (var entry in genre.Entries)
+                {
+                    <MediaBox Title="@entry.Name" ImageUrl="@GetImageUrl(entry)"
+                              LinkUrl="@GetLinkUrl(entry)" WatchedAt="@entry.WatchedAt" />
+                }
+            </div>
+        </section>
     }
 </div>
 
 @code {
-    private string? userId;
+    private List<DtoSeasonalGenre> sections = [];
     private string? authToken;
-    private List<Genre> activeGenres = new();
-    private Dictionary<long, List<MediaBaseEntry>> mediaEntriesByGenre = new();
-    private Dictionary<string, DateTime> watchedAtByEntryKey = new();
+    private ITimer? expiryTimer;
+    private bool disposed;
 
     protected override async Task OnInitializedAsync()
     {
-        activeGenres = await GenreService.GetSeasonalGenresAsync();
-
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        authToken = Client.AuthorizationToken;
-
-        // Für jedes Genre die zugehörigen Filme und Serien laden
-        foreach (var genre in activeGenres)
+        await Client.EnsureAuthorizationTokenAsync(authState.User);
+        try
         {
-            var entries = new List<MediaBaseEntry>();
+            sections = await Client.GetSeasonalGenresAsync();
+            authToken = Client.AuthorizationToken;
+            RemoveExpiredAndSchedule();
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Could not load seasonal home sections.");
+        }
+    }
 
-            // Filme laden
-            var movieIds = await DbContext.MovieGenres
-                .Where(mg => mg.GenreId == genre.Id)
-                .Select(mg => mg.MovieId)
-                .ToListAsync();
+    private void RemoveExpiredAndSchedule()
+    {
+        expiryTimer?.Dispose();
+        expiryTimer = null;
+        var now = Clock.GetUtcNow().UtcDateTime;
+        sections.RemoveAll(x => x.ExpiresAt <= now || x.Entries.Count == 0);
+        if (!disposed && sections.Count > 0)
+        {
+            var delay = sections.Min(x => x.ExpiresAt) - now;
+            // System timers support at most about 49 days; longer seasons are rechecked daily.
+            if (delay > TimeSpan.FromDays(1)) delay = TimeSpan.FromDays(1);
+            expiryTimer = Clock.CreateTimer(_ => _ = ExpireAsync(), null, delay, Timeout.InfiniteTimeSpan);
+        }
+    }
 
-            var movies = await DbContext.Movies
-                .Where(m => movieIds.Contains(m.Id) &&
-                            DbContext.MediaSourceUsers.Any(msu => msu.MediaSourceId == m.MediaSourceId && msu.UserId == userId))
-                .Include(m => m.MovieCollection)
-                .ToListAsync();
-
-            // Sammlungen nur einmal aufnehmen
-            var collectionIds = movies
-                .Where(m => m.MovieCollectionId != null)
-                .Select(m => m.MovieCollectionId.Value)
-                .Distinct()
-                .ToList();
-
-            var collections = await DbContext.MovieCollections.Include(c => c.Movies)
-                .Where(mc => collectionIds.Contains(mc.Id) &&
-                             DbContext.MediaSourceUsers.Any(msu => msu.MediaSourceId == mc.MediaSourceId && msu.UserId == userId))
-                .ToListAsync();
-
-            entries.AddRange(collections.Select(c =>
+    private async Task ExpireAsync()
+    {
+        if (disposed) return;
+        try
+        {
+            await InvokeAsync(() =>
             {
-                if (c.Movies.Count == 1)
-                    return c.Movies.First() as MediaBaseEntry;
-                return c;
-            }));
-
-            // Einzelne Filme ohne Sammlung
-            var singleMovies = movies
-                .Where(m => m.MovieCollectionId == null)
-                .ToList();
-
-            entries.AddRange(singleMovies);
-
-            // Serien wie gehabt
-            var showIds = await DbContext.TVShowGenres
-                .Where(tg => tg.GenreId == genre.Id)
-                .Select(tg => tg.TVShowId)
-                .ToListAsync();
-
-            var shows = await DbContext.TVShows
-                .Where(s => showIds.Contains(s.Id) &&
-                            DbContext.MediaSourceUsers.Any(msu => msu.MediaSourceId == s.MediaSourceId && msu.UserId == userId))
-                .ToListAsync();
-
-            entries.AddRange(shows);
-
-            mediaEntriesByGenre[genre.Id] = entries
-                .OrderByDescending(e => e.EndedAt)
-                .ThenByDescending(e => e.ReleaseDate)
-                .ThenByDescending(e => e.PremieredAt)
-                .ThenByDescending(e => e.CreatedAt)
-                .ThenBy(e => e.Name)
-                .ToList();
+                if (disposed) return;
+                RemoveExpiredAndSchedule();
+                StateHasChanged();
+            });
         }
+        catch (ObjectDisposedException) when (disposed) { }
+    }
 
-        if (!string.IsNullOrWhiteSpace(userId))
-        {
-            var movieIds = mediaEntriesByGenre.Values
-                .SelectMany(x => x)
-                .OfType<Movie>()
-                .Select(x => x.Id)
-                .Distinct()
-                .ToArray();
+    private string GetImageUrl(DtoMediaEntry entry)
+    {
+        var picture = entry.PosterPictureId ?? entry.BannerPictureId ?? entry.FanartPictureId;
+        return picture.HasValue ? $"/api/pictures/{picture}?access_token={authToken}" : "/images/placeholder.png";
+    }
 
-            watchedAtByEntryKey = await DbContext.WatchedEntries
-                .AsNoTracking()
-                .Where(x => x.UserId == userId && x.MovieId.HasValue && movieIds.Contains(x.MovieId.Value))
-                .ToDictionaryAsync(x => $"{nameof(Movie)}:{x.MovieId!.Value}", x => x.WatchedAt);
-        }
+    private static string GetLinkUrl(DtoMediaEntry entry) => entry switch
+    {
+        DtoMovie => $"/movie/{entry.Id}",
+        DtoMovieCollection => $"/moviecollection/{entry.Id}",
+        DtoTVShow => $"/tvshow/{entry.Id}",
+        _ => throw new InvalidOperationException("Unsupported seasonal media type.")
+    };
+
+    public void Dispose()
+    {
+        disposed = true;
+        expiryTimer?.Dispose();
     }
 }

@@ -35,7 +35,17 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         nameof(ApplicationDbContext.PlaylistBackfillMarkers),
         nameof(ApplicationDbContext.PairedDevices),
         nameof(ApplicationDbContext.PairingCodes),
-        nameof(ApplicationDbContext.RefreshTokens)
+        nameof(ApplicationDbContext.RefreshTokens),
+        nameof(ApplicationDbContext.TVChannels),
+        nameof(ApplicationDbContext.ProgramRules),
+        nameof(ApplicationDbContext.ProgramSlots),
+        nameof(ApplicationDbContext.ProgramRuleCursors),
+        nameof(ApplicationDbContext.ProgramRuleGenres),
+        nameof(ApplicationDbContext.ProgramRuleMediaSources),
+        nameof(ApplicationDbContext.TvSenderUserAccess),
+        nameof(ApplicationDbContext.ProgramClipGroups),
+        nameof(ApplicationDbContext.ProgramClipGroupItems),
+        nameof(ApplicationDbContext.ProgramRuleClipGroups)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -69,10 +79,50 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.PlaylistId)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.PlaylistBackfillLastSweepAt)}",
         $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.SourceType)}",
+        $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.HiddenInMenu)}",
         $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.Kind)}",
         $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.TicketHash)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.MdnsAdvertisementEnabled)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.DiscoveryPublicBaseUrl)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.DiscoveryPublicBaseUrl)}",
+        $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.Duration)}",
+        $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.DurationProbedAt)}",
+        $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.DurationProbeAttempts)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.HolidayFederalState)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleHorizonHours)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleIntervalMinutes)}",
+        $"{nameof(ApplicationDbContext.ProgramSlots)}.{nameof(ProgramSlot.Status)}",
+        $"{nameof(ApplicationDbContext.ProgramSlots)}.{nameof(ProgramSlot.IsClipFill)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentLengthSeconds)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentDirectory)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentRetentionMinutes)}",
+        $"{nameof(ApplicationDbContext.MovieMediaItems)}.{nameof(MovieMediaItem.IsTrailer)}",
+        $"{nameof(ApplicationDbContext.ProgramRuleCursors)}.{nameof(ProgramRuleCursor.StrandKey)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.TvSenderEnabled)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.PlaceholderGrace)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.AgeRating)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.AgeRatingRaw)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.AgeRatingMinAge)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.AgeRatingClassifiedAt)}",
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRating)}",
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingRaw)}",
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingMinAge)}",
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.AgeRatingClassifiedAt)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamStandbyMediaItemId)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleContentScope)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindow12Local)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindow16Local)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindow18Local)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleAgeWindowNightEndLocal)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleUnknownRatingMode)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidityMode)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidFrom)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidTo)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidFromDay)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidToDay)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidWeekdays)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidHolidayAnchor)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidHolidayBeforeDays)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidHolidayAfterDays)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -95,7 +145,11 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.GenresManuallyOverridden), false),
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.CoverPictureIsUserUploaded), false),
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.IsPublic), false),
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.MdnsAdvertisementEnabled), true)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.MdnsAdvertisementEnabled), true),
+        (nameof(ApplicationDbContext.MovieMediaItems), nameof(MovieMediaItem.IsTrailer), false),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.TvSenderEnabled), false),
+        (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.HiddenInMenu), false),
+        (nameof(ApplicationDbContext.ProgramSlots), nameof(ProgramSlot.IsClipFill), false)
     };
 
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =
@@ -108,7 +162,29 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ContinueWatchingEndThresholdSeconds), 30),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50),
         (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.SourceType), (int)MediaSourceType.Sftp),
-        (nameof(ApplicationDbContext.PairingCodes), nameof(PairingCode.Kind), (int)PairingCodeKind.AdminCode)
+        (nameof(ApplicationDbContext.PairingCodes), nameof(PairingCode.Kind), (int)PairingCodeKind.AdminCode),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleHorizonHours), 48),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleIntervalMinutes), 15),
+        (nameof(ApplicationDbContext.ProgramSlots), nameof(ProgramSlot.Status), (int)ProgramSlotStatus.Scheduled),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentLengthSeconds), 6),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentRetentionMinutes), 30),
+        (nameof(ApplicationDbContext.MediaItems), nameof(MediaItem.DurationProbeAttempts), 0),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleContentScope), (int)ProgramScheduleContentScope.SharedOnly),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleUnknownRatingMode), (int)ProgramScheduleUnknownRatingMode.RestrictToNightWindow),
+        (nameof(ApplicationDbContext.ProgramRules), nameof(ProgramRule.ValidityMode), (int)ProgramRuleValidityMode.Unrestricted)
+    };
+
+    private static readonly (string Table, string Column, TimeSpan DefaultValue)[] OptionalRestoreTimeSpanDefaults =
+    {
+        (nameof(ApplicationDbContext.ProgramRules), nameof(ProgramRule.PlaceholderGrace), ProgramRule.DefaultPlaceholderGrace)
+    };
+
+    private static readonly (string Table, string Column, TimeOnly DefaultValue)[] OptionalRestoreTimeOnlyDefaults =
+    {
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleAgeWindow12Local), new TimeOnly(20, 0)),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleAgeWindow16Local), new TimeOnly(22, 0)),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleAgeWindow18Local), new TimeOnly(23, 0)),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleAgeWindowNightEndLocal), new TimeOnly(6, 0))
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -278,7 +354,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
 
                 ReportRestoreProgress(table.Name, dataSetNumber, tables.Count, 0, 0, "Datenbestand wird gelesen.");
                 var tableData = await ReadTablePayloadAsync(tablePayload, openPayloadEntryAsync, cancellationToken);
-                var rows = tableData.Rows ?? new List<Dictionary<string, JsonElement?>>();
+                var rows = DeduplicateNullStrandKeyCursorRows(table, tableData.Rows ?? new List<Dictionary<string, JsonElement?>>());
                 ReportRestoreProgress(table.Name, dataSetNumber, tables.Count, 0, rows.Count, "Datenbestand wird wiederhergestellt.");
 
                 for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
@@ -427,6 +503,61 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         return await JsonSerializer.DeserializeAsync<TableDataPayload>(stream, JsonOptions, cancellationToken)
             ?? throw new InvalidDataException($"Entitätsdatei {table.EntryName} ist leer.");
     }
+
+    // Backups taken while the database still allowed several NULL-StrandKey cursor rows per
+    // rule are deduplicated instead of failing the whole restore on the filtered unique index:
+    // per ProgramRuleId the youngest row wins (highest UpdatedAt, ties by highest Id) — the
+    // same winner rule the data migration uses. Rows without or with a NULL StrandKey are the
+    // only candidates (covers both backups with "StrandKey": null and legacy backups lacking
+    // the column entirely); rows with a non-empty StrandKey pass through untouched, so a
+    // composite-index violation still rolls the restore back as before.
+    private List<Dictionary<string, JsonElement?>> DeduplicateNullStrandKeyCursorRows(
+        TableMetadata table,
+        List<Dictionary<string, JsonElement?>> rows)
+    {
+        if (!string.Equals(table.Name, nameof(ApplicationDbContext.ProgramRuleCursors), StringComparison.OrdinalIgnoreCase))
+            return rows;
+
+        var nullStrandGroups = new Dictionary<string, List<Dictionary<string, JsonElement?>>>(StringComparer.Ordinal);
+        var deduplicated = new List<Dictionary<string, JsonElement?>>(rows.Count);
+        foreach (var row in rows)
+        {
+            if (GetString(row, nameof(ProgramRuleCursor.StrandKey)) is not null
+                || GetString(row, nameof(ProgramRuleCursor.ProgramRuleId)) is not { } ruleId)
+            {
+                deduplicated.Add(row);
+                continue;
+            }
+
+            if (!nullStrandGroups.TryGetValue(ruleId, out var group))
+                nullStrandGroups[ruleId] = group = new List<Dictionary<string, JsonElement?>>();
+            group.Add(row);
+        }
+
+        foreach (var group in nullStrandGroups.Values)
+        {
+            deduplicated.Add(group
+                .OrderByDescending(row => GetRowUpdatedAt(row))
+                .ThenByDescending(row => GetRowId(row))
+                .First());
+        }
+
+        var discarded = rows.Count - deduplicated.Count;
+        if (discarded > 0)
+            _logger.LogInformation("Restore discarded {DiscardedCount} duplicate NULL-StrandKey ProgramRuleCursors row(s).", discarded);
+
+        return deduplicated;
+    }
+
+    private static DateTime GetRowUpdatedAt(Dictionary<string, JsonElement?> row)
+        => DateTime.TryParse(GetString(row, nameof(ProgramRuleCursor.UpdatedAt)), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var value)
+            ? value
+            : DateTime.MinValue;
+
+    private static long GetRowId(Dictionary<string, JsonElement?> row)
+        => long.TryParse(GetString(row, nameof(ProgramRuleCursor.Id)), CultureInfo.InvariantCulture, out var value)
+            ? value
+            : long.MinValue;
 
     private async Task<BackupValidationResult> ValidatePayloadAsync(
         DatabaseBackupIndex? payload,
@@ -879,44 +1010,33 @@ public sealed class VideoWebPlayerBackupData : IBackupData
             row["ApplicationTitle"] = JsonSerializer.SerializeToElement("Martins Videosammlung", JsonOptions);
         }
 
-        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreBoolDefaults)
+        void InjectDefault(string tableName, string columnName, object defaultValue)
         {
             if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
                 || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)
                 || !table.Columns.Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
             {
-                continue;
+                return;
             }
 
             insertColumns.Add(columnName);
             row[columnName] = JsonSerializer.SerializeToElement(defaultValue, JsonOptions);
         }
+
+        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreBoolDefaults)
+            InjectDefault(tableName, columnName, defaultValue);
 
         foreach (var (tableName, columnName, defaultValue) in OptionalRestoreLongDefaults)
-        {
-            if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
-                || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)
-                || !table.Columns.Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
-
-            insertColumns.Add(columnName);
-            row[columnName] = JsonSerializer.SerializeToElement(defaultValue, JsonOptions);
-        }
+            InjectDefault(tableName, columnName, defaultValue);
 
         foreach (var (tableName, columnName, defaultValue) in OptionalRestoreIntDefaults)
-        {
-            if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
-                || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)
-                || !table.Columns.Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
+            InjectDefault(tableName, columnName, defaultValue);
 
-            insertColumns.Add(columnName);
-            row[columnName] = JsonSerializer.SerializeToElement(defaultValue, JsonOptions);
-        }
+        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreTimeSpanDefaults)
+            InjectDefault(tableName, columnName, defaultValue);
+
+        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreTimeOnlyDefaults)
+            InjectDefault(tableName, columnName, defaultValue.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture));
 
         return insertColumns;
     }

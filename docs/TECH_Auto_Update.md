@@ -114,6 +114,20 @@ des Hosts überlebt; schlägt der entkoppelte Start fehl, meldet die Installatio
 Schritt nach `Updates/update.log`; nach einem Fehlschlag liegt zusätzlich eine Archivkopie des
 ausgeführten Skripts als `update-failed.ps1` vor.
 
+**Update-Installation unter Linux (systemd):** Das Installationsskript läuft als transienter
+systemd-Service (`systemd-run`, ohne `--wait`): Der Starter-Prozess ist kurzlebig und endet bereits
+nach der Registrierung der Unit — die Unit läuft losgelöst weiter und überlebt damit den
+`StopHostAfterScriptStart`-Shutdown des Hosts. `MonitorStarterAsync` überwacht nur den Exit-Code des
+Starters, also ob die Unit registriert werden konnte, und meldet Starter-Fehler als fehlgeschlagene
+Installation; anders als `MonitorAsync` auf dem Windows-Pfad berührt die Überwachung weder
+Installations-Lock noch persistierten Paket-Deskriptor — beide räumt das Installationsskript am Ende
+selbst auf. Schlägt das Skript fehl, legt ein Cleanup-Trap einen `update.failed`-Marker im
+Update-Verzeichnis an, den die Status-Überwachung beim nächsten Lauf als fehlgeschlagene Installation
+einordnet. Solange der Status `Installing` ist und der Installationsbeginn jünger als
+`HealthTimeoutSeconds` liegt, gilt die Installation als laufend (Karenzfenster) — es erfolgt weder
+ein Workspace-Cleanup noch ein Fehlverdikt. Auch das Linux-Skript protokolliert jeden Schritt nach
+`Updates/update.log`.
+
 **Dateierhalt bei Updates:** Die Schutzliste `AutoUpdate:ProtectedFiles` steuert, welche deployment-seitig
 angepassten Dateien eine Update-Installation überstehen. Das generierte Installationsskript arbeitet strikt
 in der Reihenfolge *Sicherung → Paketkopiervorgang → Merge/Restore*: Jede Trefferdatei wird vor dem
@@ -196,7 +210,13 @@ Artefakte:
 
 - `release-metadata.json` – liegt in jedem Release-Archiv und beschreibt die installierte Version
   (`version`, `publishedAt`, `commitSha`, `repository`, `runtimeIdentifier`). Ohne diese Datei kann der Updater
-  die installierte Version nicht ermitteln und lädt kein Update.
+  die installierte Version nicht ermitteln und lädt kein Update. Installationspakete ohne eigene
+  `release-metadata.json` sind kein harter Fehler mehr: Das Installationsskript generiert dann eine
+  Ersatzdatei aus dem Paket-Deskriptor, sodass die installierte Version verifizierbar bleibt. Läuft das
+  Skript fehlerfrei durch, kann die installierte Version aber trotzdem nicht ermittelt werden, wird die
+  Installation mit dem Fehlercode `InstallationVerificationInconclusive` quittiert statt als stiller
+  Erfolg zu gelten; der persistierte Paket-Deskriptor wird dabei verworfen, damit kein erneuter
+  Installationsversuch in Endlosschleife startet.
 - `update.json` – Release-Manifest-Asset, erzeugt von `.github/scripts/create-update-manifest.sh`, mit
   Plattform, Runtime-Identifier, Asset-URL, SHA256 und Größe der beiden Release-Archive.
 

@@ -203,6 +203,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long>("MediaItemId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsTrailer")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("MovieId", "MediaItemId");
 
                     b.HasIndex("MediaItemId");
@@ -273,6 +276,21 @@ namespace VideoWebPlayer.Migrations
                     b.Property<bool>("GenresChanged")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("HolidayFederalState")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LiveStreamSegmentDirectory")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LiveStreamSegmentLengthSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LiveStreamSegmentRetentionMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LiveStreamStandbyMediaItemId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("MdnsAdvertisementEnabled")
                         .HasColumnType("INTEGER");
 
@@ -282,7 +300,34 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime?>("PlaylistBackfillLastSweepAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<TimeOnly>("ProgramScheduleAgeWindow12Local")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeOnly>("ProgramScheduleAgeWindow16Local")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeOnly>("ProgramScheduleAgeWindow18Local")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeOnly>("ProgramScheduleAgeWindowNightEndLocal")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ProgramScheduleContentScope")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ProgramScheduleHorizonHours")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ProgramScheduleIntervalMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ProgramScheduleUnknownRatingMode")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("ScanProcessIntervalMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("TvSenderEnabled")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
@@ -705,6 +750,15 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<TimeSpan?>("Duration")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DurationProbeAttempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("DurationProbedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("MediaCollectionId")
                         .HasColumnType("INTEGER");
 
@@ -717,6 +771,8 @@ namespace VideoWebPlayer.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DurationProbedAt");
 
                     b.HasIndex("MediaCollectionId");
 
@@ -737,6 +793,9 @@ namespace VideoWebPlayer.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("HiddenInMenu")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Host")
                         .IsRequired()
@@ -801,6 +860,18 @@ namespace VideoWebPlayer.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("ActorsClassifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AgeRating")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AgeRatingClassifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("AgeRatingMinAge")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AgeRatingRaw")
                         .HasColumnType("TEXT");
 
                     b.Property<long?>("BannerPictureId")
@@ -1274,6 +1345,279 @@ namespace VideoWebPlayer.Migrations
                     b.ToTable("PlaylistGenres");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramClipGroup", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsSystem")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("ProgramClipGroups");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramClipGroupItem", b =>
+                {
+                    b.Property<long>("ProgramClipGroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("MediaItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProgramClipGroupId", "MediaItemId");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.ToTable("ProgramClipGroupItems");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRule", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DayOfWeek")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("EpisodeCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<long>("MaterialId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaterialType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<TimeSpan>("PlaceholderGrace")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue(new TimeSpan(0, 0, 15, 0, 0));
+
+                    b.Property<int>("Priority")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("Recurrence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RuleType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("SingleDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeSpan?>("SlotDuration")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("TVChannelId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<TimeOnly>("TimeOfDay")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("ValidFrom")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ValidFromDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ValidHolidayAfterDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ValidHolidayAnchor")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ValidHolidayBeforeDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("ValidTo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ValidToDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ValidWeekdays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ValidityMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TVChannelId");
+
+                    b.HasIndex("TVChannelId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("ProgramRules");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleClipGroup", b =>
+                {
+                    b.Property<long>("ProgramRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ProgramClipGroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProgramRuleId", "ProgramClipGroupId");
+
+                    b.HasIndex("ProgramClipGroupId");
+
+                    b.ToTable("ProgramRuleClipGroups");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleCursor", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("LastContentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LastContentType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ProgramRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StrandKey")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProgramRuleId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ProgramRuleCursors_ProgramRuleId_NullStrandKey")
+                        .HasFilter("[StrandKey] IS NULL");
+
+                    b.HasIndex("ProgramRuleId", "StrandKey")
+                        .IsUnique();
+
+                    b.ToTable("ProgramRuleCursors");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleGenre", b =>
+                {
+                    b.Property<long>("ProgramRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("GenreId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProgramRuleId", "GenreId");
+
+                    b.HasIndex("GenreId");
+
+                    b.ToTable("ProgramRuleGenres");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleMediaSource", b =>
+                {
+                    b.Property<long>("ProgramRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("MediaSourceId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProgramRuleId", "MediaSourceId");
+
+                    b.HasIndex("MediaSourceId");
+
+                    b.ToTable("ProgramRuleMediaSources");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramSlot", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("End")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsClipFill")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("MediaItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("MovieId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ProgramRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RuleType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("Start")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("TVChannelId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("TVShowEpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TVChannelId", "Start");
+
+                    b.ToTable("ProgramSlots");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
@@ -1318,11 +1662,46 @@ namespace VideoWebPlayer.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.TVChannel", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TVChannels");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.TVShow", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("AgeRating")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AgeRatingClassifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("AgeRatingMinAge")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AgeRatingRaw")
+                        .HasColumnType("TEXT");
 
                     b.Property<long?>("BannerPictureId")
                         .HasColumnType("INTEGER");
@@ -1559,6 +1938,16 @@ namespace VideoWebPlayer.Migrations
                     b.HasIndex("TVShowId");
 
                     b.ToTable("TVShowSeasons");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.TvSenderUserAccess", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("TvSenderUserAccess");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.UnlockedMediaEntry", b =>
@@ -2048,6 +2437,115 @@ namespace VideoWebPlayer.Migrations
                     b.Navigation("Playlist");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramClipGroupItem", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.MediaItem", "MediaItem")
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.ProgramClipGroup", "ProgramClipGroup")
+                        .WithMany()
+                        .HasForeignKey("ProgramClipGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaItem");
+
+                    b.Navigation("ProgramClipGroup");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRule", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.TVChannel", "TVChannel")
+                        .WithMany("ProgramRules")
+                        .HasForeignKey("TVChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TVChannel");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleClipGroup", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.ProgramClipGroup", "ClipGroup")
+                        .WithMany()
+                        .HasForeignKey("ProgramClipGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.ProgramRule", "ProgramRule")
+                        .WithMany("ClipGroups")
+                        .HasForeignKey("ProgramRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClipGroup");
+
+                    b.Navigation("ProgramRule");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleCursor", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.ProgramRule", "ProgramRule")
+                        .WithMany()
+                        .HasForeignKey("ProgramRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProgramRule");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleGenre", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.Genre", "Genre")
+                        .WithMany()
+                        .HasForeignKey("GenreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.ProgramRule", "ProgramRule")
+                        .WithMany("Genres")
+                        .HasForeignKey("ProgramRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Genre");
+
+                    b.Navigation("ProgramRule");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleMediaSource", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.MediaSource", "MediaSource")
+                        .WithMany()
+                        .HasForeignKey("MediaSourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.ProgramRule", "ProgramRule")
+                        .WithMany("MediaSourceFilters")
+                        .HasForeignKey("ProgramRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaSource");
+
+                    b.Navigation("ProgramRule");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramSlot", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.TVChannel", "TVChannel")
+                        .WithMany()
+                        .HasForeignKey("TVChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TVChannel");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.TVShow", b =>
                 {
                     b.HasOne("VideoWebPlayer.Data.Picture", "BannerPicture")
@@ -2152,6 +2650,17 @@ namespace VideoWebPlayer.Migrations
                     b.Navigation("TVShow");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.TvSenderUserAccess", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.UnlockedMediaEntry", b =>
                 {
                     b.HasOne("VideoWebPlayer.Data.ApplicationUser", "User")
@@ -2235,6 +2744,20 @@ namespace VideoWebPlayer.Migrations
             modelBuilder.Entity("VideoWebPlayer.Data.Playlist", b =>
                 {
                     b.Navigation("PlaylistEntries");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRule", b =>
+                {
+                    b.Navigation("ClipGroups");
+
+                    b.Navigation("Genres");
+
+                    b.Navigation("MediaSourceFilters");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.TVChannel", b =>
+                {
+                    b.Navigation("ProgramRules");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.TVShow", b =>

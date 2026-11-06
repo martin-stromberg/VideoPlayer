@@ -523,6 +523,536 @@ input[type="text"]:focus {
     gap: 0.35rem;
 }
 
+/* TV-Sender: Mehrfachauswahl (Genres / Quell-Filter) im Regel-Dialog */
+.rule-multi-select {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.rule-multi-select .form-check {
+    margin-bottom: 0;
+}
+
+/* ---------- TV-Sender: Tab-Struktur (N14) ---------- */
+.admin-tabs {
+    display: flex;
+    gap: 0.35rem;
+    margin-bottom: 1.25rem;
+    padding: 0.35rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+    flex-wrap: wrap;
+}
+
+.admin-tab {
+    flex: 1 1 auto;
+    min-width: 8rem;
+    padding: 0.6rem 1rem;
+    border: 1px solid transparent;
+    border-radius: var(--vp-radius-sm);
+    background: transparent;
+    color: var(--admin-muted);
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-align: center;
+}
+
+.admin-tab:hover {
+    color: var(--admin-text);
+    background: var(--admin-surface-high);
+}
+
+.admin-tab.active {
+    color: #fff;
+    background: var(--admin-primary-strong);
+    border-color: var(--admin-primary-strong);
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+/* Regel-Editor als Overlay-Panel: breiter als die Standard-Dialoge, weil das Formular
+   deutlich mehr Felder enthaelt. Rahmen/Hintergrund/Scrollen kommen von .admin-dialog. */
+.rule-editor-dialog {
+    width: min(960px, 100%);
+}
+
+/* Kopfzeilen-Bereich fuer Status-Chips neben Titel/Zurueck */
+.admin-header-side {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.admin-card-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+/* Unterkarten innerhalb der Einstellungen (Sender / Planung / Segmentierung) */
+.admin-sub-card {
+    padding: 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+}
+
+.actions-cell {
+    white-space: nowrap;
+}
+
+.actions-cell .btn {
+    margin-right: 0.3rem;
+}
+
+/* ---------- TV-Sender/Live-TV: Programm-Karten (sendeplan-vorschau.html) ---------- */
+/* Gemeinsames Panel-Design fuer den Admin-Sendeplan (volle Karten) und die Live-TV-Vorschau
+   (.program-card.compact): Poster 2:3 links, Badge/Zeit/Titel/Unterzeile, geklemmte Beschreibung,
+   LIVE-Badge + Fortschrittsbalken beim laufenden Slot. Farben folgen den App-Tokens;
+   im Admin-Bereich gelten die --admin-*-Overrides weiter unten. */
+.program-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.program-card {
+    display: flex;
+    gap: 14px;
+    padding: 12px;
+    background: var(--vp-surface-low);
+    border: 1px solid var(--vp-border);
+    border-radius: 12px;
+    align-items: stretch;
+    transition: border-color .15s, transform .15s;
+}
+
+.program-card:hover {
+    border-color: var(--vp-secondary);
+    transform: translateY(-1px);
+}
+
+.program-poster {
+    width: 92px;
+    min-width: 92px;
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 2 / 3;
+    background: linear-gradient(145deg, var(--vp-surface-high), var(--vp-surface));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--vp-text-muted);
+    font-size: 11px;
+    text-align: center;
+    padding: 0;
+}
+
+.program-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.program-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+}
+
+.program-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.program-time {
+    font-size: 12px;
+    color: var(--vp-secondary-soft);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.program-title {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.program-sub {
+    font-size: 12px;
+    color: var(--vp-text-muted);
+}
+
+.program-desc {
+    font-size: 12.5px;
+    color: var(--vp-text-muted);
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 2px 0 0;
+}
+
+.program-badge {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+}
+
+.badge-live {
+    background: var(--vp-primary);
+    color: #fff;
+}
+
+.badge-genre {
+    background: rgba(0, 168, 232, .14);
+    color: var(--vp-secondary-soft);
+}
+
+/* Laufender Slot: roter Rahmen + Fortschrittsbalken (Prototyp .slot-now/.now-card) */
+.slot-now,
+.now-card {
+    border-color: var(--vp-primary);
+}
+
+.progress-track {
+    height: 3px;
+    background: var(--vp-border);
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--vp-primary);
+    border-radius: 2px;
+}
+
+/* Kompaktvariante (Live-TV-Vorschau): kleineres Poster, 2-zeilige Beschreibung */
+.program-card.compact {
+    padding: 10px;
+    gap: 10px;
+}
+
+.program-card.compact .program-poster {
+    width: 56px;
+    min-width: 56px;
+}
+
+.program-card.compact .program-title {
+    font-size: 13px;
+}
+
+.program-card.compact .program-desc {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    font-size: 11.5px;
+}
+
+/* Admin-Bereich: gleiche Karten, aber --admin-*-Oberflaechen */
+.admin-console .program-card {
+    background: var(--admin-surface);
+    border-color: var(--admin-border);
+}
+
+.admin-console .program-card:hover {
+    border-color: var(--admin-primary-strong);
+}
+
+.admin-console .program-poster {
+    background: linear-gradient(145deg, var(--admin-surface-high), var(--admin-surface-low));
+    color: var(--admin-muted);
+}
+
+.admin-console .program-time {
+    color: var(--admin-primary);
+}
+
+.admin-console .program-sub,
+.admin-console .program-desc {
+    color: var(--admin-muted);
+}
+
+.admin-console .badge-genre {
+    background: rgba(173, 198, 255, .12);
+    color: var(--admin-primary);
+}
+
+.admin-console .progress-track {
+    background: var(--admin-border);
+}
+
+/* Sendeplan-Gliederung (N27): Tages-Header trennen Kalendertage, die gestrichelte
+   Trennlinie markiert den Blockwechsel je Programmregel innerhalb eines Tages. */
+.admin-console .tvsender-day-header {
+    margin-top: 0.6rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--admin-border);
+    color: var(--admin-primary);
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.admin-console .tvsender-day-header:first-child {
+    margin-top: 0;
+}
+
+/* Tages-Auswahlleiste (Issue #306): ein Klick waehlt den einzig sichtbaren Kalendertag
+   der Titelauflistung; Optik angelehnt an die .admin-tab-Leiste der Seite. */
+.admin-console .tvsender-day-bar {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+    padding: 0.35rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+}
+
+.admin-console .tvsender-day-btn {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid transparent;
+    border-radius: var(--vp-radius-sm);
+    background: transparent;
+    color: var(--admin-muted);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-align: center;
+}
+
+.admin-console .tvsender-day-btn:hover {
+    color: var(--admin-text);
+    background: var(--admin-surface-high);
+}
+
+.admin-console .tvsender-day-btn.active {
+    color: #fff;
+    background: var(--admin-primary-strong);
+    border-color: var(--admin-primary-strong);
+}
+
+.admin-console .tvsender-rule-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--admin-muted);
+    font-size: 0.8rem;
+}
+
+.admin-console .tvsender-rule-divider::before,
+.admin-console .tvsender-rule-divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px dashed var(--admin-border);
+}
+
+/* Verdraengte Sendeplaetze: durchgestrichen wie bisher (.tvsender-slot-displaced) */
+.admin-console .program-card.tvsender-slot-displaced .program-body {
+    color: var(--admin-muted);
+    text-decoration: line-through;
+}
+
+.admin-console .program-card.tvsender-slot-displaced .program-badges,
+.admin-console .program-card.tvsender-slot-displaced .program-time {
+    text-decoration: none;
+}
+
+/* Platzhalter-Clip-Block: Detail-Button rechtsbuendig in der Badge-Zeile */
+.admin-console .tvsender-clip-block-toggle {
+    margin-left: auto;
+}
+
+/* Detailansicht der Block-Clips im Overlay-Dialog: Zeit, Dauer, Titel je Zeile */
+.tvsender-clip-block-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-bottom: 0.75rem;
+}
+
+.tvsender-clip-block-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.35rem 0.25rem;
+    border-bottom: 1px solid var(--admin-border);
+    font-size: 0.85rem;
+}
+
+.tvsender-clip-block-row:last-child {
+    border-bottom: none;
+}
+
+.tvsender-clip-block-head {
+    color: var(--admin-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom-color: var(--admin-primary);
+}
+
+.tvsender-clip-block-head .tvsender-clip-block-time {
+    color: var(--admin-muted);
+    font-weight: 600;
+}
+
+.tvsender-clip-block-time {
+    color: var(--admin-primary);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 3rem;
+}
+
+.tvsender-clip-block-duration {
+    color: var(--admin-muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 3rem;
+}
+
+.tvsender-clip-block-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Regel-Uebersicht: ein Panel je Programmregel — Status-/Prioritaets-Chips vor dem
+   Namen, Symbolbuttons rechts, gedaempfte Meta-Zeilen darunter. Vertikaler Stack
+   uebernimmt .program-grid; Form nach Vorbild .program-card/.backup-list-item. */
+.admin-console .rule-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    background: var(--admin-surface-low);
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+}
+
+.admin-console .rule-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.admin-console .rule-panel-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.admin-console .rule-panel-name {
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-console .rule-panel-meta {
+    color: var(--admin-muted);
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+.admin-console .rule-panel-material {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-console .rule-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* ---------- TV-Sender: Probe-Detail-Listen (N13) ---------- */
+.probe-counts {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+}
+
+.chip-detail-btn {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 0.7rem;
+    cursor: pointer;
+    padding: 0 0.1rem;
+    opacity: 0.85;
+}
+
+.chip-detail-btn:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
+.probe-detail {
+    margin: 0.6rem 0;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+}
+
+.probe-detail summary {
+    padding: 0.5rem 0.8rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--admin-muted);
+}
+
+.probe-detail summary:hover {
+    color: var(--admin-text);
+}
+
+.probe-detail .table-wrap-inner {
+    padding: 0 0.6rem 0.6rem;
+}
+
 .admin-table-wrap {
     overflow-x: auto;
     border: 1px solid var(--admin-border);
@@ -1252,6 +1782,16 @@ input[type="text"]:focus {
     font-weight: 700;
 }
 
+.agerating-badge {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 0 0.4em;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
 .collection-plot,
 .tvshow-plot {
     max-width: 760px;
@@ -1708,6 +2248,55 @@ input[type="text"]:focus {
     background: rgba(18, 18, 18, 0.72);
     color: #fff;
     cursor: pointer;
+}
+
+/* Titelleiste des Players: liegt nur bei Playlist-Wiedergabe vor und nimmt den
+   Playlist-Badge links sowie die rechtsbuendigen Playlist-Navigationsschaltflaechen
+   auf. Der rechte Innenabstand laesst den absolut positionierten Schliessen-Button
+   (42px bei right: 0.75rem) frei. */
+.player-title-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 4.25rem 0.6rem 1rem;
+    background: rgba(18, 18, 18, 0.55);
+    border-bottom: 1px solid var(--vp-border);
+}
+
+.playlist-playback-badge {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--vp-primary-soft);
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.playlist-playback-controls {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.playlist-nav-btn {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(18, 18, 18, 0.64);
+    color: var(--vp-primary-soft);
+    cursor: pointer;
+    backdrop-filter: blur(16px);
+}
+
+.playlist-nav-btn:hover {
+    background: rgba(229, 9, 20, 0.26);
 }
 
 .player-progress-rail {

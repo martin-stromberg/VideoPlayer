@@ -188,15 +188,32 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
     }
 
     /// <summary>
+    /// Grants the given user per-user access to the automated TV channel (N28) — the row an
+    /// administrator would create via Einrichtung → Allgemein.
+    /// </summary>
+    /// <param name="userId">The id of the user to release the TV channel for.</param>
+    protected async Task GrantTvSenderAccessAsync(string userId)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = userId });
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
     /// Creates a user, pairs a device for them via the QR bootstrap and returns both.
     /// </summary>
     /// <param name="email">The user's email address.</param>
     /// <param name="isAdmin">Whether the user is an administrator.</param>
+    /// <param name="grantsTvAccess">Whether the user is also released for the TV channel (N28).</param>
     /// <returns>The created user and the decrypted bootstrap payload.</returns>
     /// <!-- Tupel-Elemente: User, Payload -->
-    protected async Task<(ApplicationUser User, PairingBootstrapPayload Payload)> CreateUserAndPairDeviceAsync(string email, bool isAdmin = false)
+    protected async Task<(ApplicationUser User, PairingBootstrapPayload Payload)> CreateUserAndPairDeviceAsync(
+        string email, bool isAdmin = false, bool grantsTvAccess = false)
     {
         var user = await CreateUserAsync(email, isAdmin);
+        if (grantsTvAccess)
+            await GrantTvSenderAccessAsync(user.Id);
         var ticket = await CreateBootstrapTicketAsync(user.Id);
         var payload = await PairDeviceAsync(ticket);
         return (user, payload);

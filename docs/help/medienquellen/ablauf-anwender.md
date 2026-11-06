@@ -28,7 +28,7 @@ Wählen Sie im Feld `Quelltyp` zwischen `SFTP-Server` und `Lokales Verzeichnis`.
 - Bei `SFTP-Server`: `Name`, `Host`, `Port`, `Pfad`, `Benutzername` und `Passwort` ausfüllen.
 - Bei `Lokales Verzeichnis`: `Name` vergeben und unter `Lokales Verzeichnis` den Verzeichnispfad auf dem Server eintragen, z. B. `D:\Videos` oder `\\server\share`. Die Felder für Host, Port und Zugangsdaten entfallen.
 
-Optional können Sie ein `Icon-Bild` hochladen und unter `Freigegebene Benutzer` die Benutzer auswählen, die die Quelle sehen dürfen.
+Optional können Sie ein `Icon-Bild` hochladen, über `Im Menü ausblenden` den Menüeintrag der Quelle für alle Benutzer unterdrücken (gedacht für reine Clip-/Füller-Quellen) und unter `Freigegebene Benutzer` die Benutzer auswählen, die die Quelle sehen dürfen.
 
 ### 5. Speichern
 
@@ -36,7 +36,7 @@ Klicken Sie auf `Anlegen`. Bei einer lokalen Quelle wird der Pfad dabei geprüft
 
 ### 6. Einlesen anstoßen oder abwarten
 
-Die Inhalte der neuen Quelle werden automatisch im Scan-Intervall eingelesen. Für ein sofortiges Einlesen klicken Sie in der Übersicht auf `Komplettscan aller Quellen`.
+Die Inhalte der neuen Quelle werden automatisch im Scan-Intervall eingelesen. Für ein sofortiges Einlesen klicken Sie in der Übersicht auf `Komplettscan aller Quellen`. Während des Laufs steht dort `Läuft…`; danach erscheint die Meldung `Komplettscan abgeschlossen.` mit der Anzahl der gescannten Collections und der neu gefundenen Videos.
 
 ## Ergebnis
 

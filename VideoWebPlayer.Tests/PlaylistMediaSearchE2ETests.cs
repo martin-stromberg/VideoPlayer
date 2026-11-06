@@ -110,8 +110,13 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
-        await Page.FillAsync(".media-search-input", "Nicht Zugreifbarer Film");
-        await Page.WaitForTimeoutAsync(1000);
+        // Wie in Search_NoMatches_ShowsEmptyResultsMessage: das Eintippen wird wiederholt,
+        // bis die Leere-Meldung da ist — ein während der Circuit-Übergabe verlorener Input
+        // kommt durch Warten allein nie zurück.
+        await DriveUntilStateAsync(
+            () => Page.FillAsync(".media-search-input", "Nicht Zugreifbarer Film",
+                new PageFillOptions { Timeout = 10_000 }),
+            () => Page.Locator(".media-search-empty").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
 
         await Expect(Page.Locator(".media-search-result")).ToHaveCountAsync(0);
         await Expect(Page.Locator(".media-search-empty")).ToBeVisibleAsync();
@@ -128,10 +133,13 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
-        await Page.FillAsync(".media-search-input", "Ein-Suchbegriff-Der-Garantiert-Nichts-Findet");
-        await Page.WaitForTimeoutAsync(1000);
-
-        await Expect(Page.Locator(".media-search-empty")).ToBeVisibleAsync();
+        // Wie SelectSearchResultAsync: das Eintippen wird wiederholt, bis die Leere-Meldung
+        // da ist — ein während der Circuit-Übergabe verlorener Input kommt durch Warten
+        // allein nie zurück (flaky im Gesamtlauf beobachtet).
+        await DriveUntilStateAsync(
+            () => Page.FillAsync(".media-search-input", "Ein-Suchbegriff-Der-Garantiert-Nichts-Findet",
+                new PageFillOptions { Timeout = 10_000 }),
+            () => Page.Locator(".media-search-empty").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
     }
 
     [Fact]
@@ -171,8 +179,14 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
-        await Page.FillAsync(".media-search-input", "Fuenftypen");
-        await Page.WaitForTimeoutAsync(1000);
+        // Wie in Search_NoMatches_ShowsEmptyResultsMessage: das Eintippen wird wiederholt,
+        // bis das erste Ergebnis da ist — ein während der Circuit-Übergabe verlorener Input
+        // kommt durch Warten allein nie zurück.
+        await DriveUntilStateAsync(
+            () => Page.FillAsync(".media-search-input", "Fuenftypen",
+                new PageFillOptions { Timeout = 10_000 }),
+            () => Page.Locator($".media-search-result[data-media-type='Movie'][data-media-id='{movieId}']")
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
 
         await Expect(Page.Locator($".media-search-result[data-media-type='Movie'][data-media-id='{movieId}']")).ToBeVisibleAsync();
         await Expect(Page.Locator($".media-search-result[data-media-type='MovieCollection'][data-media-id='{collectionId}']")).ToBeVisibleAsync();

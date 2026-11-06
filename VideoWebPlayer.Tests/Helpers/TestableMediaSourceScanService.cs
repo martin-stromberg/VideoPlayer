@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.SignalR;
 using VideoWebPlayer.Services;
@@ -15,7 +16,7 @@ public sealed class TestableMediaSourceScanService : MediaSourceScanService
         TimeSpan? loopDelay,
         bool skipUpgrade,
         TimeProvider? timeProvider)
-        : base(serviceProvider, eventManager, CreateNullNotificationService(), logger, initialDelay, loopDelay, skipUpgrade, timeProvider)
+        : base(serviceProvider, eventManager, serviceProvider.GetRequiredService<MediaUpdateNotificationService>(), logger, initialDelay, loopDelay, skipUpgrade, timeProvider)
     {
     }
 
@@ -24,7 +25,12 @@ public sealed class TestableMediaSourceScanService : MediaSourceScanService
         return ExecuteAsync(stoppingToken);
     }
 
-    private static MediaUpdateNotificationService CreateNullNotificationService()
+    /// <summary>
+    /// Erzeugt einen <see cref="MediaUpdateNotificationService"/> mit einem Null-Hub, damit
+    /// Benachrichtigungen in Tests ohne echten SignalR-Hub laufen.
+    /// </summary>
+    /// <returns>Eine Instanz, die SignalR-Aufrufe ins Leere laufen lässt.</returns>
+    public static MediaUpdateNotificationService CreateNullNotificationService()
     {
         var hubContext = new NullHubContext();
         var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<MediaUpdateNotificationService>.Instance;

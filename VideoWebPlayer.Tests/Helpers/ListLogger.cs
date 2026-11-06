@@ -13,11 +13,12 @@ public sealed class ListLogger<T> : ILogger<T>
     }
 
     /// <summary>
-    /// Aufgezeichnete Einträge inklusive Log-Level — für Assertions, bei denen
-    /// das Level mitgeprüft werden soll (<c>_messages</c> verwirft es).
+    /// Aufgezeichnete Einträge inklusive Log-Level und Ausnahme — für Assertions, bei denen
+    /// das Level bzw. das Mitloggen eines Ausnahmeobjekts (und damit eines Stacktraces)
+    /// mitgeprüft werden soll (<c>_messages</c> verwirft beides).
     /// </summary>
-    /// <value>Queue der protokollierten Einträge mit Level und Nachricht.</value>
-    public ConcurrentQueue<(LogLevel Level, string Message)> Entries { get; } = new();
+    /// <value>Queue der protokollierten Einträge mit Level, Nachricht und Ausnahme.</value>
+    public ConcurrentQueue<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = new();
 
     public IDisposable BeginScope<TState>(TState state) where TState : notnull
     {
@@ -43,7 +44,7 @@ public sealed class ListLogger<T> : ILogger<T>
         }
 
         _messages.Enqueue(message);
-        Entries.Enqueue((logLevel, message));
+        Entries.Enqueue((logLevel, message, exception));
     }
 
     private sealed class NullScope : IDisposable

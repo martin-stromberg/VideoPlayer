@@ -76,6 +76,8 @@ Sicherungen älterer Versionen bleiben wiederherstellbar: Tabellen und Spalten, 
 
 Wichtig dabei: Eine Sicherung aus der Zeit vor der Gerätekopplung enthält keine gekoppelten Geräte und keine Sitzungen. Nach dem Restore einer solchen Sicherung sind diese Tabellen deshalb leer — die Geräteliste ist leer, bereits gekoppelte Geräte und Client-Apps sind abgemeldet und müssen neu gekoppelt werden. Offene Pairing-Codes und Bootstrap-Tickets aus der alten Sicherung kommen ebenfalls nicht zurück. Das ist das gewünschte und sichere Verhalten: Geräte-Zugänge werden nicht aus einer alten Sicherung heraus wiederbelebt. Eine Sicherung der heutigen Version enthält die drei Tabellen dagegen vollständig und stellt gekoppelte Geräte und Sitzungen unverändert wieder her.
 
+Ebenso verträgt der Restore Sicherungen, in denen der TV-Sender noch mehrere Gesamt-Fortsetzungsstände je Programmregel enthalten konnte (`ProgramRuleCursors`-Zeilen ohne Strang-Schlüssel): Solche Duplikate werden beim Einspielen automatisch bereinigt — je Regel bleibt der zuletzt aktualisierte Stand erhalten, die übrigen Zeilen werden verworfen und ihre Anzahl protokolliert — statt die Wiederherstellung an ihnen scheitern zu lassen.
+
 Während des Restores werden schreibende Hintergrundprozesse in der Anwendung pausiert oder am Start neuer Schreiboperationen gehindert. Laufende Operationen werden abgewartet, bevor Daten gelöscht und aus dem Backup wiederhergestellt werden. Inhaltsseiten werden während der Wiederherstellung nicht regulär geladen. API-Anfragen auf Inhaltsdaten erhalten stattdessen eine Statusantwort mit Hinweis auf den laufenden Restore.
 
 ## Admin-Konto-Erhalt

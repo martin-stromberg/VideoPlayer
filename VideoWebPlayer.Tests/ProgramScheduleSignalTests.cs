@@ -1,18 +1,28 @@
+using Microsoft.Extensions.Options;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
 /// <summary>
 /// Tests for <see cref="ProgramScheduleSignal"/>: coalescing wake-up for the schedule worker,
-/// including scan suppression via <see cref="IProgramScheduleSignal.BeginScan"/>.
+/// including scan suppression via <see cref="IProgramScheduleSignal.BeginScan"/> and the batching
+/// window for scope-free <see cref="IProgramScheduleSignal.NotifyScheduleChanged"/> reports.
 /// </summary>
 public sealed class ProgramScheduleSignalTests
 {
+    private static ProgramScheduleSignal CreateImmediateSignal()
+        => new(Options.Create(new ProgramScheduleOptions { ScheduleChangedDebounceSeconds = 0 }));
+
+    private static ProgramScheduleSignal CreateBatchedSignal(ControllableTimeProvider timeProvider, int debounceSeconds = 5)
+        => new(Options.Create(new ProgramScheduleOptions { ScheduleChangedDebounceSeconds = debounceSeconds }), timeProvider);
+
     [Fact]
     public async Task Notify_WakesWaiter()
     {
-        var signal = new ProgramScheduleSignal();
+        var signal = CreateImmediateSignal();
         signal.NotifyScheduleChanged();
         var wait = signal.WaitAsync(TestContext.Current.CancellationToken).AsTask();
         Assert.True(await Task.WhenAny(wait, Task.Delay(2000, TestContext.Current.CancellationToken)) == wait);
@@ -21,7 +31,7 @@ public sealed class ProgramScheduleSignalTests
     [Fact]
     public async Task Notify_IsCoalesced()
     {
-        var signal = new ProgramScheduleSignal();
+        var signal = CreateImmediateSignal();
         signal.NotifyScheduleChanged();
         signal.NotifyScheduleChanged();
         await signal.WaitAsync(TestContext.Current.CancellationToken);
@@ -56,5 +66,231 @@ public sealed class ProgramScheduleSignalTests
         var wait = signal.WaitAsync(TestContext.Current.CancellationToken).AsTask();
         Assert.False(await Task.WhenAny(wait, Task.Delay(300, TestContext.Current.CancellationToken)) == wait,
             "A scan that suppressed no notification must not wake the worker on dispose.");
+    }
+
+    [Fact]
+    public async Task Notify_OutsideScan_WakesAfterDebounceWindow()
+    {
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        var wait = signal.WaitAsync(ct).AsTask();
+        Assert.False(await Task.WhenAny(wait, Task.Delay(200, ct)) == wait,
+            "A scope-free notification must not wake the worker before the batching window ends.");
+
+        timeProvider.TickTimers();
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
+            "The batched flush must wake the worker once the window elapsed.");
+    }
+
+    [Fact]
+    public async Task Notify_BurstWithinWindow_WakesOnce()
+    {
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        signal.NotifyScheduleChanged();
+        signal.NotifyScheduleChanged();
+        timeProvider.TickTimers();
+
+        await signal.WaitAsync(ct);
+        var second = signal.WaitAsync(ct).AsTask();
+        Assert.False(await Task.WhenAny(second, Task.Delay(200, ct)) == second,
+            "A burst inside one window must coalesce into a single wake.");
+    }
+
+    [Fact]
+    public async Task Notify_AfterWindowDelivery_StartsNewWindow()
+    {
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        timeProvider.TickTimers();
+        await signal.WaitAsync(ct);
+
+        signal.NotifyScheduleChanged();
+        var second = signal.WaitAsync(ct).AsTask();
+        Assert.False(await Task.WhenAny(second, Task.Delay(200, ct)) == second,
+            "A notification after a delivered batch opens a new window instead of waking at once.");
+
+        timeProvider.TickTimers();
+        Assert.True(await Task.WhenAny(second, Task.Delay(2000, ct)) == second,
+            "The new window must deliver the second notification at its end.");
+    }
+
+    [Fact]
+    public async Task Notify_BatchedWake_AlsoFeedsLiveChannel()
+    {
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        timeProvider.TickTimers();
+
+        var liveWait = signal.WaitLiveAsync(ct).AsTask();
+        Assert.True(await Task.WhenAny(liveWait, Task.Delay(2000, ct)) == liveWait,
+            "The batched delivery must feed the live channel as well.");
+        var second = signal.WaitLiveAsync(ct).AsTask();
+        Assert.False(await Task.WhenAny(second, Task.Delay(200, ct)) == second,
+            "The batched delivery must wake the live channel exactly once.");
+    }
+
+    [Fact]
+    public async Task NotifyScheduleChangedNow_WakesImmediately()
+    {
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChangedNow();
+        var wait = signal.WaitAsync(ct).AsTask();
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
+            "The immediate path must wake the worker without a timer tick.");
+    }
+
+    [Fact]
+    public async Task NotifyScheduleChangedNow_DuringScan_IsSuppressed()
+    {
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider);
+        var ct = TestContext.Current.CancellationToken;
+
+        Task wait;
+        using (signal.BeginScan())
+        {
+            signal.NotifyScheduleChangedNow();
+            wait = signal.WaitAsync(ct).AsTask();
+            Assert.False(await Task.WhenAny(wait, Task.Delay(200, ct)) == wait,
+                "The immediate path must stay suppressed while a scan is open.");
+        }
+
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
+            "The scan's end must wake the waiter once.");
+        var second = signal.WaitAsync(ct).AsTask();
+        Assert.False(await Task.WhenAny(second, Task.Delay(200, ct)) == second,
+            "The suppressed immediate report must coalesce into a single wake.");
+    }
+
+    [Fact]
+    public async Task NotifyScheduleChangedNow_ConsumesPendingBatch()
+    {
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        signal.NotifyScheduleChangedNow();
+        await signal.WaitAsync(ct);
+
+        timeProvider.TickTimers();
+        var second = signal.WaitAsync(ct).AsTask();
+        Assert.False(await Task.WhenAny(second, Task.Delay(300, ct)) == second,
+            "A batch consumed by the immediate path must not wake again when its window ends.");
+    }
+
+    [Fact]
+    public async Task PendingBatch_FlushedDuringScan_IsSuppressedUntilScanEnds()
+    {
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        var scope = signal.BeginScan();
+        timeProvider.TickTimers();
+        await Task.Delay(200, ct);
+
+        var wait = signal.WaitAsync(ct).AsTask();
+        Assert.False(await Task.WhenAny(wait, Task.Delay(200, ct)) == wait,
+            "A batch flushing into an open scan must not wake while the scan runs.");
+
+        scope.Dispose();
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
+            "The scan's end must wake the waiter once.");
+    }
+
+    [Fact]
+    public async Task EndScan_Wake_ConsumesPendingBatch_LateFlushDoesNotWake()
+    {
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        using (signal.BeginScan())
+        {
+            signal.NotifyScheduleChanged();
+        }
+
+        var wait = signal.WaitAsync(ct).AsTask();
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
+            "The scan's end must wake for the suppressed notification.");
+
+        timeProvider.TickTimers();
+        var second = signal.WaitAsync(ct).AsTask();
+        Assert.False(await Task.WhenAny(second, Task.Delay(300, ct)) == second,
+            "The late-running flush must not write a second wake after the batch was consumed.");
+    }
+
+    [Fact]
+    public async Task DebounceDisabled_DeliversImmediately()
+    {
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider, debounceSeconds: 0);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        var wait = signal.WaitAsync(ct).AsTask();
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
+            "ScheduleChangedDebounceSeconds = 0 must restore immediate delivery without a timer tick.");
+    }
+
+    [Fact]
+    public async Task DebounceAboveCap_IsClamped_AndStillDelivers()
+    {
+        var options = new ProgramScheduleOptions { ScheduleChangedDebounceSeconds = int.MaxValue };
+        Assert.Equal(TimeSpan.FromHours(1), options.EffectiveScheduleChangedDebounce);
+
+        var timeProvider = new ControllableTimeProvider();
+        var signal = CreateBatchedSignal(timeProvider, debounceSeconds: int.MaxValue);
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        timeProvider.TickTimers();
+        var wait = signal.WaitAsync(ct).AsTask();
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
+            "An absurdly large configured window must be clamped so the flush still delivers.");
+    }
+
+    [Fact]
+    public async Task FlushTimerFailure_DeliversImmediately_AndKeepsWorking()
+    {
+        var signal = new ProgramScheduleSignal(
+            Options.Create(new ProgramScheduleOptions { ScheduleChangedDebounceSeconds = 5 }),
+            new ThrowingTimeProvider());
+        var ct = TestContext.Current.CancellationToken;
+
+        signal.NotifyScheduleChanged();
+        var wait = signal.WaitAsync(ct).AsTask();
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, ct)) == wait,
+            "A failing window timer must not stall the batch — delivery falls back to immediate.");
+
+        signal.NotifyScheduleChanged();
+        var second = signal.WaitAsync(ct).AsTask();
+        Assert.True(await Task.WhenAny(second, Task.Delay(2000, ct)) == second,
+            "Later notifications must still be delivered after a flush failure.");
+    }
+
+    private sealed class ThrowingTimeProvider : TimeProvider
+    {
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+            => throw new InvalidOperationException("Timer creation failed.");
     }
 }

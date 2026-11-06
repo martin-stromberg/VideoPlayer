@@ -574,6 +574,10 @@ public class MediaDurationProbeServiceTests : IDisposable
     /// Seeds an SFTP media source with credentials (<c>nas.local:22</c>, <c>user</c>/<c>s3cret</c>),
     /// a collection at <paramref name="collectionPath"/> and one item at <paramref name="itemPath"/>.
     /// </summary>
+    /// <param name="name">The media item's file name.</param>
+    /// <param name="itemPath">The item's path inside the collection.</param>
+    /// <param name="collectionPath">The collection's path on the source.</param>
+    /// <returns>The seeded media item.</returns>
     private async Task<MediaItem> SeedSftpItemAsync(string name, string itemPath, string collectionPath = "/remote")
     {
         var db = _serviceProvider.GetRequiredService<ApplicationDbContext>();
@@ -712,6 +716,8 @@ public class MediaDurationProbeServiceTests : IDisposable
         public int NotifyCalls { get; private set; }
 
         public void NotifyScheduleChanged() => NotifyCalls++;
+
+        public void NotifyScheduleChangedNow() { }
 
         public void NotifyLiveScheduleChanged() { }
 

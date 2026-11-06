@@ -16,6 +16,7 @@ public sealed class ProgramScheduleOptions
     /// <summary>
     /// Gets the normalized lead window (values &lt;= 0 fall back to the 7-day default).
     /// </summary>
+    /// <returns>The normalized trailer lead window.</returns>
     public TimeSpan EffectiveTrailerLead => TrailerLeadDays > 0 ? TimeSpan.FromDays(TrailerLeadDays) : TimeSpan.FromDays(7);
 
     /// <summary>
@@ -30,6 +31,7 @@ public sealed class ProgramScheduleOptions
     /// <summary>
     /// Gets the normalized minimum remainder (values &lt;= 0 fall back to the 30-second default).
     /// </summary>
+    /// <returns>The normalized minimum start remainder.</returns>
     public TimeSpan EffectiveMinStartRemain => MinStartRemainSeconds > 0 ? TimeSpan.FromSeconds(MinStartRemainSeconds) : TimeSpan.FromSeconds(30);
 
     /// <summary>
@@ -46,5 +48,24 @@ public sealed class ProgramScheduleOptions
     /// Gets the normalized maximum lookback (values &lt;= 0 fall back to the 7-day default,
     /// values above 30 days are clamped).
     /// </summary>
+    /// <returns>The normalized maximum occurrence lookback.</returns>
     public TimeSpan EffectiveMaxOccurrenceLookback => MaxOccurrenceLookbackDays > 0 ? TimeSpan.FromDays(Math.Min(MaxOccurrenceLookbackDays, 30)) : TimeSpan.FromDays(7);
+
+    /// <summary>
+    /// Gets or sets the batching window (in seconds) for schedule-changed notifications raised
+    /// outside a scan scope: the first notification opens the window, further notifications inside
+    /// it only keep the delivery pending, and at the window's end the schedule and live workers are
+    /// woken exactly once. Default: 5 seconds; 0 delivers every notification immediately (the
+    /// behaviour before batching existed); values &lt; 0 fall back to the default, values above
+    /// 3600 are clamped (a batching window beyond an hour defers the plan past a regular
+    /// generation pass anyway — and past <c>Timer.MaxSupportedTimeout</c>).
+    /// </summary>
+    public int ScheduleChangedDebounceSeconds { get; set; } = 5;
+
+    /// <summary>
+    /// Gets the normalized batching window (values &lt; 0 fall back to the 5-second default,
+    /// 0 means immediate delivery without a window, values above 3600 seconds are clamped).
+    /// </summary>
+    /// <returns>The normalized batching window.</returns>
+    public TimeSpan EffectiveScheduleChangedDebounce => ScheduleChangedDebounceSeconds < 0 ? TimeSpan.FromSeconds(5) : TimeSpan.FromSeconds(Math.Min(ScheduleChangedDebounceSeconds, 3600));
 }

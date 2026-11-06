@@ -1,4 +1,6 @@
 using System.Threading.Channels;
+using Microsoft.Extensions.Options;
+using VideoWebPlayer.Configuration;
 
 namespace VideoWebPlayer.Services;
 
@@ -13,9 +15,20 @@ public interface IProgramScheduleSignal
     /// Reports that the schedule inputs changed (a program rule was created, updated, activated,
     /// deactivated or deleted; media relevant to the plan was added or removed). While a scan is
     /// running (see <see cref="BeginScan"/>) this does not wake the worker - the end of the scan does;
-    /// outside a scan it wakes the worker at once.
+    /// outside a scan the report joins the batching window
+    /// (<c>ProgramSchedule:ScheduleChangedDebounceSeconds</c>): the first report opens the window,
+    /// further reports only keep the delivery pending, and at the window's end the worker wakes
+    /// exactly once.
     /// </summary>
     void NotifyScheduleChanged();
+
+    /// <summary>
+    /// Reports a schedule input change without batching — for explicitly user-triggered actions
+    /// (e.g. "generate now") that expect an immediate reaction. Outside a scan it wakes the worker
+    /// at once and drops a pending batch mark (the immediate delivery already covers it); while a
+    /// scan is running it is suppressed exactly like <see cref="NotifyScheduleChanged"/>.
+    /// </summary>
+    void NotifyScheduleChangedNow();
 
     /// <summary>
     /// Announces a scan/classification run. While at least one scan scope is open, notifications do
@@ -55,9 +68,11 @@ public interface IProgramScheduleSignal
 /// Default, thread-safe <see cref="IProgramScheduleSignal"/> (registered as a singleton): a
 /// one-slot channel that coalesces signals, a counter of currently running scans and a counter
 /// of the notifications they suppressed — the last scan's end only wakes when it suppressed at
-/// least one. Structurally mirrors <see cref="PlaylistBackfillSignal"/>, but diverges in the
-/// wake condition: there the scan's end wakes unconditionally, here only after a suppressed
-/// notification.
+/// least one. Scope-free notifications additionally pass through a fixed batching window
+/// (pending mark plus window flag, flushed once at the window's end), so a burst of commits
+/// wakes the workers exactly once instead of once per commit. Structurally mirrors
+/// <see cref="PlaylistBackfillSignal"/>, but diverges in the wake condition: there the scan's
+/// end wakes unconditionally, here only after a suppressed notification.
 /// </summary>
 public sealed class ProgramScheduleSignal : IProgramScheduleSignal
 {
@@ -76,28 +91,62 @@ public sealed class ProgramScheduleSignal : IProgramScheduleSignal
         SingleReader = true
     });
 
+    private readonly TimeProvider _timeProvider;
+    private readonly TimeSpan _batchWindow;
     private int _activeScans;
     private int _suppressedNotifications;
+    private int _batchPending;
+    private int _batchWindowRunning;
+
+    /// <summary>
+    /// Initializes a new <see cref="ProgramScheduleSignal"/>.
+    /// </summary>
+    /// <param name="options">Program schedule options — carries the batching window for
+    /// notifications outside a scan scope; <see langword="null"/> uses the defaults.</param>
+    /// <param name="timeProvider">Clock driving the batching window; <see langword="null"/> uses
+    /// <see cref="TimeProvider.System"/>.</param>
+    public ProgramScheduleSignal(IOptions<ProgramScheduleOptions>? options = null, TimeProvider? timeProvider = null)
+    {
+        _batchWindow = (options?.Value ?? new ProgramScheduleOptions()).EffectiveScheduleChangedDebounce;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     /// <inheritdoc />
     public void NotifyScheduleChanged()
     {
         if (Volatile.Read(ref _activeScans) > 0)
         {
-            Interlocked.Increment(ref _suppressedNotifications);
-            // The last scan ending between the check and the increment would have drained the
-            // counter without seeing this notification — deliver it directly then.
-            if (Volatile.Read(ref _activeScans) == 0
-                && Interlocked.Exchange(ref _suppressedNotifications, 0) > 0)
-            {
-                _channel.Writer.TryWrite(true);
-                _liveChannel.Writer.TryWrite(true);
-            }
+            SuppressOrDeliverNow();
             return;
         }
 
-        _channel.Writer.TryWrite(true);
-        _liveChannel.Writer.TryWrite(true);
+        if (_batchWindow <= TimeSpan.Zero)
+        {
+            WakeWorkers();
+            return;
+        }
+
+        // The first report opens the batching window; reports inside a running window only set
+        // the pending mark — the single flush at the window's end covers them all.
+        Interlocked.Exchange(ref _batchPending, 1);
+        if (Interlocked.Exchange(ref _batchWindowRunning, 1) == 0)
+            _ = FlushBatchAfterWindowAsync();
+    }
+
+    /// <inheritdoc />
+    public void NotifyScheduleChangedNow()
+    {
+        // An immediate delivery (or the scan suppression standing in for it) already covers every
+        // change a pending batch carries — drop the mark so a late flush wakes nobody a second time.
+        Interlocked.Exchange(ref _batchPending, 0);
+
+        if (Volatile.Read(ref _activeScans) > 0)
+        {
+            SuppressOrDeliverNow();
+            return;
+        }
+
+        WakeWorkers();
     }
 
     /// <inheritdoc />
@@ -123,9 +172,61 @@ public sealed class ProgramScheduleSignal : IProgramScheduleSignal
         if (Interlocked.Decrement(ref _activeScans) == 0
             && Interlocked.Exchange(ref _suppressedNotifications, 0) > 0)
         {
-            _channel.Writer.TryWrite(true);
-            _liveChannel.Writer.TryWrite(true);
+            // This wake already covers every change a pending batch carries — drop the mark so a
+            // late-running flush does not write a second wake.
+            Interlocked.Exchange(ref _batchPending, 0);
+            WakeWorkers();
         }
+    }
+
+    private void WakeWorkers()
+    {
+        _channel.Writer.TryWrite(true);
+        _liveChannel.Writer.TryWrite(true);
+    }
+
+    private void SuppressOrDeliverNow()
+    {
+        Interlocked.Increment(ref _suppressedNotifications);
+        // The last scan ending between the caller's check and this increment would have drained
+        // the counter without seeing the notification — deliver it directly then.
+        if (Volatile.Read(ref _activeScans) == 0
+            && Interlocked.Exchange(ref _suppressedNotifications, 0) > 0)
+        {
+            WakeWorkers();
+        }
+    }
+
+    private async Task FlushBatchAfterWindowAsync()
+    {
+        try
+        {
+            await Task.Delay(_batchWindow, _timeProvider).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // A failed window timer must not wedge the batching state — with the window flag
+            // still set, every later notification would only mark pending and never be flushed
+            // again. Fall through to an immediate flush: delivering once beats losing the batch.
+        }
+
+        // The window closes BEFORE the pending mark is consumed — the other way round a
+        // notification landing in between would set the mark, see the window still running and
+        // start no new flush: a lost wake (the same teardown race the double-check in
+        // SuppressOrDeliverNow guards against).
+        Interlocked.Exchange(ref _batchWindowRunning, 0);
+        if (Interlocked.Exchange(ref _batchPending, 0) == 0)
+            return;
+
+        // A flush racing into a just-opened scan must not slip past the suppression — hand the
+        // pending change to the counter whose drain at the scan's end wakes the workers.
+        if (Volatile.Read(ref _activeScans) > 0)
+        {
+            SuppressOrDeliverNow();
+            return;
+        }
+
+        WakeWorkers();
     }
 
     private sealed class ScanScope : IDisposable

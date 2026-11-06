@@ -279,7 +279,7 @@ public class MediaDurationProbeWorkerTests : IDisposable
     /// </summary>
     private sealed class GatedScheduleSignal : IProgramScheduleSignal
     {
-        private readonly ProgramScheduleSignal _inner = new();
+        private readonly ProgramScheduleSignal _inner = new(Options.Create(new ProgramScheduleOptions { ScheduleChangedDebounceSeconds = 0 }));
         private readonly TaskCompletionSource _disposeRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _releaseDispose = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _holdDispose;
@@ -298,6 +298,8 @@ public class MediaDurationProbeWorkerTests : IDisposable
             Interlocked.Increment(ref NotifyCount);
             _inner.NotifyScheduleChanged();
         }
+
+        public void NotifyScheduleChangedNow() => _inner.NotifyScheduleChangedNow();
 
         public IDisposable BeginScan()
         {

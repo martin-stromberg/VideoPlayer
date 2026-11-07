@@ -1818,12 +1818,15 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var m = strands.Count;
 
+        InterleavedSelection Run(int startOffset) => RunInterleavedLaps(
+            strands, wanted, target, airingStartUtc, bound, minStartRemain, clipGrace,
+            ageRule, startOffset);
+
         // EpisodeCount < strand count would otherwise serve only strand 0 forever;
         // rotating the start strand by occurrence day gives every strand its turn
         // over consecutive days — statically certain, so no probe run is needed.
         if (wanted < m)
-            return RunInterleavedLaps(strands, wanted, target, airingStartUtc, bound,
-                minStartRemain, clipGrace, ageRule, StrandStartOffset(m, airingStartUtc));
+            return Run(StrandStartOffset(m, airingStartUtc));
 
         // The selection is a pure function (no strand state is mutated — CommitTaken applies
         // only the winning run's result), so a probe run is safe: served strands = the
@@ -1831,14 +1834,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // bound check produces no pick and therefore counts as "not served" — intentional:
         // a permanently blocked lead strand must not starve the strands behind it, so the
         // rotation fires for blocked strands exactly like for starving ones.
-        var probe = RunInterleavedLaps(strands, wanted, target, airingStartUtc, bound,
-            minStartRemain, clipGrace, ageRule, 0);
+        var probe = Run(0);
         var rotated = StrandStartOffset(m, airingStartUtc);
         return rotated != 0
             && probe.Picks.Select(p => p.Strand).Distinct().Count()
                 < strands.Count(s => s.Items.Count > 0)
-            ? RunInterleavedLaps(strands, wanted, target, airingStartUtc, bound,
-                minStartRemain, clipGrace, ageRule, rotated)
+            ? Run(rotated)
             : probe;
     }
 

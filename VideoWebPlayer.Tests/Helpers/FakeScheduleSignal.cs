@@ -12,8 +12,12 @@ internal sealed class FakeScheduleSignal : IProgramScheduleSignal
 {
     private int _liveNotifications;
 
-    /// <summary>How often the live-schedule-changed line was fired.</summary>
-    public int LiveNotifications => _liveNotifications;
+    /// <summary>How often the live-schedule-changed line was fired (volatile read — the
+    /// assertion must not see a stale count under parallel load).</summary>
+    public int LiveNotifications
+    {
+        get { return Volatile.Read(ref _liveNotifications); }
+    }
 
     /// <inheritdoc />
     public void NotifyScheduleChanged()

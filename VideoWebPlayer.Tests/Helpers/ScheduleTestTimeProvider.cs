@@ -16,6 +16,18 @@ internal sealed class ScheduleTestTimeProvider : TimeProvider
     /// <inheritdoc />
     public override DateTimeOffset GetUtcNow() => _now;
 
+    /// <summary>Timers currently armed. A test polls this until the code under test has armed
+    /// its sleep before calling <see cref="Advance"/> — advancing before the timer exists moves
+    /// the clock past nothing and the awaited wakeup never comes.</summary>
+    public int PendingTimerCount
+    {
+        get
+        {
+            lock (_gate)
+                return _timers.Count;
+        }
+    }
+
     /// <summary>Moves the clock forward and fires every timer whose due time was reached —
     /// earliest first, so chained delays observe a monotonic clock.</summary>
     /// <param name="delta">How far to move the clock forward.</param>

@@ -34,6 +34,11 @@ public sealed class ProgramScheduleWorkerTests_SideEffects
         await connection.OpenAsync(ct);
 
         var services = new ServiceCollection();
+        // The keeper connection keeps the shared-cache in-memory database alive: registered as
+        // singleton it stays referenced (an unreferenced connection could be finalized by the GC
+        // mid-test, which destroys the database under the worker's feet) and is closed when the
+        // caller disposes the provider.
+        services.AddSingleton(connection);
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(o => o.UseSqlite(connectionString));
         services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
@@ -64,6 +69,17 @@ public sealed class ProgramScheduleWorkerTests_SideEffects
         Assert.True(service.PassCalls >= count, $"Timeout: {what} (Pässe: {service.PassCalls})");
     }
 
+    // A pass increments the call counter before the worker reaches its interval sleep — the
+    // advance of the fake clock must wait until the timer is actually armed, otherwise it moves
+    // the clock past nothing and the next pass never fires.
+    private static async Task WaitForTimerAsync(ScheduleTestTimeProvider time, string what, CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (time.PendingTimerCount == 0 && DateTime.UtcNow < deadline)
+            await Task.Delay(10, ct);
+        Assert.True(time.PendingTimerCount > 0, $"Timeout: {what} — kein Timer scharf");
+    }
+
     private static async Task<(CancellationTokenSource Cts, ProgramScheduleWorker Worker)> StartWorkerAsync(
         ServiceProvider provider, FakeScheduleSignal signal, ScheduleTestTimeProvider time, CancellationToken ct)
     {
@@ -81,6 +97,14 @@ public sealed class ProgramScheduleWorkerTests_SideEffects
     private static async Task StopWorkerAsync(CancellationTokenSource cts, ProgramScheduleWorker worker)
     {
         await cts.CancelAsync();
+        // Bounded wait instead of StopAsync(CancellationToken.None): that overload awaits the
+        // worker task with no timeout, so a worker that misses its cancellation (stuck await,
+        // starved continuation) hangs the whole test run silently — the observed CI symptom.
+        // WaitAsync fails the test after 15 s and surfaces the stuck worker instead; a faulted
+        // ExecuteTask rethrows the worker's real exception here.
+        var executeTask = worker.ExecuteTask
+            ?? throw new InvalidOperationException("Der Worker wurde nicht gestartet.");
+        await executeTask.WaitAsync(TimeSpan.FromSeconds(15));
         await worker.StopAsync(CancellationToken.None);
         worker.Dispose();
     }
@@ -98,7 +122,7 @@ public sealed class ProgramScheduleWorkerTests_SideEffects
         var gate = new FakeBackgroundProcessingGate(orderLog);
         var signal = new FakeScheduleSignal();
         var time = new ScheduleTestTimeProvider(DateTimeOffset.UtcNow);
-        var provider = await BuildProviderAsync("notify", ct, orderLog, service, gate);
+        await using var provider = await BuildProviderAsync("notify", ct, orderLog, service, gate);
 
         var (cts, worker) = await StartWorkerAsync(provider, signal, time, ct);
         await WaitForPassesAsync(service, 1, "erster Pass", ct);
@@ -120,7 +144,7 @@ public sealed class ProgramScheduleWorkerTests_SideEffects
         var gate = new FakeBackgroundProcessingGate(orderLog);
         var signal = new FakeScheduleSignal();
         var time = new ScheduleTestTimeProvider(DateTimeOffset.UtcNow);
-        var provider = await BuildProviderAsync("quiet", ct, orderLog, service, gate);
+        await using var provider = await BuildProviderAsync("quiet", ct, orderLog, service, gate);
 
         var (cts, worker) = await StartWorkerAsync(provider, signal, time, ct);
         await WaitForPassesAsync(service, 1, "erster Pass", ct);
@@ -141,7 +165,7 @@ public sealed class ProgramScheduleWorkerTests_SideEffects
         var gate = new FakeBackgroundProcessingGate(orderLog);
         var signal = new FakeScheduleSignal();
         var time = new ScheduleTestTimeProvider(DateTimeOffset.UtcNow);
-        var provider = await BuildProviderAsync("gate", ct, orderLog, service, gate);
+        await using var provider = await BuildProviderAsync("gate", ct, orderLog, service, gate);
 
         var (cts, worker) = await StartWorkerAsync(provider, signal, time, ct);
         await WaitForPassesAsync(service, 1, "erster Pass", ct);
@@ -165,10 +189,13 @@ public sealed class ProgramScheduleWorkerTests_SideEffects
         var gate = new FakeBackgroundProcessingGate(orderLog);
         var signal = new FakeScheduleSignal();
         var time = new ScheduleTestTimeProvider(DateTimeOffset.UtcNow);
-        var provider = await BuildProviderAsync("interval", ct, orderLog, service, gate, intervalMinutes: 60);
+        await using var provider = await BuildProviderAsync("interval", ct, orderLog, service, gate, intervalMinutes: 60);
 
         var (cts, worker) = await StartWorkerAsync(provider, signal, time, ct);
         await WaitForPassesAsync(service, 1, "erster Pass", ct);
+        // PassCalls hochgezählt heißt nicht "Intervall-Schlaf scharf": erst wenn der Timer im
+        // Zeitgeber steht, trifft Advance den Schlaf wirklich.
+        await WaitForTimerAsync(time, "Intervall-Schlaf nach Pass 1", ct);
 
         // Intervall im laufenden Betrieb ändern, dann den alten Schlaf zu Ende fahren.
         using (var scope = provider.CreateScope())
@@ -180,6 +207,7 @@ public sealed class ProgramScheduleWorkerTests_SideEffects
         }
         time.Advance(TimeSpan.FromMinutes(60));
         await WaitForPassesAsync(service, 2, "zweiter Pass", ct);
+        await WaitForTimerAsync(time, "Intervall-Schlaf nach Pass 2", ct);
 
         // Neue Frist wirkt sofort: der dritte Pass folgt nach 1 Minute, nicht nach weiteren 60.
         time.Advance(TimeSpan.FromMinutes(1));

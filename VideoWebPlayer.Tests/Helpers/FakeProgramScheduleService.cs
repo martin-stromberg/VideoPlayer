@@ -17,8 +17,12 @@ internal sealed class FakeProgramScheduleService : IProgramScheduleService
 
     public FakeProgramScheduleService(IList<string> orderLog) => _orderLog = orderLog;
 
-    /// <summary>How many passes the worker ran.</summary>
-    public int PassCalls => _passCalls;
+    /// <summary>How many passes the worker ran (volatile read — the poller must not see a
+    /// stale count under parallel load).</summary>
+    public int PassCalls
+    {
+        get { return Volatile.Read(ref _passCalls); }
+    }
 
     /// <summary>Queues the result the next pass returns.</summary>
     public void EnqueuePass(ProgramSchedulePassSummary pass) => _passes.Enqueue(pass);

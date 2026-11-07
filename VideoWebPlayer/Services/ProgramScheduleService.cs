@@ -1415,13 +1415,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .ThenByDescending(c => c.Id)
             .FirstOrDefault();
 
-    // The starting strand of an interleaved airing derives from the real (possibly shifted)
-    // start day — EpisodeCount-only rules rotate it per day so every strand gets its turn;
-    // SlotDuration airings keep identical day-to-day positions (offset 0).
-    private static int StrandStartOffset(int wanted, int strandCount, DateTime startUtc)
-        => wanted < strandCount
-            ? (int)((((startUtc.Date - DateTime.UnixEpoch).Days) % strandCount) + strandCount) % strandCount
-            : 0;
+    // The daily rotation offset of an interleaved airing's start strand: walks the UTC date
+    // of the real (possibly shifted) start through the strands, so every strand takes its
+    // turn over consecutive airing days. Whether the offset applies at all is decided by the
+    // caller — see the starvation check in <see cref="SelectAiringItemsInterleaved"/>.
+    private static int StrandStartOffset(int strandCount, DateTime startUtc)
+        => (int)((((startUtc.Date - DateTime.UnixEpoch).Days) % strandCount) + strandCount) % strandCount;
 
     private static DateTime ShiftPastInvaders(DateTime startUtc, IEnumerable<Interval> occupied, IEnumerable<Interval>? outranked = null)
     {
@@ -1796,12 +1795,17 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     }
 
     // Interleaved variant of <see cref="SelectAiringItems"/> for multi-strand states: the
-    // window is filled round-robin over the strands in fixed order, each occurrence starting
-    // again at the first strand — the series keep their slot position across days while each
-    // strand's own cursor advances in episode order. The same boundary rule as the flat variant
-    // applies per strand: a started item always completes (overshoot allowed against soft
-    // bounds); a strand stops contributing when its head may no longer start (or cannot
-    // complete before a hard bound) — the item defers, it is never skipped or cut.
+    // window is filled round-robin over the strands in fixed order, each strand's own cursor
+    // advancing in its air order. The same boundary rule as the flat variant applies per
+    // strand: a started item always completes (overshoot allowed against soft bounds); a
+    // strand stops contributing when its head may no longer start (or cannot complete before
+    // a hard bound) — the item defers, it is never skipped or cut.
+    // The start strand rotates over consecutive airing days, but only where strands actually
+    // starve: EpisodeCount < strand count is statically starved and rotates directly; windows
+    // that could in principle serve every strand (wanted >= m — in particular SlotDuration)
+    // run a probe with offset 0 first. When that probe serves fewer strands than non-empty
+    // strands exist, at least one strand starves and a second run with the daily rotation
+    // offset wins; windows serving every strand keep their stable day-to-day positions.
     // Returns the pick sequence: (strand index, item).
     private static InterleavedSelection SelectAiringItemsInterleaved(
         List<StrandState> strands, ProgramRule rule, DateTime airingStartUtc,
@@ -1813,6 +1817,42 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var target = rule.EpisodeCount is > 0 ? (TimeSpan?)null : rule.SlotDuration;
 
         var m = strands.Count;
+
+        // EpisodeCount < strand count would otherwise serve only strand 0 forever;
+        // rotating the start strand by occurrence day gives every strand its turn
+        // over consecutive days — statically certain, so no probe run is needed.
+        if (wanted < m)
+            return RunInterleavedLaps(strands, wanted, target, airingStartUtc, bound,
+                minStartRemain, clipGrace, ageRule, StrandStartOffset(m, airingStartUtc));
+
+        // The selection is a pure function (no strand state is mutated — CommitTaken applies
+        // only the winning run's result), so a probe run is safe: served strands = the
+        // distinct strands of its picks. A strand resting via age-window deferral or the
+        // bound check produces no pick and therefore counts as "not served" — intentional:
+        // a permanently blocked lead strand must not starve the strands behind it, so the
+        // rotation fires for blocked strands exactly like for starving ones.
+        var probe = RunInterleavedLaps(strands, wanted, target, airingStartUtc, bound,
+            minStartRemain, clipGrace, ageRule, 0);
+        var rotated = StrandStartOffset(m, airingStartUtc);
+        return rotated != 0
+            && probe.Picks.Select(p => p.Strand).Distinct().Count()
+                < strands.Count(s => s.Items.Count > 0)
+            ? RunInterleavedLaps(strands, wanted, target, airingStartUtc, bound,
+                minStartRemain, clipGrace, ageRule, rotated)
+            : probe;
+    }
+
+    // One selection run of the interleaved airing fill starting at strand
+    // <paramref name="startOffset"/>: the round-robin laps with their abort rules (clip
+    // grace, age-window defer/skip, bound check, the noProgressLaps watchdog) — extracted
+    // so the probe and the rotation run of <see cref="SelectAiringItemsInterleaved"/> share
+    // the same code.
+    private static InterleavedSelection RunInterleavedLaps(
+        List<StrandState> strands, int wanted, TimeSpan? target, DateTime airingStartUtc,
+        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain, TimeSpan? clipGrace,
+        ProgramScheduleAgeWindowRule ageRule, int startOffset)
+    {
+        var m = strands.Count;
         var picks = new List<StrandPick>();
         var scanned = new int[m];
         var skipsInRow = new int[m];
@@ -1821,12 +1861,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var slotStart = airingStartUtc;
         var accumulated = TimeSpan.Zero;
         var selected = 0;
-
-        // EpisodeCount < strand count would otherwise serve only strand 0 forever;
-        // rotating the start strand by occurrence day gives every strand its turn
-        // over consecutive days. With SlotDuration (wanted >= m) positions stay
-        // identical day-to-day, so the offset stays 0.
-        var startOffset = StrandStartOffset(wanted, m, airingStartUtc);
 
         var maxLap = strands.Max(s => s.Items.Count);
         var noProgressLaps = 0;

@@ -52,6 +52,7 @@ public sealed class ProgramScheduleConventionTests
         "ProgramScheduleServiceTests_Reconcile.cs",
         "ProgramScheduleServiceTests_RingOrder.cs",
         "ProgramScheduleServiceTests_Stability.cs",
+        "ProgramScheduleServiceTests_StrandRotation.cs",
         "ProgramScheduleServiceTests_Trailer.cs",
     };
 

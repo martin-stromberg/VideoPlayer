@@ -122,6 +122,10 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
   Sammlungslose Filme des Genres laufen als gemeinsamer Strang mit — in einer festen, je
   Regel gemischten Reihenfolge statt nach Veröffentlichungsdatum, damit sich die Auswahl
   gleichmäßig über den Filmbestand verteilt.
+  Passen **nicht alle Stränge** in eine Ausstrahlung — etwa bei vielen Filmsammlungen,
+  von denen pro Abend nur einzelne Platz finden —, rotiert der führende Strang über
+  aufeinanderfolgende Ausstrahlungstage, sodass reihum jeder Strang zum Zug kommt statt
+  täglich dieselbe Auswahl zu wiederholen.
   Zusätzlich gibt es für Füller-Regeln die Materialart **„Trailer anstehender Filme"**
   (Checkbox ohne weitere Auswahl): Damit werden Trailer-Dateien eingeplanter Filme bevorzugt als
   Füllmaterial gesendet — siehe Abschnitt „Trailer" weiter unten.
@@ -475,6 +479,10 @@ Im Tab „Sendeplan" räumen zwei Schaltflächen (nur für Administratoren) den 
   Sendeplan — alle geplanten und verdrängten Sendeplätze sowie die Fortsetzungsstände aller
   Regeln (d. h. Serien beginnen wieder am Anfang ihrer Rotation). Der Plan wird beim nächsten
   Generierungslauf komplett neu aufgebaut; „Jetzt generieren" stößt ihn sofort an.
+  Ein Zurücksetzen ist auch der vorgesehene Weg, nachdem eine Programm-Aktualisierung die
+  Planungslogik korrigiert hat: Bereits geschriebene Sendeplätze gelten weiterhin und werden
+  nicht automatisch ersetzt — erst der Neuaufbau belegt die kommenden Tage mit der
+  korrigierten Planung.
 
 Einen Teil der Historie räumt der Planlauf auch ohne Zutun auf: Liegt zu einem verdrängten
 Sendeplatz ein geplanter Sendeplatz vor, der denselben Zeitraum mit demselben Inhalt aus

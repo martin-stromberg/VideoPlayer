@@ -449,8 +449,15 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 19, 30)), ct);
         await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
 
-        // Tightening the FSK-12 window past the occurrence start displaces the airing; the
-        // rematerialization defers the ordered strand and fills with allowed movies only.
+        // Tightening the FSK-12 window past the occurrence start displaces the airing.
+        // Erwartungsbild-Korrektur für die bedarfsgesteuerte Startstrang-Rotation: der am
+        // Occurrence-Start gesperrte Serien-Strang zählt in der Bedient-Prüfung als „nicht
+        // bedient" und löst die Tagesrotation aus (beabsichtigt — ein blockierter
+        // Führungsstrang darf die dahinterliegenden Stränge nicht verhungern lassen). An
+        // Rotations-Tagen wird der Strang erst nach dem ersten Film angeboten — zu einem
+        // Start, der bereits im geöffneten FSK-12-Fenster liegt — und trägt dort legal
+        // Episoden bei; an Offset-0-Tagen ruht er wie bisher die ganze Ausstrahlung.
+        // Die Invariante bleibt: jeder geschriebene Start ist fensterkonform.
         var settings = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
         await settings.UpdateProgramScheduleAgeWindowsAsync(
             new ProgramScheduleAgeWindowSettings(new TimeOnly(21, 30), new TimeOnly(22, 0), new TimeOnly(23, 0), new TimeOnly(6, 0)), ct);
@@ -461,7 +468,9 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         var rematerialized = await fixture.Db.ProgramSlots
             .Where(s => s.ProgramRuleId == rule.Id && s.Status == ProgramSlotStatus.Scheduled).ToListAsync(ct);
         Assert.NotEmpty(rematerialized);
-        Assert.All(rematerialized, s => Assert.Null(s.TVShowEpisodeId));
+        foreach (var slot in rematerialized.Where(s => s.TVShowEpisodeId is not null))
+            Assert.True(LocalMinutes(slot.Start) >= 21 * 60 + 30 || LocalMinutes(slot.Start) < 6 * 60,
+                $"FSK-12-Episode {slot.Start:o} außerhalb des verschärften Fensters");
         foreach (var slot in rematerialized.Where(s => s.MovieId == m2.Id))
             Assert.True(LocalMinutes(slot.Start) >= 23 * 60 || LocalMinutes(slot.Start) < 6 * 60,
                 $"FSK-18-Slot {slot.Start:o} außerhalb des Nachtfensters");

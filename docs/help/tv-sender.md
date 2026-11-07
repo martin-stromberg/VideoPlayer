@@ -122,6 +122,10 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
   Sammlungslose Filme des Genres laufen als gemeinsamer Strang mit — in einer festen, je
   Regel gemischten Reihenfolge statt nach Veröffentlichungsdatum, damit sich die Auswahl
   gleichmäßig über den Filmbestand verteilt.
+  Passen **nicht alle Stränge** in eine Ausstrahlung — etwa bei vielen Filmsammlungen,
+  von denen pro Abend nur einzelne Platz finden —, rotiert der führende Strang über
+  aufeinanderfolgende Ausstrahlungstage, sodass reihum jeder Strang zum Zug kommt statt
+  täglich dieselbe Auswahl zu wiederholen.
   Zusätzlich gibt es für Füller-Regeln die Materialart **„Trailer anstehender Filme"**
   (Checkbox ohne weitere Auswahl): Damit werden Trailer-Dateien eingeplanter Filme bevorzugt als
   Füllmaterial gesendet — siehe Abschnitt „Trailer" weiter unten.

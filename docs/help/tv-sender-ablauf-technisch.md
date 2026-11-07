@@ -129,6 +129,24 @@ beim Zurückschalten verdrängt der Mitgliedschafts-Check die betroffenen Slots
    und `SlotDuration` gesetzt ist. `SelectAiringItems`/`SelectAiringItemsInterleaved` brechen
    die Titel-Auswahl zusätzlich ab, sobald `target - accumulated < clipGrace`; die
    Fenster-Bound-Prüfung über `_minStartRemain` bleibt davon unberührt.
+   **Bedarfsgesteuerte Startstrang-Rotation (Folgekorrektur zu Issue #334):** Bei mehreren
+   Strängen wählt `SelectAiringItemsInterleaved` den Startstrang des Round-Robin bedarfsgesteuert.
+   `EpisodeCount < Strangzahl` rotiert weiterhin statisch direkt über das UTC-Datum des
+   `airingStartUtc` (`StrandStartOffset`); Fenster, die grundsätzlich jeden Strang bedienen
+   könnten (`wanted >= Strangzahl`, insbesondere `SlotDuration`), laufen zunächst probeweise
+   mit Offset 0 (`RunInterleavedLaps` — die Auswahl ist eine reine Funktion, committed wird
+   nur das Ergebnis des gültigen Laufs). Bedient der Probelauf weniger Stränge als nicht-leere
+   Stränge existieren, verhungert mindestens ein Strang, und ein zweiter Lauf mit dem
+   Tagesrotations-Offset gilt — über aufeinanderfolgende Ausstrahlungstage kommt so jeder
+   Strang als Führung zum Zug, statt dass jede Ausstrahlung bei den ersten Strängen der
+   `StrandOrderKey`-Reihenfolge beginnt. Ein über Altersfenster-Deferral oder Bound ruhender
+   Strang liefert keinen Pick, zählt als „nicht bedient" und löst die Rotation aus — gewollt:
+   ein dauerhaft blockierter Führungsstrang darf die dahinterliegenden Stränge nicht
+   verhungern lassen. Fenster, die alle Stränge bedienen (typische Serienfenster), behalten
+   ihre stabile Tagesstruktur. Bereits mit dem alten Offset-0-Verhalten belegte kommende
+   Sendeplätze validieren weiter (`SlotStillValid` ist pick-reihenfolge-agnostisch) — sie
+   werden nicht automatisch ersetzt; ein einmaliges „Plan zurücksetzen" auf der Admin-Seite
+   (`ResetScheduleAsync`) baut den Plan mit der korrigierten Belegung neu auf.
 3. `MaterializeOccurrence` läuft unverändert (nur Titel). Der 24-h-`OccurrenceLookback`
    materialisiert nur noch den laufenden Teil einer Ausstrahlung: Enden sämtliche
    `ranges` der selektierten Takes vor `coverageStart`, greift der Early-Return

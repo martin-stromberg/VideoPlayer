@@ -1471,10 +1471,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .ThenByDescending(c => c.Id)
             .FirstOrDefault();
 
-    // The daily rotation offset of an interleaved airing's start strand: walks the UTC date
+    // The daily rotation offset of an EpisodeCount airing's start strand: walks the UTC date
     // of the real (possibly shifted) start through the strands, so every strand takes its
-    // turn over consecutive airing days. Whether the offset applies at all is decided by the
-    // caller — see the starvation check in <see cref="SelectAiringItemsInterleaved"/>.
+    // turn over consecutive airing days. Only the statically-starved `wanted < m` path of
+    // <see cref="SelectAiringItemsInterleaved"/> still uses it — the slot-duration path
+    // resumes at the continuing pointer of <see cref="StrandRotationOffset"/> instead.
     private static int StrandStartOffset(int strandCount, DateTime startUtc)
         => (int)((((startUtc.Date - DateTime.UnixEpoch).Days) % strandCount) + strandCount) % strandCount;
 

@@ -241,6 +241,77 @@ public sealed class ProgramScheduleServiceTests_StrandRotation
         await ProgramScheduleTestDb.AssertNoDisplacedAsync(scenario.Fixture, summary, ct);
     }
 
+    // Issue #343: the +1/day start offset let adjacent days' served windows overlap —
+    // day N served {k, k+1}, day N+1 served {k+1, k+2}, so a single-film collection
+    // aired on consecutive days (once as last, once as first pick). While strands starve
+    // (more non-empty strands than picks per airing) the served strand sets of
+    // consecutive airings must be disjoint: the rotation resumes right behind the last
+    // served strand instead of stepping the calendar day.
+    [Fact]
+    public async Task EnsureCoverage_ManyCollectionStrands_ConsecutiveAiringsServeDisjointStrands()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var scenario = await SeedCollectionRotationScenarioAsync("strand-rotation-disjoint", ct);
+        using var _ = scenario.Fixture;
+
+        await scenario.Service.EnsureCoverageAsync(
+            new DateTimeOffset(PrimetimeSeed.LocalUtc(2026, 11, 2, 12, 0)), ct);
+
+        var titleSlots = await TitleSlotsAsync(scenario, ct);
+        var firstEvening = new DateOnly(2026, 11, 2);
+        var previous = PrimetimeSeed.AiringOf(titleSlots, firstEvening)
+            .Select(s => scenario.CollectionOfMovie[s.MovieId!.Value]).ToHashSet();
+        Assert.NotEmpty(previous);
+        Assert.True(previous.Count < StrandCount,
+            "Vorbedingung verletzt: der Abend bedient bereits alle Stränge — keine Rotation nötig.");
+        for (var day = 1; day < 6; day++)
+        {
+            var served = PrimetimeSeed.AiringOf(titleSlots, firstEvening.AddDays(day))
+                .Select(s => scenario.CollectionOfMovie[s.MovieId!.Value]).ToHashSet();
+            Assert.NotEmpty(served);
+            var overlap = previous.Intersect(served).ToList();
+            Assert.True(overlap.Count == 0,
+                $"Bedient-Überlappung {firstEvening.AddDays(day - 1):dd.MM.} → " +
+                $"{firstEvening.AddDays(day):dd.MM.}: {string.Join(", ", overlap)}");
+            previous = served;
+        }
+    }
+
+    // The rotation pointer is ground truth, not run state: after the horizon slides on,
+    // a second coverage run must resume behind the strand the last persisted airing
+    // ended on — the +1/day offset restarted the count and re-served the previous day's
+    // strands right at the run boundary.
+    [Fact]
+    public async Task EnsureCoverage_SecondRun_ContinuesDisjointAcrossRunBoundary()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var scenario = await SeedCollectionRotationScenarioAsync("strand-rotation-nextrun", ct);
+        using var _ = scenario.Fixture;
+
+        await scenario.Service.EnsureCoverageAsync(
+            new DateTimeOffset(PrimetimeSeed.LocalUtc(2026, 11, 2, 12, 0)), ct);
+        await scenario.Service.EnsureCoverageAsync(
+            new DateTimeOffset(PrimetimeSeed.LocalUtc(2026, 11, 5, 12, 0)), ct);
+
+        var titleSlots = await TitleSlotsAsync(scenario, ct);
+        var firstEvening = new DateOnly(2026, 11, 2);
+        var previous = PrimetimeSeed.AiringOf(titleSlots, firstEvening)
+            .Select(s => scenario.CollectionOfMovie[s.MovieId!.Value]).ToHashSet();
+        Assert.NotEmpty(previous);
+        for (var day = 1; day < 10; day++)
+        {
+            var served = PrimetimeSeed.AiringOf(titleSlots, firstEvening.AddDays(day))
+                .Select(s => scenario.CollectionOfMovie[s.MovieId!.Value]).ToHashSet();
+            if (served.Count == 0)
+                break; // beyond the horizon of the second run
+            var overlap = previous.Intersect(served).ToList();
+            Assert.True(overlap.Count == 0,
+                $"Bedient-Überlappung {firstEvening.AddDays(day - 1):dd.MM.} → " +
+                $"{firstEvening.AddDays(day):dd.MM.}: {string.Join(", ", overlap)}");
+            previous = served;
+        }
+    }
+
     // Regression of the old path: EpisodeCount below the strand count still rotates the
     // start strand over the days directly — no probe run, no behaviour change.
     [Fact]

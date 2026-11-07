@@ -125,7 +125,8 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
   Passen **nicht alle Stränge** in eine Ausstrahlung — etwa bei vielen Filmsammlungen,
   von denen pro Abend nur einzelne Platz finden —, rotiert der führende Strang über
   aufeinanderfolgende Ausstrahlungstage, sodass reihum jeder Strang zum Zug kommt statt
-  täglich dieselbe Auswahl zu wiederholen.
+  täglich dieselbe Auswahl zu wiederholen; dabei setzt jede Ausstrahlung dort an, wo die
+  vorherige endete — kein Strang läuft an zwei Tagen in Folge.
   Zusätzlich gibt es für Füller-Regeln die Materialart **„Trailer anstehender Filme"**
   (Checkbox ohne weitere Auswahl): Damit werden Trailer-Dateien eingeplanter Filme bevorzugt als
   Füllmaterial gesendet — siehe Abschnitt „Trailer" weiter unten.

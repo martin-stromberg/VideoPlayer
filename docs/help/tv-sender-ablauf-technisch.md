@@ -137,16 +137,26 @@ beim Zurückschalten verdrängt der Mitgliedschafts-Check die betroffenen Slots
    mit Offset 0 (`RunInterleavedLaps` — die Auswahl ist eine reine Funktion, committed wird
    nur das Ergebnis des gültigen Laufs). Bedient der Probelauf weniger Stränge als nicht-leere
    Stränge existieren, verhungert mindestens ein Strang, und ein zweiter Lauf mit dem
-   Tagesrotations-Offset gilt — über aufeinanderfolgende Ausstrahlungstage kommt so jeder
-   Strang als Führung zum Zug, statt dass jede Ausstrahlung bei den ersten Strängen der
-   `StrandOrderKey`-Reihenfolge beginnt. Ein über Altersfenster-Deferral oder Bound ruhender
-   Strang liefert keinen Pick, zählt als „nicht bedient" und löst die Rotation aus — gewollt:
-   ein dauerhaft blockierter Führungsstrang darf die dahinterliegenden Stränge nicht
-   verhungern lassen. Fenster, die alle Stränge bedienen (typische Serienfenster), behalten
-   ihre stabile Tagesstruktur. Bereits mit dem alten Offset-0-Verhalten belegte kommende
-   Sendeplätze validieren weiter (`SlotStillValid` ist pick-reihenfolge-agnostisch) — sie
-   werden nicht automatisch ersetzt; ein einmaliges „Plan zurücksetzen" auf der Admin-Seite
-   (`ResetScheduleAsync`) baut den Plan mit der korrigierten Belegung neu auf.
+   fortgeschriebenen Rotationszeiger gilt.
+   **Fortlaufender Rotationszeiger (Issue #343):** Der Zeiger steht direkt hinter dem
+   zuletzt tatsächlich bedienten Strang — `StrandRotationOffset` leitet ihn aus dem letzten
+   Titel-Slot der Regel vor dem `airingStartUtc` ab (persistierte Belegung plus die Slots
+   dieses Laufs; `LocateInStrands` löst den Inhalt zum Strang auf, `IsClipFill`- und
+   Clip-Ring-Slots zählen nicht). Die bisherige Tagesrotation (+1 Strang je Tag) bediente
+   bei zwei bis drei Strängen pro Ausstrahlung überlappende Fenster benachbarter Tage —
+   Ein-Film-Sammlungen liefen an mehreren Tagen in Folge; jetzt bleiben die Bedient-Mengen
+   aufeinanderfolgender Ausstrahlungen disjunkt, solange Stränge verhungern. Der Zeiger
+   braucht keine eigene Persistenz: Er folgt dem tatsächlich geplanten Stand und bleibt
+   damit über Planläufe, Prozessneustarts, Displacements und Cursor-Rewinds hinweg
+   konsistent; ohne auflösbare Vorgänger-Belegung startet er bei 0. Ein über
+   Altersfenster-Deferral oder Bound ruhender Strang liefert keinen Pick, zählt als
+   „nicht bedient" und löst die Rotation aus — gewollt: ein dauerhaft blockierter
+   Führungsstrang darf die dahinterliegenden Stränge nicht verhungern lassen. Fenster,
+   die alle Stränge bedienen (typische Serienfenster), behalten ihre stabile Tagesstruktur.
+   Bereits mit dem alten Verhalten belegte kommende Sendeplätze validieren weiter
+   (`SlotStillValid` ist pick-reihenfolge-agnostisch) — sie werden nicht automatisch
+   ersetzt; ein einmaliges „Plan zurücksetzen" auf der Admin-Seite (`ResetScheduleAsync`)
+   baut den Plan mit der korrigierten Belegung neu auf.
 3. `MaterializeOccurrence` läuft unverändert (nur Titel). Der 24-h-`OccurrenceLookback`
    materialisiert nur noch den laufenden Teil einer Ausstrahlung: Enden sämtliche
    `ranges` der selektierten Takes vor `coverageStart`, greift der Early-Return

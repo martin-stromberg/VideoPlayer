@@ -43,6 +43,20 @@ public sealed class ProgramScheduleWorkerTests
         await AssertWorkerPurgeAsync(ct, tvSenderEnabled: false, expectPurged: false);
     }
 
+    // Bounded wait instead of StopAsync(CancellationToken.None): that overload awaits the worker
+    // task with no timeout — a pass that misses its cancellation would hang the whole test run
+    // silently. WaitAsync fails the test after 30 s (a real reconcile may need a few seconds
+    // under load) and surfaces a faulted worker's real exception.
+    private static async Task StopWorkerAsync(CancellationTokenSource cts, ProgramScheduleWorker worker)
+    {
+        await cts.CancelAsync();
+        var executeTask = worker.ExecuteTask
+            ?? throw new InvalidOperationException("Der Worker wurde nicht gestartet.");
+        await executeTask.WaitAsync(TimeSpan.FromSeconds(30));
+        await worker.StopAsync(CancellationToken.None);
+        worker.Dispose();
+    }
+
     private static async Task AssertWorkerPurgeAsync(CancellationToken ct, bool tvSenderEnabled, bool expectPurged)
     {
         var connectionString = $"Data Source=file:schedule-worker-purge-{Guid.NewGuid():N}?mode=memory&cache=shared";
@@ -114,9 +128,7 @@ public sealed class ProgramScheduleWorkerTests
             await Task.Delay(200, ct);
         }
 
-        await cts.CancelAsync();
-        await worker.StopAsync(CancellationToken.None);
-        worker.Dispose();
+        await StopWorkerAsync(cts, worker);
 
         Assert.Equal(!expectPurged, ruleExists);
     }
@@ -202,9 +214,7 @@ public sealed class ProgramScheduleWorkerTests
             await Task.Delay(200, ct);
         }
 
-        await cts.CancelAsync();
-        await worker.StopAsync(CancellationToken.None);
-        worker.Dispose();
+        await StopWorkerAsync(cts, worker);
 
         Assert.Equal(expectSlots, created > 0);
     }
@@ -321,9 +331,7 @@ public sealed class ProgramScheduleWorkerTests
             }
             await Task.Delay(200, ct);
         }
-        await cts.CancelAsync();
-        await worker.StopAsync(CancellationToken.None);
-        worker.Dispose();
+        await StopWorkerAsync(cts, worker);
 
         Assert.True(done, "Der Worker-Task hat das Duplikat nicht entfernt.");
         using var check = provider.CreateScope();

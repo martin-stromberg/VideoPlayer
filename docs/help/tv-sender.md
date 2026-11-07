@@ -479,6 +479,10 @@ Im Tab „Sendeplan" räumen zwei Schaltflächen (nur für Administratoren) den 
   Sendeplan — alle geplanten und verdrängten Sendeplätze sowie die Fortsetzungsstände aller
   Regeln (d. h. Serien beginnen wieder am Anfang ihrer Rotation). Der Plan wird beim nächsten
   Generierungslauf komplett neu aufgebaut; „Jetzt generieren" stößt ihn sofort an.
+  Ein Zurücksetzen ist auch der vorgesehene Weg, nachdem eine Programm-Aktualisierung die
+  Planungslogik korrigiert hat: Bereits geschriebene Sendeplätze gelten weiterhin und werden
+  nicht automatisch ersetzt — erst der Neuaufbau belegt die kommenden Tage mit der
+  korrigierten Planung.
 
 Einen Teil der Historie räumt der Planlauf auch ohne Zutun auf: Liegt zu einem verdrängten
 Sendeplatz ein geplanter Sendeplatz vor, der denselben Zeitraum mit demselben Inhalt aus

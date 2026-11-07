@@ -706,17 +706,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             return true;
         }
 
-        var strandIndex = -1;
-        var idx = -1;
-        for (var s = 0; s < state.Strands.Count; s++)
-        {
-            idx = FindItemIndex(state.Strands[s].Items, slot);
-            if (idx >= 0)
-            {
-                strandIndex = s;
-                break;
-            }
-        }
+        var (strandIndex, idx) = LocateInStrands(state, slot.MediaItemId, slot.MovieId, slot.TVShowEpisodeId, clipIds);
         if (strandIndex < 0)
         {
             invalidReason = AiringInvalidReason.ItemNotInExpansion;
@@ -866,17 +856,29 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return -1;
     }
 
+    // Locates a slot's content inside the strands: (strand index, item index) or (-1, -1) for
+    // clip-ring items and unresolvable content — the shared lookup of the title-wise slot check
+    // and the strand-rotation pointer.
+    private static (int Strand, int Item) LocateInStrands(
+        RuleState state, long mediaItemId, long? movieId, long? episodeId, HashSet<long> clipIds)
+    {
+        if (clipIds.Contains(mediaItemId))
+            return (-1, -1);
+        for (var s = 0; s < state.Strands.Count; s++)
+        {
+            var idx = FindItemIndex(state.Strands[s].Items, mediaItemId, movieId, episodeId);
+            if (idx >= 0)
+                return (s, idx);
+        }
+        return (-1, -1);
+    }
+
     // Strand index of an occupancy entry's content: -1 for clip fills and unresolvable content —
     // the same clip-first classification and per-strand lookup the title-wise slot check uses.
     private static int TitleStrandIndex(RuleState state, OccupiedSlot slot, HashSet<long> clipIds)
-    {
-        if (slot.IsClipFill || clipIds.Contains(slot.MediaItemId))
-            return -1;
-        for (var s = 0; s < state.Strands.Count; s++)
-            if (FindItemIndex(state.Strands[s].Items, slot.MediaItemId, slot.MovieId, slot.EpisodeId) >= 0)
-                return s;
-        return -1;
-    }
+        => slot.IsClipFill
+            ? -1
+            : LocateInStrands(state, slot.MediaItemId, slot.MovieId, slot.EpisodeId, clipIds).Strand;
 
     // The continuing round-robin pointer of an interleaved rule: the strand index right behind
     // the strand the rule's last actually scheduled title pick before this airing belongs to —

@@ -143,9 +143,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // ending exactly on the coverage boundary is still the collision partner.
         var persistedOccupancy = (await _db.ProgramSlots
                 .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled && s.End > coverageStart - OccurrenceLookback && s.Start < horizonEnd.UtcDateTime)
-                .Select(s => new { s.Start, s.End, s.ProgramRuleId })
+                .Select(s => new { s.Start, s.End, s.ProgramRuleId, s.MediaItemId, s.MovieId, s.TVShowEpisodeId, s.IsClipFill })
                 .ToListAsync(cancellationToken))
-            .Select(s => (Slot: new Interval(s.Start, s.End), s.ProgramRuleId))
+            .Select(s => new OccupiedSlot(new Interval(s.Start, s.End), s.ProgramRuleId,
+                s.MediaItemId, s.MovieId, s.TVShowEpisodeId, s.IsClipFill))
             .ToList();
         var blocked = persistedOccupancy.Select(p => p.Slot).ToList();
 
@@ -851,15 +852,52 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // item's own content fields so playlist entries (ContentType PlaylistEntry, not the slot's
     // MovieId/TVShowEpisodeId) resolve the same way as direct movie/episode material.
     private static int FindItemIndex(List<SchedulableItem> items, ProgramSlot slot)
+        => FindItemIndex(items, slot.MediaItemId, slot.MovieId, slot.TVShowEpisodeId);
+
+    private static int FindItemIndex(List<SchedulableItem> items, long mediaItemId, long? movieId, long? episodeId)
     {
-        var idx = items.FindIndex(i => i.MediaItemId == slot.MediaItemId);
+        var idx = items.FindIndex(i => i.MediaItemId == mediaItemId);
         if (idx >= 0)
             return idx;
-        if (slot.MovieId is { } movieId)
-            return items.FindIndex(i => i.MovieId == movieId);
-        if (slot.TVShowEpisodeId is { } episodeId)
-            return items.FindIndex(i => i.TVShowEpisodeId == episodeId);
+        if (movieId is { } m)
+            return items.FindIndex(i => i.MovieId == m);
+        if (episodeId is { } e)
+            return items.FindIndex(i => i.TVShowEpisodeId == e);
         return -1;
+    }
+
+    // Strand index of an occupancy entry's content: -1 for clip fills and unresolvable content —
+    // the same clip-first classification and per-strand lookup the title-wise slot check uses.
+    private static int TitleStrandIndex(RuleState state, OccupiedSlot slot, HashSet<long> clipIds)
+    {
+        if (slot.IsClipFill || clipIds.Contains(slot.MediaItemId))
+            return -1;
+        for (var s = 0; s < state.Strands.Count; s++)
+            if (FindItemIndex(state.Strands[s].Items, slot.MediaItemId, slot.MovieId, slot.EpisodeId) >= 0)
+                return s;
+        return -1;
+    }
+
+    // The continuing round-robin pointer of an interleaved rule: the strand index right behind
+    // the strand the rule's last actually scheduled title pick before this airing belongs to —
+    // airings resume the rotation where the previous one ended instead of stepping +1 per day
+    // (Issue #343: two or three strands served per airing overlapped adjacent days' windows).
+    // Derived from the scheduled slots themselves — persisted rows and this run's new slots —
+    // so the pointer stays correct across runs, displacements and cursor rewinds without any
+    // state of its own. Unresolvable slots are skipped for the next older resolvable one;
+    // with no resolvable history at all the rotation starts at strand 0.
+    private static int StrandRotationOffset(RuleState state, DateTime airingStartUtc, IEnumerable<OccupiedSlot> slots)
+    {
+        var clipIds = ClipMediaItemIds(state);
+        foreach (var slot in slots
+            .Where(s => s.Slot.Start < airingStartUtc)
+            .OrderByDescending(s => s.Slot.Start))
+        {
+            var strand = TitleStrandIndex(state, slot, clipIds);
+            if (strand >= 0)
+                return (strand + 1) % state.Strands.Count;
+        }
+        return 0;
     }
 
     // Rewinds each strand's cursor to the predecessor of its earliest displaced content that is
@@ -1099,7 +1137,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         if (WindowLostToTakeover(occurrence, airingStart, blocked.Except(outranked)))
             return null;
 
-        var selection = SelectItems(state, occurrence.Rule, airingStart, bound, ageRule);
+        var rotationStart = state.IsInterleaved
+            ? StrandRotationOffset(state, airingStart,
+                keptSlots.Concat(newSlots)
+                    .Where(s => s.ProgramRuleId == occurrence.Rule.Id)
+                    .Select(OccupiedSlot.Of))
+            : 0;
+        var selection = SelectItems(state, occurrence.Rule, airingStart, bound, ageRule, rotationStart);
         var taken = selection.Taken;
         summary.BlockedByAgeWindow += selection.BlockedByAgeWindow;
         if (taken.Count == 0)
@@ -1351,6 +1395,18 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     private readonly record struct Interval(DateTime Start, DateTime End)
     {
         public bool Overlaps(Interval other) => Start < other.End && End > other.Start;
+    }
+
+    // One occupancy entry: the slot's interval plus the content fields the continuing
+    // strand-rotation pointer needs to resolve the last aired strand of a rule — the
+    // normalized shape shared by the persisted occupancy of <see cref="EnsureCoverageAsync"/>
+    // and the kept/new slots of the materialization paths.
+    private sealed record OccupiedSlot(Interval Slot, long? RuleId, long MediaItemId,
+        long? MovieId, long? EpisodeId, bool IsClipFill)
+    {
+        public static OccupiedSlot Of(ProgramSlot slot)
+            => new(new Interval(slot.Start, slot.End), slot.ProgramRuleId,
+                slot.MediaItemId, slot.MovieId, slot.TVShowEpisodeId, slot.IsClipFill);
     }
 
     // Advances a would-be occurrence start past every occupied interval covering it: a slot
@@ -1641,7 +1697,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return occurrences;
     }
 
-    private void MaterializeOccurrence(Occurrence occurrence, Dictionary<long, RuleState> states, List<Interval> blocked, List<(Interval Slot, long? RuleId)> persistedOccupancy, List<ProgramSlot> newSlots, DateTime coverageStart, (DateTime StartUtc, bool Hard)? bound, SummaryCounters summary, ProgramScheduleAgeWindowRule ageRule)
+    private void MaterializeOccurrence(Occurrence occurrence, Dictionary<long, RuleState> states, List<Interval> blocked, List<OccupiedSlot> persistedOccupancy, List<ProgramSlot> newSlots, DateTime coverageStart, (DateTime StartUtc, bool Hard)? bound, SummaryCounters summary, ProgramScheduleAgeWindowRule ageRule)
     {
         var state = states[occurrence.Rule.Id];
         if (state.Items.Count == 0)
@@ -1670,7 +1726,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         if (WindowLostToTakeover(occurrence, airingStart, blocked.Except(takeover)))
             return;
 
-        var selection = SelectItems(state, occurrence.Rule, airingStart, bound, ageRule);
+        var rotationStart = state.IsInterleaved
+            ? StrandRotationOffset(state, airingStart,
+                persistedOccupancy.Where(p => p.RuleId == occurrence.Rule.Id)
+                    .Concat(newSlots.Where(s => s.ProgramRuleId == occurrence.Rule.Id)
+                        .Select(OccupiedSlot.Of)))
+            : 0;
+        var selection = SelectItems(state, occurrence.Rule, airingStart, bound, ageRule, rotationStart);
         var taken = selection.Taken;
         summary.BlockedByAgeWindow += selection.BlockedByAgeWindow;
         if (taken.Count == 0)
@@ -1759,7 +1821,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
     private SelectionResult SelectItems(
         RuleState state, ProgramRule rule, DateTime airingStartUtc, (DateTime StartUtc, bool Hard)? bound,
-        ProgramScheduleAgeWindowRule ageRule)
+        ProgramScheduleAgeWindowRule ageRule, int strandRotationOffset)
     {
         var clipGrace = state.ClipGrace;
 
@@ -1769,7 +1831,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             return new SelectionResult(flat.Taken, null, [flat.Scanned], flat.BlockedByAgeWindow);
         }
 
-        var interleaved = SelectAiringItemsInterleaved(state.Strands, rule, airingStartUtc, bound, _minStartRemain, clipGrace, ageRule);
+        var interleaved = SelectAiringItemsInterleaved(state.Strands, rule, airingStartUtc, bound, _minStartRemain, clipGrace, ageRule, strandRotationOffset);
         var selected = new List<SchedulableItem>();
         foreach (var pick in interleaved.Picks)
             selected.Add(pick.Item);
@@ -1800,17 +1862,20 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // strand: a started item always completes (overshoot allowed against soft bounds); a
     // strand stops contributing when its head may no longer start (or cannot complete before
     // a hard bound) — the item defers, it is never skipped or cut.
-    // The start strand rotates over consecutive airing days, but only where strands actually
-    // starve: EpisodeCount < strand count is statically starved and rotates directly; windows
-    // that could in principle serve every strand (wanted >= m — in particular SlotDuration)
-    // run a probe with offset 0 first. When that probe serves fewer strands than non-empty
-    // strands exist, at least one strand starves and a second run with the daily rotation
-    // offset wins; windows serving every strand keep their stable day-to-day positions.
+    // The start strand rotates over consecutive airings, but only where strands actually
+    // starve: EpisodeCount < strand count is statically starved and rotates directly by
+    // day; windows that could in principle serve every strand (wanted >= m — in particular
+    // SlotDuration) run a probe with offset 0 first. When that probe serves fewer strands
+    // than non-empty strands exist, at least one strand starves and a second run wins —
+    // starting at <paramref name="strandRotationOffset"/>, the continuing round-robin
+    // pointer right behind the strand the previous airing ended on (Issue #343: the old
+    // +1/day offset served two or three strands per airing and overlapped adjacent days).
+    // Windows serving every strand keep their stable day-to-day positions.
     // Returns the pick sequence: (strand index, item).
     private static InterleavedSelection SelectAiringItemsInterleaved(
         List<StrandState> strands, ProgramRule rule, DateTime airingStartUtc,
         (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain, TimeSpan? clipGrace,
-        ProgramScheduleAgeWindowRule ageRule)
+        ProgramScheduleAgeWindowRule ageRule, int strandRotationOffset)
     {
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value
             : rule.SlotDuration is not null ? int.MaxValue : 1;
@@ -1835,11 +1900,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // a permanently blocked lead strand must not starve the strands behind it, so the
         // rotation fires for blocked strands exactly like for starving ones.
         var probe = Run(0);
-        var rotated = StrandStartOffset(m, airingStartUtc);
-        return rotated != 0
+        return strandRotationOffset != 0
             && probe.Picks.Select(p => p.Strand).Distinct().Count()
                 < strands.Count(s => s.Items.Count > 0)
-            ? Run(rotated)
+            ? Run(strandRotationOffset)
             : probe;
     }
 

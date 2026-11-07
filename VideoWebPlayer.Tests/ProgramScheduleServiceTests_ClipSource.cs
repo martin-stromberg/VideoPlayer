@@ -137,8 +137,11 @@ public sealed class ProgramScheduleServiceTests_ClipSource
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await ProgramScheduleTestDb.CreateAsync("schedule-clip-rotation", ct);
         var channel = await fixture.GetChannelAsync(ct);
+        // Drei Clips: mit einem 2er-Ring wäre jede Fortsetzung „anders" und ein
+        // Cursor-Rückfall bliebe unsichtbar — der Dreier-Ring macht die Naht beweisbar.
         var clipA = await fixture.CreateMediaItemAsync(1, TimeSpan.FromHours(1));
         var clipB = await fixture.CreateMediaItemAsync(1, TimeSpan.FromHours(1));
+        var clipC = await fixture.CreateMediaItemAsync(1, TimeSpan.FromHours(1));
 
         var rule = await fixture.CreateRuleAsync(channel.Id, "Maskottchen", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
             new TimeOnly(0, 0), ProgramRuleMaterialType.MediaSourceClips, 1, episodeCount: 1);
@@ -150,14 +153,24 @@ public sealed class ProgramScheduleServiceTests_ClipSource
         var slots1 = await fixture.SlotsAsync(ct);
         Assert.Equal(slots1[^1].MediaItemId, cursor.LastContentId);
 
+        // Ringordnung aus der Zyklizität des ersten Laufs ableiten (frischer Lauf startet
+        // bei Ringposition 0): die ersten drei Slots bilden den Ring, alles Weitere muss
+        // periodisch folgen — ein Bruch hier würde die Naht-Erwartung falsch bemessen.
+        Assert.True(slots1.Count >= 3);
+        var ring = slots1.Take(3).Select(s => s.MediaItemId).ToList();
+        for (var i = 3; i < slots1.Count; i++)
+            Assert.True(ring[i % 3] == slots1[i].MediaItemId,
+                $"Ringbruch Lauf 1 an Position {i}: erwartet {ring[i % 3]}, gefunden {slots1[i].MediaItemId}");
+
         // Second run extends the coverage: the ring continues where the cursor left off —
-        // with exactly two clips it must alternate at the seam.
+        // der Naht-Slot muss das erwartete nächste Ringelement sein, nicht nur „anders".
         var now2 = Now.AddHours(48);
         await fixture.CreateService().EnsureCoverageAsync(now2, ct);
         var slots2 = await fixture.SlotsAsync(ct);
         var firstNew = slots2.First(s => s.Start >= Now.UtcDateTime.AddHours(48));
         var lastBefore = slots2.Last(s => s.Start < Now.UtcDateTime.AddHours(48));
-        Assert.NotEqual(lastBefore.MediaItemId, firstNew.MediaItemId);
+        var expectedNext = ring[(slots2.IndexOf(lastBefore) + 1) % 3];
+        Assert.Equal(expectedNext, firstNew.MediaItemId);
     }
 
     [Fact]

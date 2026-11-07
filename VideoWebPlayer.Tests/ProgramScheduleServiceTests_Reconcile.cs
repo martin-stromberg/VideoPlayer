@@ -270,16 +270,21 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         Assert.Contains(await fixture.SlotsAsync(ct), s => s.MediaItemId == e3Item);
 
         // Tomorrow's airing re-airs the next episodes in order — E3 skipped (deleted), E4+E5 air.
-        var tomorrowAiring = (await ScheduledAsync(fixture, ct))
+        // Vollständige Folge über alle Tage: E1,E2 | E4,E5 | E6,E7 … — ein Any()-Vergleich
+        // ließe falsche Folgen auf den übrigen Tagen unsichtbar.
+        var scheduledEpisodes = (await ScheduledAsync(fixture, ct))
             .Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime)
-            .GroupBy(s => s.Start.Day)
-            .OrderBy(g => g.Key)
-            .Select(g => g.Select(s => s.TVShowEpisodeId).ToList())
-            .ToList();
+            .Select(s => s.TVShowEpisodeId).ToList();
         var dumpSeries = string.Join(" | ", (await fixture.SlotsAsync(ct)).Select(s =>
             $"{s.Start:dd.HH:mm}-{s.End:HH:mm} ep={s.TVShowEpisodeId} {(s.Status == ProgramSlotStatus.Displaced ? "X" : "S")}"));
-        Assert.True(tomorrowAiring.Any(a => a.SequenceEqual(new long?[] { episodes[3].Id, episodes[4].Id })), dumpSeries);
-        var scheduled = await ScheduledAsync(fixture, ct);
+        var expected = new[] { episodes[0].Id, episodes[1].Id }
+            .Concat(episodes.Skip(3).Select(e => e.Id))
+            .Take(scheduledEpisodes.Count)
+            .Select(id => (long?)id)
+            .ToList();
+        Assert.True(scheduledEpisodes.SequenceEqual(expected),
+            $"erwartet: {string.Join(",", expected)} — gefunden: {string.Join(",", scheduledEpisodes)}\n{dumpSeries}");
+        Assert.DoesNotContain(scheduledEpisodes, e => e == episodes[2].Id);
     }
 
     [Fact]
@@ -447,15 +452,19 @@ public sealed class ProgramScheduleServiceTests_Reconcile
             .Select(s => (s.Start, s.End, s.TVShowEpisodeId))
             .ToList();
 
-        await service.ReconcileAsync(now.AddMinutes(10), ct);
+        var summary = await service.ReconcileAsync(now.AddMinutes(10), ct);
         var after = (await ScheduledAsync(fixture, ct))
             .Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime)
             .Select(s => (s.Start, s.End, s.TVShowEpisodeId))
             .ToList();
 
         // Every previously scheduled series slot survives at the same position — the plan is
-        // idempotent instead of being rewritten each run.
+        // idempotent instead of being rewritten each run. Die Teilmengen-Prüfung allein würde
+        // ein Verdrängen-plus-Neuplanen übersehen: explizit kein Displaced, keine neuen
+        // Serien-Slots an bestehenden Positionen.
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
         Assert.All(before, b => Assert.Contains(after, a => a.Start == b.Start && a.End == b.End && a.TVShowEpisodeId == b.TVShowEpisodeId));
+        Assert.Equal(before.OrderBy(b => b.Start).ToList(), after.OrderBy(a => a.Start).Take(before.Count).ToList());
     }
 
     [Fact]
@@ -520,6 +529,12 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         Assert.NotEmpty(slots);
         Assert.Contains(slots, s => s.Status == ProgramSlotStatus.Displaced);
         Assert.All(slots, s => Assert.True(s.Start >= now.UtcDateTime.AddHours(-2)));
+        // Ordnungsvertrag der Admin-Ansicht: streng nach Start sortiert …
+        Assert.Equal(slots.Select(s => s.Start).OrderBy(x => x).ToList(), slots.Select(s => s.Start).ToList());
+        // … und maxCount begrenzt auf die ersten N Einträge derselben Ordnung.
+        var limited = await service.GetScheduleAsync(channel.Id, now.AddHours(-2), slots.Count - 1, ct);
+        Assert.Equal(slots.Count - 1, limited.Count);
+        Assert.Equal(slots.Take(slots.Count - 1).Select(s => s.Id).ToList(), limited.Select(s => s.Id).ToList());
     }
 
     // Issue #261: a broadcast whose real start lies more than 24 h before the coverage start

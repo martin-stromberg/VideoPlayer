@@ -215,9 +215,22 @@ public sealed class ProgramScheduleServiceTests_Interleaving
         var (fixture, service, _, _, _, _) = await SeedGenreWindowAsync("schedule-interleave-reconcile", ct);
         using var _ = fixture;
 
+        // Der Reconcile-Lauf darf keine neue Occurrence in seinen Horizont ziehen —
+        // das Befuellen des zusaetzlich abgedeckten Horizonts ist legitime Fortsetzung,
+        // kein Nebeneffekt. Mit dem 48-h-Default endet der Reconcile-Horizont am
+        // 26.10. 12:30 lokal und die Occurrence vom 26.10. 12:00 kippt zeitzonenabhaengig
+        // hinein (UTC: drin → Created=2; Berlin: durch die DST-Umstellung am 25.10.
+        // draussen). 36 h halten auf jeder Maschinen-TZ ~11 h Abstand zum Occurrence-
+        // Start, waehrend der Seed-Horizont (48 h ab 09:00 → 26.10. 09:00) die
+        // Occurrence vom 26.10. in keiner Zeitzone erreicht.
+        var setup = await fixture.Db.Setups.FirstAsync(ct);
+        setup.ProgramScheduleHorizonHours = 36;
+        await fixture.Db.SaveChangesAsync(ct);
+
         var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 30)), ct);
 
-        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+        // Kein Nebeneffekt: nichts verdrängt UND nichts neu materialisiert.
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, summary, ct);
     }
 
     // Issue #261, interleaved path: a genre window whose pick chain exceeds 24 h chains into

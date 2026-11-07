@@ -286,8 +286,18 @@ public sealed class ProgramScheduleServiceTests_ClipGroups
 
         Assert.NotEmpty(firstDayClips);
         Assert.NotEmpty(secondDayClips);
-        // 12 Entnahmen je Ausstrahlung aus einem 5er-Ring → Tag 2 startet bei Index 2.
-        Assert.NotEqual(firstDayClips[0], secondDayClips[0]); // Ring läuft über den Cursor weiter
+        // Der 5er-Ring muss über Tag 1 zyklisch laufen — daraus die Ringordnung ableiten
+        // (sonst wäre jede Fortsetzungs-Erwartung gegen die falsche Ordnung bemessen).
+        Assert.True(firstDayClips.Count >= 5);
+        var ring = firstDayClips.Take(5).ToList();
+        for (var i = 5; i < firstDayClips.Count; i++)
+            Assert.True(ring[i % 5] == firstDayClips[i],
+                $"Ringbruch Tag 1 an Position {i}: erwartet {ring[i % 5]}, gefunden {firstDayClips[i]}");
+        // Tag 2 setzt den Ring hinter der letzten Tag-1-Entnahme fort — kein Neustart,
+        // kein Überspringen: jede Position wird gegen das erwartete Ringelement verglichen.
+        for (var i = 0; i < secondDayClips.Count; i++)
+            Assert.True(ring[(firstDayClips.Count + i) % 5] == secondDayClips[i],
+                $"Fortsetzungsbruch an Position {i}: erwartet {ring[(firstDayClips.Count + i) % 5]}, gefunden {secondDayClips[i]}");
         var cursor = await fixture.Db.ProgramRuleCursors
             .FirstOrDefaultAsync(c => c.ProgramRuleId == rule.Id && c.StrandKey == $"clipgroup:{group!.Id}", ct);
         Assert.NotNull(cursor);
@@ -318,6 +328,14 @@ public sealed class ProgramScheduleServiceTests_ClipGroups
         var trailerSlot = slots.FirstOrDefault(s => s.MediaItemId == trailerItem.Id);
         Assert.NotNull(trailerSlot);
         Assert.Equal(movieX.Id, trailerSlot!.MovieId);
+        // Lead-Fenster-Bezug: der Trailer läuft im Vorlauf-Fenster VOR der Ausstrahlung
+        // seines Films — ein Trailer, der den Film nur zufällig referenziert, aber zeitlich
+        // nicht als Vorlauf dient, wäre ein fachlicher Fehler.
+        var movieStarts = (await fixture.SlotsAsync(ct))
+            .Where(s => s.MovieId == movieX.Id && s.MediaItemId != trailerItem.Id && s.Status == ProgramSlotStatus.Scheduled)
+            .Select(s => s.Start).ToList();
+        var lead = new VideoWebPlayer.Configuration.ProgramScheduleOptions().TrailerLeadDays;
+        Assert.Contains(movieStarts, m => m > trailerSlot.Start && m <= trailerSlot.Start.AddDays(lead));
     }
 
     [Fact]
@@ -402,6 +420,19 @@ public sealed class ProgramScheduleServiceTests_ClipGroups
         var slots = await AiringSlotsAsync(fixture, rule, ct);
 
         Assert.Contains(slots, s => s.MediaItemId == clip.Id);
+        // Verteilung statt Klumpen: die Clips liegen in mindestens zwei der n+1 Segmente
+        // (vor dem ersten Titel, zwischen Titeln, nach dem letzten) und die Ausstrahlung
+        // bleibt eine lückenlose Kette.
+        var titleIdx = slots.Select((s, i) => (s, i)).Where(x => x.s.MediaItemId != clip.Id).Select(x => x.i).ToList();
+        Assert.NotEmpty(titleIdx);
+        var clipInHead = slots.Take(titleIdx[0]).Any(s => s.MediaItemId == clip.Id);
+        var clipBetween = titleIdx.Skip(1).Zip(titleIdx).Any((pair) =>
+            slots.Skip(pair.Second + 1).Take(pair.First - pair.Second - 1).Any(s => s.MediaItemId == clip.Id));
+        var clipInTail = slots.Skip(titleIdx[^1] + 1).Any(s => s.MediaItemId == clip.Id);
+        Assert.True(new[] { clipInHead, clipBetween, clipInTail }.Count(b => b) >= 2,
+            "Clips konzentrieren sich auf ein Segment statt über Head/Zwischen/Tail verteilt");
+        for (var i = 1; i < slots.Count; i++)
+            Assert.Equal(slots[i - 1].End, slots[i].Start);
     }
 
     [Fact]

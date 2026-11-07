@@ -414,7 +414,9 @@ public sealed class ProgramScheduleServiceTests_RingOrder
 
         // Die titelweise Validierung haelt die geplanten Slots gegen denselben
         // SetItems-Aufbau — die Hash-Ordnung ist eine reine Funktion der Eingaben.
-        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+        // Kein Nebeneffekt: ein Reconcile, das Slots heimlich neu materialisiert, würde
+        // über AssertNoDisplacedAsync unsichtbar bleiben.
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, summary, ct);
     }
 
     [Fact]

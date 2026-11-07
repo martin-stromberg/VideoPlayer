@@ -298,18 +298,33 @@ public sealed class ProgramScheduleServiceTests_StrandRotation
         var previous = PrimetimeSeed.AiringOf(titleSlots, firstEvening)
             .Select(s => scenario.CollectionOfMovie[s.MovieId!.Value]).ToHashSet();
         Assert.NotEmpty(previous);
+
+        // Horizon-based lower bound: the second run (5.11. 12:00 + 7 days) covers every
+        // evening whose occurrence start lies before its horizon end — a coverage break
+        // before that must fail loudly instead of slipping under the disjointness check.
+        var horizonEnd = PrimetimeSeed.LocalUtc(2026, 11, 5, 12, 0).AddDays(HorizonDays);
+        var expectedEvenings = Enumerable.Range(1, 9)
+            .Select(d => firstEvening.AddDays(d))
+            .Count(e => PrimetimeSeed.LocalUtc(e.Year, e.Month, e.Day,
+                PrimetimeSeed.Start.Hour, PrimetimeSeed.Start.Minute) < horizonEnd);
+
+        var checkedDays = 0;
         for (var day = 1; day < 10; day++)
         {
             var served = PrimetimeSeed.AiringOf(titleSlots, firstEvening.AddDays(day))
                 .Select(s => scenario.CollectionOfMovie[s.MovieId!.Value]).ToHashSet();
             if (served.Count == 0)
                 break; // beyond the horizon of the second run
+            checkedDays++;
             var overlap = previous.Intersect(served).ToList();
             Assert.True(overlap.Count == 0,
                 $"Bedient-Überlappung {firstEvening.AddDays(day - 1):dd.MM.} → " +
                 $"{firstEvening.AddDays(day):dd.MM.}: {string.Join(", ", overlap)}");
             previous = served;
         }
+        Assert.True(checkedDays >= expectedEvenings,
+            $"Coverage brach nach {checkedDays} geprüften Tagen ab — {expectedEvenings} Abende " +
+            "liegen noch im Horizont des zweiten Laufs und müssen eine Ausstrahlung tragen.");
     }
 
     // Regression of the old path: EpisodeCount below the strand count still rotates the

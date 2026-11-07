@@ -120,7 +120,15 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         var slots = (await fixture.SlotsAsync(ct)).Where(s => s.ProgramRuleId == rule.Id).ToList();
         Assert.NotEmpty(slots);
         // 05:30 + 90 min crosses the 06:00 night end — the started item always completes.
-        Assert.All(slots, s => Assert.Equal(5 * 60 + 30, LocalMinutes(s.Start)));
+        Assert.All(slots, s =>
+        {
+            Assert.Equal(5 * 60 + 30, LocalMinutes(s.Start));
+            // „Runs past night end" heisst: volle Titellaufzeit, Ende jenseits 06:00 —
+            // ein verkürzter Slot am Fensterrand bliebe ohne die End-Prüfung unsichtbar.
+            Assert.Equal(TimeSpan.FromMinutes(90), s.End - s.Start);
+            Assert.True(LocalMinutes(s.End) > 6 * 60 || s.End.Date != s.Start.Date,
+                $"Slot endet nicht jenseits des Nachtendes: {s.Start:o}–{s.End:o}");
+        });
     }
 
     [Fact]
@@ -402,7 +410,10 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
         rule.TimeOfDay = new TimeOnly(allowedHour, allowedMinute);
         await fixture.Db.SaveChangesAsync(ct);
         await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 25, 12, 0)), ct);
-        Assert.Contains(await fixture.SlotsAsync(ct), s => s.ProgramRuleId == rule.Id && s.MovieId == movie.Id);
+        // Nicht nur irgendwo eingeplant: die Ausstrahlung steht auf der Regel-Sendezeit —
+        // ein verschobener Start deutete auf einen verdeckten Fenster-Konflikt hin.
+        Assert.Contains(await fixture.SlotsAsync(ct), s => s.ProgramRuleId == rule.Id && s.MovieId == movie.Id
+            && LocalMinutes(s.Start) == allowedHour * 60 + allowedMinute);
     }
 
     [Fact]
@@ -553,7 +564,14 @@ public sealed class ProgramScheduleServiceTests_AgeWindow
 
         var slots = (await fixture.SlotsAsync(ct)).Where(s => s.ProgramRuleId == rule.Id).ToList();
         Assert.NotEmpty(slots);
-        Assert.All(slots, s => Assert.Equal(5 * 60 + 30, LocalMinutes(s.Start)));
+        Assert.All(slots, s =>
+        {
+            Assert.Equal(5 * 60 + 30, LocalMinutes(s.Start));
+            // „Started item always completes": volle 90 Minuten, Ende jenseits 06:00.
+            Assert.Equal(TimeSpan.FromMinutes(90), s.End - s.Start);
+            Assert.True(LocalMinutes(s.End) > 6 * 60 || s.End.Date != s.Start.Date,
+                $"Slot endet nicht jenseits des Nachtendes: {s.Start:o}–{s.End:o}");
+        });
     }
 
     [Fact]

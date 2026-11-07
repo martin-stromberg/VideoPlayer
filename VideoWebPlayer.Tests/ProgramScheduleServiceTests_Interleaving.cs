@@ -217,7 +217,8 @@ public sealed class ProgramScheduleServiceTests_Interleaving
 
         var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 30)), ct);
 
-        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+        // Kein Nebeneffekt: nichts verdrängt UND nichts neu materialisiert.
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, summary, ct);
     }
 
     // Issue #261, interleaved path: a genre window whose pick chain exceeds 24 h chains into

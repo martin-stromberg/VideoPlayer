@@ -424,9 +424,13 @@ public sealed class ProgramScheduleServiceTests_Generation
         await service.EnsureCoverageAsync(later, ct);
         var slots2 = await fixture.SlotsAsync(ct);
         var last = slots2.Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime).Select(s => s.TVShowEpisodeId).ToList();
-        // Continues in air order after the wrapped position — no restart at episode 1 mid-series.
+        // Continues in air order after the wrapped position — no restart at episode 1
+        // mid-series: the whole sequence must equal the ring [E1..E5] continued cyclically,
+        // position i serves episodes[i % 5].
         Assert.True(last.Count > 4);
-        Assert.Contains(episodes[4].Id, last.Cast<long>());
+        var expectedSeq = Enumerable.Range(0, last.Count).Select(i => (long?)episodes[i % episodes.Count].Id).ToList();
+        Assert.True(last.SequenceEqual(expectedSeq),
+            $"erwartet: {string.Join(",", expectedSeq)} — gefunden: {string.Join(",", last)}");
     }
 
     [Fact]
@@ -474,6 +478,23 @@ public sealed class ProgramScheduleServiceTests_Generation
         Assert.True(slots.Count >= 3);
         var firstAiring = slots.Take(3).ToList();
         Assert.Equal(TimeSpan.FromHours(3), firstAiring[^1].End - firstAiring[0].Start);
+
+        // Abbruch-Invariante pro Ausstrahlungstag: sobald das 150-Minuten-Target erreicht
+        // ist, folgt kein weiterer Titel derselben Ausstrahlung (Overshoot des begonnenen
+        // Titels erlaubt) — ein „ein Titel zu viel" bliebe sonst unsichtbar.
+        var target = TimeSpan.FromMinutes(150);
+        foreach (var airing in slots.GroupBy(s => s.Start.Date))
+        {
+            var covered = TimeSpan.Zero;
+            var titles = airing.OrderBy(s => s.Start).ToList();
+            for (var i = 0; i < titles.Count; i++)
+            {
+                Assert.True(covered < target || i == 0,
+                    $"Ausstrahlung {airing.Key:d}: Titel {i + 1} startet, obwohl das Target schon erreicht war ({covered})");
+                covered += titles[i].End - titles[i].Start;
+            }
+            Assert.True(covered >= target, $"Ausstrahlung {airing.Key:d}: Target nicht erreicht ({covered})");
+        }
     }
 
     [Fact]

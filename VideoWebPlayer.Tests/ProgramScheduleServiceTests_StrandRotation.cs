@@ -256,7 +256,8 @@ public sealed class ProgramScheduleServiceTests_StrandRotation
 
         var titleSlots = await TitleSlotsAsync(scenario, ct);
         var leads = LeadCollections(scenario, titleSlots, new DateOnly(2026, 11, 2), 4);
-        Assert.True(leads.Distinct().Count() >= 2,
-            "EpisodeCount < Strangzahl rotiert nicht mehr: " + string.Join(",", leads));
+        // Alle drei Stränge kommen als Startstrang dran — zwei rotierende Stränge bei
+        // einem hungernden dritten würden die alte Grenze >= 2 ebenfalls erfüllen.
+        Assert.Equal(3, leads.Distinct().Count());
     }
 }

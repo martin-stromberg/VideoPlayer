@@ -155,6 +155,9 @@ public sealed class ProgramScheduleServiceTests_Trailer
         await fixture.CreateService().EnsureCoverageAsync(now, ct);
         var summary = await fixture.CreateService().ReconcileAsync(now.AddMinutes(15), ct);
 
+        // Kein Nebeneffekt des Reconcile-Laufs: nichts verdrängt, nichts neu materialisiert.
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, summary, ct);
+
         var slots = await fixture.SlotsAsync(ct);
         var trailerSlots = slots.Where(s => s.MediaItemId == trailerItem.Id).ToList();
         Assert.NotEmpty(trailerSlots);

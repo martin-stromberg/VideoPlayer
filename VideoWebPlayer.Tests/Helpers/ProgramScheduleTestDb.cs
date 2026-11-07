@@ -49,6 +49,8 @@ internal sealed class ProgramScheduleTestDb : IDisposable
 
     /// <summary>Seeds the reserved system clip group "Trailer" — the migration InsertData seed
     /// never runs under EnsureCreated, so fixtures add the row explicitly.</summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The existing or newly created trailer clip group.</returns>
     public async Task<ProgramClipGroup> SeedTrailerClipGroupAsync(CancellationToken ct)
     {
         var existing = await Db.ProgramClipGroups.FindAsync([ProgramClipGroup.TrailerGroupId], ct);
@@ -61,6 +63,9 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     }
 
     /// <summary>Creates a named clip group directly in the database (bypasses service validation).</summary>
+    /// <param name="name">The group name.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The created clip group.</returns>
     public async Task<ProgramClipGroup> CreateClipGroupAsync(string name, CancellationToken ct)
     {
         var group = new ProgramClipGroup { Name = name };
@@ -70,6 +75,9 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     }
 
     /// <summary>Adds a media item to a clip group (direct join-row insert).</summary>
+    /// <param name="groupId">The clip group id.</param>
+    /// <param name="mediaItemId">The media item id.</param>
+    /// <param name="ct">Cancellation token.</param>
     public async Task AddClipToGroupAsync(long groupId, long mediaItemId, CancellationToken ct)
     {
         Db.ProgramClipGroupItems.Add(new ProgramClipGroupItem { ProgramClipGroupId = groupId, MediaItemId = mediaItemId });
@@ -86,6 +94,17 @@ internal sealed class ProgramScheduleTestDb : IDisposable
 
     /// <summary>Creates a program slot directly in the database — the seed the guide tests need
     /// without going through schedule generation.</summary>
+    /// <param name="channelId">The channel id.</param>
+    /// <param name="startUtc">Slot start (UTC).</param>
+    /// <param name="endUtc">Slot end (UTC).</param>
+    /// <param name="mediaItemId">The media item the slot plays.</param>
+    /// <param name="movieId">Optional movie the slot belongs to.</param>
+    /// <param name="episodeId">Optional episode the slot belongs to.</param>
+    /// <param name="ruleId">Optional producing rule.</param>
+    /// <param name="ruleType">The rule type recorded on the slot.</param>
+    /// <param name="status">The slot status.</param>
+    /// <param name="isClipFill">Whether the slot is clip-fill.</param>
+    /// <returns>The created program slot.</returns>
     public async Task<ProgramSlot> CreateSlotAsync(
         long channelId, DateTime startUtc, DateTime endUtc, long mediaItemId,
         long? movieId = null, long? episodeId = null, long? ruleId = null,
@@ -139,6 +158,9 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     }
 
     /// <summary>Creates a media collection + media item with a probed duration in the given source.</summary>
+    /// <param name="sourceId">The media source id.</param>
+    /// <param name="duration">The probed duration.</param>
+    /// <returns>The created media item.</returns>
     public async Task<MediaItem> CreateMediaItemAsync(long sourceId = 1, TimeSpan? duration = null)
     {
         await EnsureSourceAsync(sourceId);
@@ -162,6 +184,12 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     /// <summary>Creates a media item with an explicitly set duration-probe state (seeded via
     /// <see cref="CreateMediaItemAsync(long, TimeSpan?)"/>, then the probe fields are
     /// overwritten — e.g. an exhausted attempt counter for the failed set).</summary>
+    /// <param name="name">The item name.</param>
+    /// <param name="duration">The probed duration or <see langword="null"/>.</param>
+    /// <param name="probedAt">When the duration was probed.</param>
+    /// <param name="attempts">The probe attempt counter.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The created media item.</returns>
     public async Task<MediaItem> SeedProbeItemAsync(
         string name, TimeSpan? duration, DateTime? probedAt, int attempts, CancellationToken ct)
     {
@@ -179,6 +207,14 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     /// <paramref name="ageRating"/> seeds a raw rating (e.g. an MPAA value) and normalizes it
     /// through <see cref="Utils.AgeRatingNormalizer"/> like the NFO import does — it wins over
     /// <paramref name="ageRatingMinAge"/>.</summary>
+    /// <param name="name">The movie name.</param>
+    /// <param name="sourceId">The media source id.</param>
+    /// <param name="duration">The probed duration of the linked media item.</param>
+    /// <param name="collectionId">Optional movie collection the movie belongs to.</param>
+    /// <param name="releaseDate">Optional release date (drives air order in ordered strands).</param>
+    /// <param name="ageRatingMinAge">Optional minimum age for the age-window rules.</param>
+    /// <param name="ageRating">Optional raw age rating, normalized like the NFO import.</param>
+    /// <returns>The created movie.</returns>
     public async Task<Movie> CreateMovieAsync(string name, long sourceId = 1, TimeSpan? duration = null, long? collectionId = null, DateTime? releaseDate = null, int? ageRatingMinAge = null, string? ageRating = null)
     {
         await EnsureSourceAsync(sourceId);
@@ -205,6 +241,14 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     /// <summary>Creates a show with one season and the given episodes (numbered 1..n, each with
     /// a probed media item); optionally with a normalized minimum age
     /// (<see cref="TVShow.AgeRatingMinAge"/>) the episodes inherit for the age-window rules.</summary>
+    /// <param name="name">The show name.</param>
+    /// <param name="episodeCount">How many episodes to create (numbered 1..n).</param>
+    /// <param name="sourceId">The media source id.</param>
+    /// <param name="duration">The probed duration of each episode's media item.</param>
+    /// <param name="ageRatingMinAge">Optional minimum age for the age-window rules.</param>
+    /// <param name="Show">Tuple element: the created show.</param>
+    /// <param name="Season">Tuple element: the created season.</param>
+    /// <returns>The created show, season and episodes.</returns>
     public async Task<(TVShow Show, TVShowSeason Season, List<TVShowEpisode> Episodes)> CreateShowAsync(string name, int episodeCount, long sourceId = 1, TimeSpan? duration = null, int? ageRatingMinAge = null)
     {
         await EnsureSourceAsync(sourceId);
@@ -231,6 +275,13 @@ internal sealed class ProgramScheduleTestDb : IDisposable
 
     /// <summary>Creates a genre row on the given source (optionally hidden, with alternate names
     /// and a seasonal window).</summary>
+    /// <param name="name">The genre name.</param>
+    /// <param name="sourceId">The media source id.</param>
+    /// <param name="isHidden">Whether the genre is hidden.</param>
+    /// <param name="alternateNames">Optional alternate genre names.</param>
+    /// <param name="startDate">Optional seasonal window start.</param>
+    /// <param name="endDate">Optional seasonal window end.</param>
+    /// <returns>The created genre.</returns>
     public async Task<Genre> CreateGenreAsync(string name, long sourceId = 1, bool isHidden = false,
         IEnumerable<string>? alternateNames = null, DateTime? startDate = null, DateTime? endDate = null)
     {
@@ -248,6 +299,8 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     }
 
     /// <summary>Links a genre to a movie (MovieGenre row).</summary>
+    /// <param name="movieId">The movie id.</param>
+    /// <param name="genreId">The genre id.</param>
     public async Task LinkMovieGenreAsync(long movieId, long genreId)
     {
         Db.MovieGenres.Add(new MovieGenre { MovieId = movieId, GenreId = genreId });
@@ -255,6 +308,8 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     }
 
     /// <summary>Links a genre to a TV show (TVShowGenre row).</summary>
+    /// <param name="showId">The show id.</param>
+    /// <param name="genreId">The genre id.</param>
     public async Task LinkShowGenreAsync(long showId, long genreId)
     {
         Db.TVShowGenres.Add(new TVShowGenre { TVShowId = showId, GenreId = genreId });
@@ -264,6 +319,25 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     /// <summary>Creates a program rule directly in the database (service-level validation bypassed).
     /// <paramref name="validity"/> seeds the validity window the same way the service persists it
     /// (mode-matching fields only).</summary>
+    /// <param name="channelId">The channel id.</param>
+    /// <param name="name">The rule name.</param>
+    /// <param name="type">The rule type.</param>
+    /// <param name="recurrence">The recurrence pattern.</param>
+    /// <param name="timeOfDay">The local start time of the occurrence.</param>
+    /// <param name="materialType">The material type.</param>
+    /// <param name="materialId">The material id.</param>
+    /// <param name="priority">The rule priority.</param>
+    /// <param name="episodeCount">Optional episode count per airing.</param>
+    /// <param name="slotDuration">Optional slot duration per airing.</param>
+    /// <param name="dayOfWeek">Optional weekday restriction.</param>
+    /// <param name="singleDate">Optional single airing date.</param>
+    /// <param name="isActive">Whether the rule is active.</param>
+    /// <param name="genreIds">Optional genre links.</param>
+    /// <param name="mediaSourceIds">Optional source restriction.</param>
+    /// <param name="clipGroupIds">Optional clip group links.</param>
+    /// <param name="placeholderGrace">Optional placeholder grace.</param>
+    /// <param name="validity">Optional validity window.</param>
+    /// <returns>The created program rule.</returns>
     public async Task<ProgramRule> CreateRuleAsync(
         long channelId, string name, ProgramRuleType type, ProgramRuleRecurrence recurrence,
         TimeOnly timeOfDay, ProgramRuleMaterialType materialType, long materialId,
@@ -342,6 +416,10 @@ internal sealed class ProgramScheduleTestDb : IDisposable
 
     /// <summary>Asserts a reconcile run displaced nothing — the displaced-slot dump is built
     /// only on failure.</summary>
+    /// <param name="fixture">The test fixture.</param>
+    /// <param name="summary">The reconcile summary.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <param name="context">Optional context for the failure message.</param>
     public static async Task AssertNoDisplacedAsync(ProgramScheduleTestDb fixture, ProgramScheduleReconcileSummary summary, CancellationToken ct, string? context = null)
     {
         if (summary.SlotsDisplaced == 0)
@@ -356,6 +434,10 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     /// <summary>Asserts a reconcile run was a full no-op: nothing displaced AND nothing created
     /// (<see cref="AssertNoDisplacedAsync"/> covers only the displaced side — a repeated run
     /// that silently re-materializes stays invisible there).</summary>
+    /// <param name="fixture">The test fixture.</param>
+    /// <param name="summary">The reconcile summary.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <param name="context">Optional context for the failure message.</param>
     public static async Task AssertReconcileNoOpAsync(ProgramScheduleTestDb fixture, ProgramScheduleReconcileSummary summary, CancellationToken ct, string? context = null)
     {
         if (summary.SlotsDisplaced == 0 && summary.SlotsCreated == 0)
@@ -372,6 +454,9 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     /// media the <see cref="ProgramSlot.MediaItemId"/>) with a
     /// <see cref="ProgramSlotStatus.Scheduled"/> row — the direct proof of an unnecessary
     /// displacement.</summary>
+    /// <param name="fixture">The test fixture.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <param name="context">Optional context for the failure message.</param>
     public static async Task AssertNoSelfDisplacedAsync(ProgramScheduleTestDb fixture, CancellationToken ct, string? context = null)
     {
         var slots = await fixture.SlotsAsync(ct);
@@ -392,6 +477,9 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     /// <summary>Links an additional media item to an existing movie — reproduces a
     /// representative switch when the new link changes the probe picture
     /// (e.g. a second file that gets its duration probed later).</summary>
+    /// <param name="movieId">The movie id.</param>
+    /// <param name="mediaItemId">The media item id.</param>
+    /// <returns>The created link row.</returns>
     public async Task<MovieMediaItem> LinkMovieMediaItemAsync(long movieId, long mediaItemId)
     {
         var link = new MovieMediaItem { MovieId = movieId, MediaItemId = mediaItemId };
@@ -402,6 +490,9 @@ internal sealed class ProgramScheduleTestDb : IDisposable
 
     /// <summary>Links an additional media item to an existing episode (same purpose as
     /// <see cref="LinkMovieMediaItemAsync"/>).</summary>
+    /// <param name="episodeId">The episode id.</param>
+    /// <param name="mediaItemId">The media item id.</param>
+    /// <returns>The created link row.</returns>
     public async Task<TVShowEpisodeMediaItem> LinkEpisodeMediaItemAsync(long episodeId, long mediaItemId)
     {
         var link = new TVShowEpisodeMediaItem { TVShowEpisodeId = episodeId, MediaItemId = mediaItemId };
@@ -410,15 +501,24 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         return link;
     }
 
-    /// <summary>Asserts the slot chain covers [from, to] without gaps or overlaps.</summary>
+    /// <summary>Asserts the slot chain covers [from, to] without gaps or overlaps: the first
+    /// slot in the window may straddle <paramref name="from"/> (a slot already running at the
+    /// window edge), every later slot must start exactly at its predecessor's end.</summary>
+    /// <param name="slots">The slots to check.</param>
+    /// <param name="from">Start of the window to cover (UTC).</param>
+    /// <param name="to">End of the window to cover (UTC).</param>
     public static void AssertGapless(IReadOnlyList<ProgramSlot> slots, DateTime from, DateTime to)
     {
         Assert.NotEmpty(slots);
         var cursor = from;
+        var first = true;
         foreach (var slot in slots.Where(s => s.End > from && s.Start < to).OrderBy(s => s.Start))
         {
-            Assert.True(slot.Start <= cursor, $"Lücke/Überlappung bei {slot.Start:o} (erwartet <= {cursor:o})");
+            Assert.True(slot.Start <= cursor, $"Lücke bei {slot.Start:o} — Abdeckung endete bei {cursor:o}");
+            if (slot.Start < cursor && !first)
+                Assert.Fail($"Überlappung: Slot {slot.Start:o}–{slot.End:o} beginnt vor Abdeckungsende {cursor:o}");
             cursor = slot.End;
+            first = false;
         }
         Assert.True(cursor >= to, $"Abdeckung endet bei {cursor:o}, erwartet >= {to:o}");
     }

@@ -177,6 +177,7 @@ public sealed class ProgramScheduleServiceTests_CollectionOrder
 
         // Die titelweise Validierung haelt die geplanten Slots gegen denselben
         // Strangaufbau — Ring-Kontiguitaet der geordneten Sammlung eingeschlossen.
-        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+        // Kein Nebeneffekt: auch kein heimlich neu materialisierter Slot.
+        await ProgramScheduleTestDb.AssertReconcileNoOpAsync(fixture, summary, ct);
     }
 }

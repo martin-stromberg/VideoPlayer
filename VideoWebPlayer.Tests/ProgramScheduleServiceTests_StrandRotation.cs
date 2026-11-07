@@ -216,7 +216,7 @@ public sealed class ProgramScheduleServiceTests_StrandRotation
             .Select(s => scenario.CollectionOfMovie[s.MovieId!.Value]).ToList();
         Assert.NotEmpty(reference);
         Assert.Equal(2, reference.Distinct().Count()); // both strands served — the
-                                                     // precondition of "no rotation"
+                                                       // precondition of "no rotation"
         for (var day = 1; day < 5; day++)
         {
             var titles = PrimetimeSeed.AiringOf(titleSlots, firstEvening.AddDays(day))

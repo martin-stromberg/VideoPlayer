@@ -19,8 +19,12 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
     private sealed class FakeGuide : IProgramGuideService
     {
         public DtoProgramGuideNow Result { get; set; } = new();
+        public int NowCalls;
         public Task<DtoProgramGuideNow> GetNowAsync(DateTimeOffset utcNow, CancellationToken ct = default)
-            => Task.FromResult(Result);
+        {
+            Interlocked.Increment(ref NowCalls);
+            return Task.FromResult(Result);
+        }
         public Task<DtoProgramGuideEntry[]> GetUpcomingAsync(DateTimeOffset utcNow, TimeSpan preview, CancellationToken ct = default)
             => Task.FromResult(Array.Empty<DtoProgramGuideEntry>());
     }
@@ -190,6 +194,134 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
             Assert.True(segmenter.StopCalls >= 1, "Der Worker hat den laufenden Segmenter nicht gestoppt.");
             Assert.False(segmenter.Running, "Der Segmenter laeuft trotz gesperrtem Sender weiter.");
             Assert.Equal(0, segmenter.StartCalls);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_OffAir_StopsSegmenterAndNeverStarts()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // Feature freigeschaltet, aber On-Air-Schalter aus (Issue #348): ein noch laufender
+        // ffmpeg-Lauf wird gestoppt, die Synchronisation startet nie — gleiche Stopp-
+        // Verzweigung wie beim Feature-Flag, Sendeplan und Programmauskunft laufen weiter.
+        var setup = await _fixture.Db.Setups.FirstAsync(ct);
+        setup.TvSenderOnAir = false;
+        await _fixture.Db.SaveChangesAsync(ct);
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(_fixture.Db);
+        services.AddScoped<ProgramSettingsService>();
+        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
+            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
+        services.AddScoped<LiveStreamSegmentStore>();
+        services.AddSingleton<IProgramGuideService>(new FakeGuide());
+        var segmenter = new FakeSegmenter { Running = true };
+        services.AddSingleton<ILiveStreamSegmenter>(segmenter);
+        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
+        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
+        services.AddSingleton(local);
+        services.AddSingleton(new SftpMediaSourceReader());
+        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
+            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
+        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
+            new VideoWebPlayer.Configuration.LiveStreamOptions()));
+        services.AddScoped<LiveStreamMediaResolver>();
+        services.AddScoped<LiveStreamCoordinator>();
+        await using var provider = services.BuildServiceProvider();
+
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
+        var worker = new LiveStreamWorker(scopeFactory,
+            NullLogger<LiveStreamWorker>.Instance, CreateStandby(scopeFactory),
+            signal: null, initialDelay: TimeSpan.Zero);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(15));
+        await worker.StartAsync(cts.Token);
+        try
+        {
+            for (var i = 0; i < 50 && segmenter.StopCalls == 0; i++)
+                await Task.Delay(100, ct);
+            Assert.True(segmenter.StopCalls >= 1, "Der Worker hat den laufenden Segmenter bei Off-Air nicht gestoppt.");
+            Assert.False(segmenter.Running, "Der Segmenter laeuft trotz Off-Air weiter.");
+            Assert.Equal(0, segmenter.StartCalls);
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_OffAirToOnAir_ResumesSegmentation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // Off-Air → On-Air zwischendurch: der naechste Takt nimmt die Synchronisation
+        // wieder auf (zeitbasierte Resynchronisation — kein Neustart noetig). Nachweis
+        // ueber den Guide-Aufruf, den der Coordinator je Takt ausfuehrt.
+        var setup = await _fixture.Db.Setups.FirstAsync(ct);
+        setup.TvSenderOnAir = false;
+        await _fixture.Db.SaveChangesAsync(ct);
+
+        var guide = new FakeGuide();
+        var segmenter = new FakeSegmenter { Running = true };
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(_fixture.Db);
+        services.AddScoped<ProgramSettingsService>();
+        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
+            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
+        services.AddScoped<LiveStreamSegmentStore>();
+        services.AddSingleton<IProgramGuideService>(guide);
+        services.AddSingleton<ILiveStreamSegmenter>(segmenter);
+        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
+        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
+        services.AddSingleton(local);
+        services.AddSingleton(new SftpMediaSourceReader());
+        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
+            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
+        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
+            new VideoWebPlayer.Configuration.LiveStreamOptions()));
+        services.AddScoped<LiveStreamMediaResolver>();
+        services.AddScoped<LiveStreamCoordinator>();
+        await using var provider = services.BuildServiceProvider();
+
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
+        var timeProvider = new ControllableTimeProvider();
+        var worker = new LiveStreamWorker(scopeFactory,
+            NullLogger<LiveStreamWorker>.Instance, CreateStandby(scopeFactory),
+            signal: null, initialDelay: TimeSpan.Zero, timeProvider: timeProvider);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(30));
+        await worker.StartAsync(cts.Token);
+        try
+        {
+            // Off-Air-Tick: Segmenter wird gestoppt, die Synchronisation lief nie.
+            for (var i = 0; i < 100 && segmenter.StopCalls == 0; i++)
+                await Task.Delay(50, ct);
+            Assert.True(segmenter.StopCalls >= 1);
+            Assert.Equal(0, guide.NowCalls);
+
+            setup.TvSenderOnAir = true;
+            await _fixture.Db.SaveChangesAsync(ct);
+
+            // Naechster Poll-Takt ueber den steuerbaren Zeitgeber: der Worker ruft
+            // SynchronizeAsync wieder auf — erkennbar am Guide-Zugriff.
+            for (var i = 0; i < 100 && guide.NowCalls == 0; i++)
+            {
+                timeProvider.TickTimers();
+                await Task.Delay(50, ct);
+            }
+            Assert.True(guide.NowCalls >= 1, "Nach dem On-Air-Schalten hat der Worker die Synchronisation nicht wieder aufgenommen.");
         }
         finally
         {

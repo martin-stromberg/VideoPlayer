@@ -29,11 +29,31 @@ Administratoren haben immer Zugriff und brauchen keinen Eintrag in der Liste (ih
 ist fest gesetzt). Ohne Auswahl sehen nur Administratoren den Sender. Das Löschen eines
 Benutzerkontos entfernt dessen Freigabezeile automatisch.
 
+## Sendebetrieb (On Air)
+
+Die Karte **„Sendebetrieb"** im Tab „Einstellungen" trägt den Schalter **„On Air —
+Live-Stream senden"** (Standard: ein). Er steuert ausschließlich den Live-Stream und wirkt
+**sofort**, ohne „Speichern" und ohne Neustart:
+
+- **Aus (Off Air):** Ein laufender `ffmpeg`-Lauf wird beendet und nicht neu gestartet;
+  `/api/live-stream/*` liefert keinerlei Stream-Daten mehr aus (404 — weder echte Segmente
+  noch den Standby-Clip). Zuschauer sehen in der Live-TV-Ansicht im Player-Bereich ein
+  Off-Air-Testbild („Der Sender ist zurzeit nicht auf Sendung.").
+- **Ein (On Air):** Die Segmentierung nimmt beim nächsten Arbeitstakt an der aktuellen
+  Programmposition wieder auf; bis die erste echte Wiedergabeliste steht, greift wie
+  gewohnt der Standby-Clip.
+
+Im Gegensatz zur **Freischaltung** bleibt alles Übrige Off-Air betriebsbereit: Sendeplan
+und Programmauskunft (`/api/program-guide/*`), die Verwaltungsseite und die
+Laufzeitermittlung laufen unverändert weiter — ausgeschaltet wird nur die Auslieferung.
+Umgekehrt kann der Schalter den Stream nicht teilweise „an" schalten: Ohne die
+Freischaltung erreicht kein Weg den Stream.
+
 Die Seite ist in fünf Bereiche gegliedert, die über die Reiter (Tabs) oben erreichbar sind:
 **Regeln** (Programmregeln als Panels untereinander; der Regel-Editor öffnet sich als
 Overlay-Panel über der Liste), **Sendeplan** (kommende
-Sendeplätze und manueller Generierungsanstoß), **Einstellungen** (Sender, Planung und
-Segmentierung), **Laufzeitermittlung** (Fortschritt der automatischen
+Sendeplätze und manueller Generierungsanstoß), **Einstellungen** (Sender, Planung,
+Sendebetrieb und Segmentierung), **Laufzeitermittlung** (Fortschritt der automatischen
 Videolaufzeit-Ermittlung) und **Clip-Gruppen** (Verwaltung benannter Platzhalter-Clip-Gruppen
 für die Restzeit-Auffüllung im Sendeplatz — siehe Abschnitt
 [„Clip-Gruppen mit Karenzzeit im Sendeplatz"](#clip-gruppen-mit-karenzzeit-im-sendeplatz)).
@@ -729,6 +749,11 @@ andernfalls springt die freie Bibliothek **hls.js** ein. Der Abruf erfolgt authe
 
 Verständliche Hinweise ersetzen technische Fehlerbilder:
 
+- **„Der Sender ist zurzeit nicht auf Sendung."** — der Administrator hat den Sendebetrieb
+  über den Schalter „On Air" gestoppt (siehe [„Sendebetrieb (On Air)"](#sendebetrieb-on-air));
+  statt des Players erscheint ein Off-Air-Testbild im Player-Bereich, die Programm-Karten
+  laufen weiter. Sobald der Schalter wieder ein ist, setzt die Ansicht die Wiedergabe ohne
+  Neuladen fort.
 - **„Aktuell läuft keine Sendung."** — Sendelücke; die nächste Sendung wird genannt, sobald bekannt.
 - **„Der Live-Stream ist momentan nicht verfügbar. Es wird automatisch erneut versucht."** —
   echte Auslieferungsfehler (z. B. Netzwerkabbruch oder keine verfügbaren Standby-Assets);

@@ -334,10 +334,26 @@ Playlist-Anfrage beantwortet in dieser Zeit der Standby-Satz. Direkt danach läu
 deren Vorbereitung an (ein Cache-Treffer lädt ohne `ffmpeg`-Lauf); ein Fehlschlag ist
 toleriert und wird nur protokolliert — der eingebettete Default bleibt aktiv.
 
+### Gate im Poll-Takt
+
+Je Takt liest der Worker `GetTvSenderEnabledAsync` und — nur bei freigeschaltetem Feature —
+`GetTvSenderOnAirAsync` (Issue #348). Ist einer der beiden aus, greift dieselbe
+Stopp-Verzweigung: ein laufender `ILiveStreamSegmenter` wird idempotent via `StopAsync`
+beendet, der Poll-Takt läuft weiter; Sendeplan-Worker und Programmauskunft hängen nicht am
+On-Air-Schalter. Der Admin-Umschalter `#tvsender-on-air` persistiert über
+`UpdateTvSenderOnAirAsync` und weckt den Takt ungebatcht via
+`IProgramScheduleSignal.NotifyScheduleChangedNow()` — ohne das Debounce-Fenster
+(`ScheduleChangedDebounceSeconds`) abzuwarten; spätestens der `PollCap`-Takt (30 s) greift
+sonst. On-Air setzt `SynchronizeAsync` die Segmentierung zeitbasiert an der aktuellen
+Programmposition fort.
+
 ### Playlist-Entscheidung im Controller
 
-Reihenfolge in `GetFile` (Freigabeprüfungen `GetTvSenderEnabledAsync` → `404` und
-`IsTvSenderAccessGrantedAsync` → `403` laufen unverändert zuerst):
+Reihenfolge in `GetFile` (Freigabeprüfungen `GetTvSenderEnabledAsync` → `404`,
+`IsTvSenderAccessGrantedAsync` → `403` und — seit Issue #348 —
+`GetTvSenderOnAirAsync` → `404` laufen unverändert zuerst; das On-Air-Gate sitzt vor
+`TryResolveFileAsync` und damit auch vor `ServeStandbyAsync`, sodass abgeschalteter
+Sendebetrieb keinerlei Stream-Daten ausliefert):
 
 1. Datei im Segment-Verzeichnis gefunden und `*.m3u8`: Inhalt lesen;
    `PlaylistReferencesSegment` (mindestens eine Nicht-`#`-Zeile) entscheidet „echte

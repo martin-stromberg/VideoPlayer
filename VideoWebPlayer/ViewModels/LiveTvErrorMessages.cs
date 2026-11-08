@@ -13,6 +13,9 @@ internal static class LiveTvErrorMessages
     /// <summary>Message shown while the schedule gap lasts — no broadcast is currently airing.</summary>
     public const string NoProgramRunning = "Aktuell läuft keine Sendung.";
 
+    /// <summary>Alt text of the off-air image shown while the admin turned the stream off.</summary>
+    public const string NotOnAir = "Der Sender ist zurzeit nicht auf Sendung.";
+
     /// <summary>Message shown when the stream itself cannot be loaded; retried automatically.</summary>
     public const string StreamUnavailable =
         "Der Live-Stream ist momentan nicht verfügbar. Es wird automatisch erneut versucht.";

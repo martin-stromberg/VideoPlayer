@@ -46,6 +46,15 @@
     background: #000;
 }
 
+/* Off-Air-Testbild fuellt den Player-Bereich exakt wie das Video (16:9). */
+.livetv-off-air {
+    width: 100%;
+    display: block;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: #000;
+}
+
 .livetv-hint {
     position: absolute;
     left: 1rem;

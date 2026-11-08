@@ -62,7 +62,11 @@ else
                 @* Player-Bereich: bei laufender Sendung das Video (attach via liveTv.js - nativ oder hls.js);
                    bei Sendeluecke die verstaendliche Hinweismeldung. *@
                 <div class="livetv-player-wrap">
-                    @if (guide?.Now is not null)
+                    @if (!tvSenderOnAir)
+                    {
+                        <img class="livetv-off-air" id="live-tv-off-air" src="@OffAirImageUrl" alt="@LiveTvErrorMessages.NotOnAir" />
+                    }
+                    else if (guide?.Now is not null)
                     {
                         <video @ref="_videoRef" id="live-tv-video" class="livetv-video" controls autoplay muted playsinline></video>
                         @if (unsupportedBrowser)
@@ -205,6 +209,9 @@ else
     private bool isAuthenticated;
     private bool tvSenderEnabled;
     private bool tvSenderAccessGranted;
+    // On-Air-Schalter (Setup.TvSenderOnAir): aus = Off-Air-Bild statt Player; je Poll-Tick
+    // neu gelesen, damit die Seite ohne Reload umspringt. Default true wie die Spalte.
+    private bool tvSenderOnAir = true;
     private bool isLoading = true;
     private string? loadError;
     private bool streamError;
@@ -233,6 +240,8 @@ else
 
     private string HlsScriptUrl => AssetVersions.Url("js/vendor/hls.min.js");
 
+    private string OffAirImageUrl => AssetVersions.Url("images/live-tv-off-air.png");
+
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
@@ -254,7 +263,10 @@ else
                 userId, auth.User.HasClaim("IsAdmin", "True"));
         }
         if (tvSenderAccessGranted)
+        {
+            tvSenderOnAir = await ProgramSettings.GetTvSenderOnAirAsync();
             await RefreshGuideAsync(isInitial: true);
+        }
         isLoading = false;
     }
 
@@ -269,7 +281,10 @@ else
         if (firstRender)
             _pollTask = PollLoopAsync();
 
-        var currentSlotId = guide?.Now?.SlotId;
+        // Off-Air verhaelt sich attach-seitig wie „kein laufender Slot": ein bestehender
+        // Attach wird detacht (hls.js-Re-Attach samt 5-s-Fehlerschleife stoppt), ohne
+        // Re-Attach bleibt der Player aus.
+        var currentSlotId = tvSenderOnAir ? guide?.Now?.SlotId : null;
         if (currentSlotId == _attachedSlotId)
             return;
 
@@ -302,6 +317,10 @@ else
                 {
                     // Datenabruf darf auf dem Hintergrundthread laufen; nur das Rendern geht ueber den
                     // Dispatcher. Ein einzelner fehlschlagender Tick beendet die Schleife nicht.
+                    // Der On-Air-Stand liest den scoped DbContext — wie jeder DbContext-Zugriff
+                    // geht er ueber den Dispatcher (Muster: ProbeProgressLoopAsync in TVSenderAdmin).
+                    await InvokeAsync(async () =>
+                        tvSenderOnAir = await ProgramSettings.GetTvSenderOnAirAsync(_cts.Token));
                     await RefreshGuideAsync(isInitial: false);
                     await InvokeAsync(StateHasChanged);
                 }

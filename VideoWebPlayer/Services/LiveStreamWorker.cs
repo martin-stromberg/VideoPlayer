@@ -13,7 +13,7 @@ namespace VideoWebPlayer.Services;
 /// </summary>
 public sealed class LiveStreamWorker : BackgroundService
 {
-    /// <summary>The maximum time between two synchronization ticks.</summary>
+    // The maximum time between two synchronization ticks.
     internal static readonly TimeSpan PollCap = TimeSpan.FromSeconds(30);
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -93,10 +93,13 @@ public sealed class LiveStreamWorker : BackgroundService
                     using var scope = _scopeFactory.CreateScope();
                     var settings = scope.ServiceProvider.GetRequiredService<ProgramSettingsService>();
 
-                    if (!await settings.GetTvSenderEnabledAsync(stoppingToken))
+                    var enabled = await settings.GetTvSenderEnabledAsync(stoppingToken);
+                    var onAir = enabled && await settings.GetTvSenderOnAirAsync(stoppingToken);
+                    if (!onAir)
                     {
-                        // Feature-Flag aus: keine Segmentierung — einen evtl. noch laufenden
-                        // ffmpeg-Lauf stoppen (idempotent), dann den Poll-Takt beibehalten.
+                        // Feature-Flag oder On-Air-Schalter aus: keine Segmentierung — einen
+                        // evtl. noch laufenden ffmpeg-Lauf stoppen (idempotent), dann den
+                        // Poll-Takt beibehalten.
                         var segmenter = scope.ServiceProvider.GetRequiredService<ILiveStreamSegmenter>();
                         if (segmenter.IsRunning)
                             await segmenter.StopAsync(stoppingToken);

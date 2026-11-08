@@ -11,6 +11,7 @@ namespace VideoWebPlayer.Tests.Helpers;
 internal sealed class FakeScheduleSignal : IProgramScheduleSignal
 {
     private int _liveNotifications;
+    private int _nowNotifications;
 
     /// <summary>How often the live-schedule-changed line was fired (volatile read — the
     /// assertion must not see a stale count under parallel load).</summary>
@@ -19,15 +20,19 @@ internal sealed class FakeScheduleSignal : IProgramScheduleSignal
         get { return Volatile.Read(ref _liveNotifications); }
     }
 
+    /// <summary>How often the unbatched schedule-changed signal was fired.</summary>
+    public int NowNotifications
+    {
+        get { return Volatile.Read(ref _nowNotifications); }
+    }
+
     /// <inheritdoc />
     public void NotifyScheduleChanged()
     {
     }
 
     /// <inheritdoc />
-    public void NotifyScheduleChangedNow()
-    {
-    }
+    public void NotifyScheduleChangedNow() => Interlocked.Increment(ref _nowNotifications);
 
     /// <inheritdoc />
     public IDisposable BeginScan() => new ScanScopeStub();

@@ -40,6 +40,7 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
 
     /// <summary>Same seed as <see cref="SeedChannelWithRunningProgramAsync"/> but with an
     /// empty segment directory — the server answers the playlist with the standby stream.</summary>
+    /// <param name="movieTitle">Movie name to seed and air.</param>
     private async Task SeedChannelWithRunningProgram_NoPlaylistAsync(string movieTitle)
     {
         using var scope = Services.CreateScope();
@@ -52,6 +53,7 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
     /// Seeds channel + movie + media item + one running and one upcoming broadcast slot, plus the
     /// HLS segment directory so the player actually reaches <c>live.m3u8</c>.
     /// </summary>
+    /// <param name="movieTitle">Movie name to seed and air.</param>
     private async Task SeedChannelWithRunningProgramAsync(string movieTitle)
     {
         using var scope = Services.CreateScope();
@@ -181,6 +183,35 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         // nächsten ReconcileAsync-Lauf als Displaced verwirft — ein zur Laufzeit geschriebener
         // Slot überlebt daher nicht bis zur sichtbaren Wiederherstellung. Der Mechanismus ist
         // über die bUnit-Statusuebergaenge und den Player-Test abgesichert.
+    }
+
+    [Fact]
+    public async Task LiveTv_OffAir_ShowsOffAirImage_GuideStillRenders()
+    {
+        if (SkipBrowser) return;
+
+        await SeedChannelWithRunningProgramAsync("Off-Air-Abendfilm");
+        using (var scope = Services.CreateScope())
+        {
+            var ct = TestContext.Current.CancellationToken;
+            var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(ct);
+            setup.TvSenderOnAir = false;
+            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().SaveChangesAsync(ct);
+        }
+
+        await LoginAsync(UserAEmail);
+        await Page.GotoAsync($"{ServerUrl}/live-tv");
+
+        // Off-Air (Issue #348): das Off-Air-Bild steht im Player-Bereich — sichtbar und
+        // wirklich ausgeliefert —, die Programmauskunft-Karten laufen unveraendert weiter.
+        await Expect(Page.Locator("#live-tv-off-air")).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 30_000 });
+        var naturalWidth = await Page.EvaluateAsync<int>(
+            "() => document.querySelector('#live-tv-off-air')?.naturalWidth ?? 0");
+        Assert.True(naturalWidth > 0, "Das Off-Air-Bild wurde nicht wirklich ausgeliefert.");
+        await Expect(Page.Locator("#live-tv-now-title")).ToContainTextAsync("Off-Air-Abendfilm");
+        await Expect(Page.Locator("#live-tv-next")).ToBeVisibleAsync();
+        Assert.Equal(0, await Page.Locator("#live-tv-video").CountAsync());
     }
 
     [Fact]

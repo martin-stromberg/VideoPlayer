@@ -330,6 +330,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<bool>("TvSenderEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("TvSenderOnAir")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.ToTable("Setups");

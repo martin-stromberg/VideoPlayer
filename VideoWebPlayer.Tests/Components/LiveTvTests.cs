@@ -27,7 +27,7 @@ public class LiveTvTests
 
     private const string TestUserId = "test-user-id";
 
-    private static BunitContext CreateContext(Mock<IProgramGuideApiClient>? guide = null, bool authorized = true, bool tvSenderEnabled = true, bool tvSenderAccessGranted = true)
+    private static BunitContext CreateContext(Mock<IProgramGuideApiClient>? guide = null, bool authorized = true, bool tvSenderEnabled = true, bool tvSenderAccessGranted = true, bool tvSenderOnAir = true)
     {
         var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -46,11 +46,13 @@ public class LiveTvTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         var db = new ApplicationDbContext(options, new EventManager());
-        db.Setups.Add(new Setup { TvSenderEnabled = tvSenderEnabled });
+        db.Setups.Add(new Setup { TvSenderEnabled = tvSenderEnabled, TvSenderOnAir = tvSenderOnAir });
         if (tvSenderAccessGranted)
             db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = TestUserId });
         db.SaveChanges();
         ctx.Services.AddSingleton(new ProgramSettingsService(db, NullLogger<ProgramSettingsService>.Instance));
+        // Ueber den Kontext loesen Tests die Db aus, um den On-Air-Stand zur Laufzeit umzuschalten.
+        ctx.Services.AddSingleton(db);
         return ctx;
     }
 
@@ -309,6 +311,50 @@ public class LiveTvTests
         Assert.Contains("nicht freigeschaltet", cut.Find("#live-tv-disabled").TextContent);
         guide.Verify(m => m.RequestProgramGuideNowAsync(It.IsAny<CancellationToken>()), Times.Never);
         guide.Verify(m => m.RequestProgramGuideUpcomingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void Page_OffAir_ShowsOffAirImage_ProgramGuideStillRenders()
+    {
+        // On-Air-Schalter aus (Issue #348): das Off-Air-Bild ersetzt den Player im
+        // Player-Bereich — die Programmauskunft-Karten laufen unveraendert weiter.
+        var guide = CreateGuideMock();
+        using var ctx = CreateContext(guide, tvSenderOnAir: false);
+
+        var cut = ctx.Render<LiveTv>();
+
+        var img = Assert.Single(cut.FindAll("#live-tv-off-air"));
+        Assert.Contains("live-tv-off-air.png", img.GetAttribute("src"));
+        Assert.Contains("nicht auf Sendung", img.GetAttribute("alt"));
+        Assert.Empty(cut.FindAll("#live-tv-video"));
+        Assert.Empty(cut.FindAll("#live-tv-no-program"));
+        Assert.Equal("Laufender E2E-Film", cut.Find("#live-tv-now-title").TextContent.Trim());
+        Assert.Contains("Gleich-Komödie", cut.Find("#live-tv-next").TextContent);
+        Assert.DoesNotContain(ctx.JSInterop.Invocations, i => i.Identifier == "liveTv.attach");
+    }
+
+    [Fact]
+    public async Task PollTick_OffAirSwitch_DetachesPlayerAndShowsOffAirImage()
+    {
+        // Umschalten unter laufender Wiedergabe: der naechste Poll-Tick liest den
+        // Off-Air-Stand, detacht den Player (die hls.js-Fehlerschleife stoppt) und
+        // zeigt das Off-Air-Bild — ohne Seiten-Reload.
+        var guide = CreateGuideMock();
+        using var ctx = CreateContext(guide);
+        var cut = ctx.Render<LiveTv>();
+        Assert.Single(ctx.JSInterop.Invocations, i => i.Identifier == "liveTv.attach");
+        Assert.Single(cut.FindAll("#live-tv-video"));
+
+        var db = ctx.Services.GetRequiredService<ApplicationDbContext>();
+        (await db.Setups.FirstAsync(Xunit.TestContext.Current.CancellationToken)).TvSenderOnAir = false;
+        await db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        ControllableTime.TickTimers();
+        cut.WaitForAssertion(() =>
+            Assert.Single(cut.FindAll("#live-tv-off-air")), timeout: TimeSpan.FromSeconds(5));
+
+        Assert.Empty(cut.FindAll("#live-tv-video"));
+        Assert.Contains(ctx.JSInterop.Invocations, i => i.Identifier == "liveTv.detach");
     }
 
     [Fact]

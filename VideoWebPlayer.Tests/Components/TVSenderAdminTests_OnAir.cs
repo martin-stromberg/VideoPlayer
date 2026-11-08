@@ -59,17 +59,24 @@ public sealed class TVSenderAdminTests_OnAir
         var cut = ctx.Render<TVSenderAdmin>();
         cut.WaitForAssertion(() => cut.Find("#tvsender-on-air"), TimeSpan.FromSeconds(10));
 
+        var toggleBefore = cut.Find("#tvsender-on-air");
+
         // Persistenz ausser Gefecht: das Update schlaegt fehl — der Schalter muss auf den
-        // vorigen Stand zurueckspringen und die Fehlermeldung zeigen.
+        // vorigen Stand zurueckspringen und die Fehlermeldung direkt am Schalter zeigen.
         await fixture.Db.DisposeAsync();
 
         cut.Find("#tvsender-on-air").Change(false);
         cut.WaitForAssertion(
-            () => Assert.False(string.IsNullOrWhiteSpace(cut.Find("#tvsender-channel-status").TextContent)),
+            () => Assert.False(string.IsNullOrWhiteSpace(cut.Find("#tvsender-on-air-error").TextContent)),
             TimeSpan.FromSeconds(10));
 
         var toggle = cut.Find("#tvsender-on-air");
+        // Der Fehlerfall zeichnet das Element per @key neu — ohne den neuen Key bliebe
+        // der sichtbare Haken des Browser-Klicks auf der nie persistierten Stellung,
+        // weil checked denselben Wert wie vor dem Klick liefert (kein Render-Diff).
+        Assert.NotSame(toggleBefore, toggle);
         Assert.True(toggle.HasAttribute("checked"),
             "Die Checkbox ist nach dem fehlgeschlagenen Update nicht zurueckgesprungen.");
+        Assert.Contains("erneut versuchen", cut.Find("#tvsender-on-air-error").TextContent);
     }
 }

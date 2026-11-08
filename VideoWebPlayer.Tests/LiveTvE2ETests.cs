@@ -46,7 +46,7 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await SeedSegmentDirectoryAsync(scope.ServiceProvider, db, writePlaylist: false);
-        await SeedProgramCoreAsync(db, movieTitle);
+        await SeedLiveTvProgramAsync(db, movieTitle);
     }
 
     /// <summary>
@@ -59,37 +59,29 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await SeedSegmentDirectoryAsync(scope.ServiceProvider, db);
-        await SeedProgramCoreAsync(db, movieTitle);
+        await SeedLiveTvProgramAsync(db, movieTitle);
     }
 
-    private static async Task SeedProgramCoreAsync(ApplicationDbContext db, string movieTitle)
-    {
-        var channel = new TVChannel { Name = "Live-E2E-Sender" };
-        db.TVChannels.Add(channel);
-        var source = new MediaSource { Name = $"Live-E2E-Quelle {Guid.NewGuid():N}", Path = "/e2e-live", Host = "localhost", Port = 22 };
-        db.MediaSources.Add(source);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var collection = new MediaCollection { Name = $"Live-E2E-Col {Guid.NewGuid():N}", MediaSourceId = source.Id, Path = $"/{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow };
-        db.MediaCollections.Add(collection);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var poster = new Picture { Data = [0x42], ContentType = "image/png", Type = "poster" };
-        db.Pictures.Add(poster);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var movie = new Movie { Name = movieTitle, MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow, Plot = "Handlung des Abendfilms.", GenreNames = "Drama", PosterPictureId = poster.Id };
-        db.Movies.Add(movie);
-        var item = new MediaItem { Name = "live.mkv", Path = $"{collection.Path}/live.mkv", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(90), DurationProbedAt = DateTime.UtcNow };
-        db.MediaItems.Add(item);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
-
-        var now = DateTime.UtcNow;
-        db.ProgramSlots.AddRange(
-            new ProgramSlot { TVChannelId = channel.Id, Start = now.AddMinutes(-30), End = now.AddMinutes(60), MediaItemId = item.Id, MovieId = movie.Id, RuleType = ProgramRuleType.MoviePrimeTime, Status = ProgramSlotStatus.Scheduled },
-            new ProgramSlot { TVChannelId = channel.Id, Start = now.AddMinutes(60), End = now.AddMinutes(150), MediaItemId = item.Id, MovieId = movie.Id, RuleType = ProgramRuleType.SeriesFixedTime, Status = ProgramSlotStatus.Scheduled });
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-    }
+    /// <summary>The <see cref="PlaylistsE2ETestBase.SeedProgramCoreAsync"/> shape of this
+    /// test class: fixed channel name, poster/plot/genre on the movie and a running plus
+    /// an upcoming broadcast slot.</summary>
+    /// <param name="db">The scoped database context of the test host.</param>
+    /// <param name="movieTitle">Movie name to seed and air.</param>
+    private static Task SeedLiveTvProgramAsync(ApplicationDbContext db, string movieTitle)
+        => SeedProgramCoreAsync(db, "Live-E2E-Sender", movieTitle, TimeSpan.FromMinutes(90),
+            [
+                (TimeSpan.FromMinutes(-30), TimeSpan.FromMinutes(90), ProgramRuleType.MoviePrimeTime),
+                (TimeSpan.FromMinutes(60), TimeSpan.FromMinutes(90), ProgramRuleType.SeriesFixedTime)
+            ],
+            configureMovie: async (movieDb, movie) =>
+            {
+                var poster = new Picture { Data = [0x42], ContentType = "image/png", Type = "poster" };
+                movieDb.Pictures.Add(poster);
+                await movieDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+                movie.PosterPictureId = poster.Id;
+                movie.Plot = "Handlung des Abendfilms.";
+                movie.GenreNames = "Drama";
+            });
 
     [Fact]
     public async Task LiveTv_ViaNavMenu_ShowsPlayerAndProgram()
@@ -148,23 +140,8 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
             setup.TvSenderEnabled = true;
             var userA = await db.Users.SingleAsync(u => u.Email == UserAEmail, TestContext.Current.CancellationToken);
             db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = userA.Id });
-            var channel = new TVChannel { Name = "Luecken-Sender" };
-            db.TVChannels.Add(channel);
-            var source = new MediaSource { Name = $"Luecken-Quelle {Guid.NewGuid():N}", Path = "/e2e-gap", Host = "localhost", Port = 22 };
-            db.MediaSources.Add(source);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            var collection = new MediaCollection { Name = $"Luecken-Col {Guid.NewGuid():N}", MediaSourceId = source.Id, Path = $"/{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow };
-            db.MediaCollections.Add(collection);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            var movie = new Movie { Name = "Später-Film", MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
-            db.Movies.Add(movie);
-            var item = new MediaItem { Name = "gap.mkv", Path = $"{collection.Path}/gap.mkv", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(45), DurationProbedAt = DateTime.UtcNow };
-            db.MediaItems.Add(item);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
-            var start = DateTime.UtcNow.AddHours(2);
-            db.ProgramSlots.Add(new ProgramSlot { TVChannelId = channel.Id, Start = start, End = start.AddMinutes(45), MediaItemId = item.Id, MovieId = movie.Id, RuleType = ProgramRuleType.Filler, Status = ProgramSlotStatus.Scheduled });
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await SeedProgramCoreAsync(db, "Luecken-Sender", "Später-Film", TimeSpan.FromMinutes(45),
+                [(TimeSpan.FromHours(2), TimeSpan.FromMinutes(45), ProgramRuleType.Filler)]);
         }
 
         await LoginAsync(UserAEmail);

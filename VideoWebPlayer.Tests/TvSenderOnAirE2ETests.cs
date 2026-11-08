@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
@@ -25,24 +24,8 @@ public sealed class TvSenderOnAirE2ETests : TVSenderAdminE2ETestBase
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var ct = TestContext.Current.CancellationToken;
-        var channel = new TVChannel { Name = $"OnAir-E2E-Sender {Guid.NewGuid():N}" };
-        db.TVChannels.Add(channel);
-        var source = new MediaSource { Name = $"OnAir-E2E-Quelle {Guid.NewGuid():N}", Path = "/e2e-onair", Host = "localhost", Port = 22 };
-        db.MediaSources.Add(source);
-        await db.SaveChangesAsync(ct);
-        var collection = new MediaCollection { Name = $"OnAir-E2E-Col {Guid.NewGuid():N}", MediaSourceId = source.Id, Path = $"/{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow };
-        db.MediaCollections.Add(collection);
-        await db.SaveChangesAsync(ct);
-        var movie = new Movie { Name = movieTitle, MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
-        db.Movies.Add(movie);
-        var item = new MediaItem { Name = "onair.mkv", Path = $"{collection.Path}/onair.mkv", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(90), DurationProbedAt = DateTime.UtcNow };
-        db.MediaItems.Add(item);
-        await db.SaveChangesAsync(ct);
-        db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
-        var now = DateTime.UtcNow;
-        db.ProgramSlots.Add(new ProgramSlot { TVChannelId = channel.Id, Start = now.AddMinutes(-30), End = now.AddMinutes(60), MediaItemId = item.Id, MovieId = movie.Id, RuleType = ProgramRuleType.MoviePrimeTime, Status = ProgramSlotStatus.Scheduled });
-        await db.SaveChangesAsync(ct);
+        await SeedProgramCoreAsync(db, $"OnAir-E2E-Sender {Guid.NewGuid():N}", movieTitle, TimeSpan.FromMinutes(90),
+            [(TimeSpan.FromMinutes(-30), TimeSpan.FromMinutes(90), ProgramRuleType.MoviePrimeTime)]);
     }
 
     /// <summary>Opens <c>/live-tv</c> on air and captures the playlist URL the player

@@ -161,7 +161,8 @@ public abstract class TVSenderAdminE2ETestBase : PlaylistsE2ETestBase
     /// fresh collection and releases the source for every non-admin user so the clips are
     /// schedulable — returns the media item ids in seed order.
     /// </summary>
-    /// <param name="clips">The clips to seed as (Name, Duration) tuples — Name is the clip file name.</param>
+    /// <param name="Name">Clip file name (tuple element of <paramref name="clips"/>).</param>
+    /// <param name="clips">The clips to seed as (Name, Duration) tuples.</param>
     /// <returns>The media item ids in seed order.</returns>
     protected async Task<List<long>> SeedClipItemsAsync(params (string Name, TimeSpan? Duration)[] clips)
     {

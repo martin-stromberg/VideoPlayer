@@ -872,9 +872,10 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// <param name="channelName">Name of the channel to create.</param>
     /// <param name="movieTitle">Name of the movie to seed and air.</param>
     /// <param name="itemDuration">Probed duration of the movie's media item.</param>
-    /// <param name="slots">The broadcast slots to schedule as (StartOffset, Duration, RuleType) tuples —
-    /// StartOffset is the slot start relative to now, Duration the slot length and RuleType the rule
-    /// type stamped on the slot.</param>
+    /// <param name="slots">The broadcast slots to schedule as (StartOffset, Duration, RuleType) tuples.</param>
+    /// <param name="StartOffset">Offset of the slot start relative to now (tuple element of <paramref name="slots"/>).</param>
+    /// <param name="Duration">Length of the slot (tuple element of <paramref name="slots"/>).</param>
+    /// <param name="RuleType">Rule type stamped on the slot (tuple element of <paramref name="slots"/>).</param>
     /// <param name="configureMovie">Optional hook for extra movie data (poster, plot, genres), invoked on the movie before it is saved.</param>
     protected static async Task SeedProgramCoreAsync(
         ApplicationDbContext db,

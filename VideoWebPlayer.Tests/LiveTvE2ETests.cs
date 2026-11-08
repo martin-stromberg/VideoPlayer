@@ -178,9 +178,11 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         // Programmauskunft-Karten laufen unveraendert weiter, behaupten aber nichts „Live".
         await Expect(Page.Locator("#live-tv-off-air")).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 30_000 });
-        var naturalWidth = await Page.EvaluateAsync<int>(
-            "() => document.querySelector('#live-tv-off-air')?.naturalWidth ?? 0");
-        Assert.True(naturalWidth > 0, "Das Off-Air-Bild wurde nicht wirklich ausgeliefert.");
+        // naturalWidth > 0 erst, wenn die Bildantwort eingetroffen und decodiert ist —
+        // Sichtbarkeit allein garantiert die Auslieferung nicht (Race).
+        await Page.WaitForFunctionAsync(
+            "() => (document.querySelector('#live-tv-off-air')?.naturalWidth ?? 0) > 0",
+            options: new PageWaitForFunctionOptions { Timeout = 30_000 });
         await Expect(Page.Locator("#live-tv-off-air-hint")).ToContainTextAsync("nicht auf Sendung");
         await Expect(Page.Locator("#live-tv-now-title")).ToContainTextAsync("Off-Air-Abendfilm");
         await Expect(Page.Locator("#live-tv-next")).ToBeVisibleAsync();

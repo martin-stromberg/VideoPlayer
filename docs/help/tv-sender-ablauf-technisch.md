@@ -342,9 +342,10 @@ Stopp-Verzweigung: ein laufender `ILiveStreamSegmenter` wird idempotent via `Sto
 beendet, der Poll-Takt läuft weiter; Sendeplan-Worker und Programmauskunft hängen nicht am
 On-Air-Schalter. Der Admin-Umschalter `#tvsender-on-air` persistiert über
 `UpdateTvSenderOnAirAsync` und weckt den Takt ungebatcht via
-`IProgramScheduleSignal.NotifyScheduleChangedNow()` — ohne das Debounce-Fenster
-(`ScheduleChangedDebounceSeconds`) abzuwarten; spätestens der `PollCap`-Takt (30 s) greift
-sonst. On-Air setzt `SynchronizeAsync` die Segmentierung zeitbasiert an der aktuellen
+`IProgramScheduleSignal.NotifyLiveScheduleChanged()` — die dedizierte Live-Leitung trifft
+nur den `_liveChannel` des `LiveStreamWorker` (sofort, ohne das Debounce-Fenster
+`ScheduleChangedDebounceSeconds` und ohne Unterdrückung während eines Medien-Scans);
+spätestens der `PollCap`-Takt (30 s) greift sonst. On-Air setzt `SynchronizeAsync` die Segmentierung zeitbasiert an der aktuellen
 Programmposition fort.
 
 ### Playlist-Entscheidung im Controller

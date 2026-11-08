@@ -82,6 +82,13 @@
     font-size: 2rem;
 }
 
+/* Sendepause-Badge der „Laut Sendeplan"-Karte im Off-Air-Zustand: dieselbe Pille wie
+   .badge-live (app.css), aber neutral — die Karte behauptet nichts „Live". */
+.badge-offair {
+    background: var(--vp-surface-high);
+    color: var(--vp-text-muted);
+}
+
 .livetv-kicker {
     display: block;
     font-size: 0.85rem;

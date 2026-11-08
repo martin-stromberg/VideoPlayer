@@ -65,6 +65,9 @@ else
                     @if (!tvSenderOnAir)
                     {
                         <img class="livetv-off-air" id="live-tv-off-air" src="@OffAirImageUrl" alt="@LiveTvErrorMessages.NotOnAir" />
+                        @* Sichtbarer Hinweis ueber dem Testbild (wie die Fehler-Overlays):
+                           das Farbbalken-Bild allein wirkt wie ein Ladefehler. *@
+                        <div class="alert alert-info livetv-hint" id="live-tv-off-air-hint">@LiveTvErrorMessages.NotOnAir</div>
                     }
                     else if (guide?.Now is not null)
                     {
@@ -94,11 +97,21 @@ else
             <div class="livetv-side">
                 @if (guide?.Now is { } nowEntry)
                 {
-                    <span class="livetv-kicker">Jetzt läuft</span>
+                    @* Off-Air behauptet die Karte nichts „Live": neutraler Kicker und
+                       Sendepause-Badge statt „Jetzt läuft"/rotem Live-Badge — Karten-Inhalt
+                       (Zeit, Titel, Beschreibung, Fortschritt) bleibt unveraendert. *@
+                    <span class="livetv-kicker">@(tvSenderOnAir ? "Jetzt läuft" : "Laut Sendeplan")</span>
                     <section class="program-card compact now-card" id="live-tv-now">
                         <div class="program-poster"><img src="@PosterUrl(nowEntry)" alt="" /></div>
                         <div class="program-body">
-                            <span class="program-badge badge-live">Live</span>
+                            @if (tvSenderOnAir)
+                            {
+                                <span class="program-badge badge-live">Live</span>
+                            }
+                            else
+                            {
+                                <span class="program-badge badge-offair">Sendepause</span>
+                            }
                             <span class="program-time">
                                 @FormatTime(nowEntry.StartUtc)&nbsp;–&nbsp;@FormatTime(nowEntry.EndUtc)
                                 @if (nowEntry.RemainingSeconds is { } remaining)

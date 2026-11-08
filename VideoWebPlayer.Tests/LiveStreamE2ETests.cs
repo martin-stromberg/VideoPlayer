@@ -153,12 +153,7 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
         var ct = TestContext.Current.CancellationToken;
         await SeedSegmentDirectoryAsync();
         var (_, payload) = await CreateUserAndPairDeviceAsync($"live-offair-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
-        using (var scope = CreateScope())
-        {
-            var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(ct);
-            setup.TvSenderOnAir = false;
-            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().SaveChangesAsync(ct);
-        }
+        await SetOnAirAsync(false);
 
         using var http = CreateHttpClient();
         var playlist = await http.GetAsync($"/api/live-stream/live.m3u8?access_token={payload.Token!}", ct);

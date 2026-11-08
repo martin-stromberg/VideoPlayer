@@ -35,24 +35,9 @@ public abstract class TVSenderAdminE2ETestBase : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync(readyTabSelector, new PageWaitForSelectorOptions { Timeout = 30_000 });
     }
 
-    /// <summary>Applies a mutation to the persisted setup row — the shared pattern behind
-    /// <see cref="EnableTvSenderAsync"/> and feature-specific setup seeds.</summary>
-    /// <param name="mutate">The mutation to apply to the setup row before saving.</param>
-    protected async Task UpdateSetupAsync(Action<Setup> mutate)
-    {
-        using var scope = Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var ct = TestContext.Current.CancellationToken;
-        var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(ct);
-        mutate(setup);
-        await db.SaveChangesAsync(ct);
-    }
-
-    /// <summary>Enables the TV-sender feature flag directly in the persisted setup row.</summary>
+    /// <summary>Enables the TV-sender feature flag directly in the persisted setup row
+    /// (Setup-Mutationen laufen ueber <see cref="PlaylistsE2ETestBase.UpdateSetupAsync"/>).</summary>
     protected Task EnableTvSenderAsync() => UpdateSetupAsync(s => s.TvSenderEnabled = true);
-
-    /// <summary>Sets the on-air switch (Issue #348) directly in the persisted setup row.</summary>
-    protected Task SetOnAirAsync(bool onAir) => UpdateSetupAsync(s => s.TvSenderOnAir = onAir);
 
     /// <summary>
     /// Seeds a media collection on the shared E2E media source and releases the source for

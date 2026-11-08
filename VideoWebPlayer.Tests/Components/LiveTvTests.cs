@@ -326,8 +326,18 @@ public class LiveTvTests
         var img = Assert.Single(cut.FindAll("#live-tv-off-air"));
         Assert.Contains("live-tv-off-air.png", img.GetAttribute("src"));
         Assert.Contains("nicht auf Sendung", img.GetAttribute("alt"));
+        // Sichtbarer erklaerender Text ueber dem Testbild (Review): das Bild allein wirkt
+        // wie ein Ladefehler — der Hinweis sagt den bewussten Sendepause-Zustand aus.
+        var hint = Assert.Single(cut.FindAll("#live-tv-off-air-hint"));
+        Assert.Contains("nicht auf Sendung", hint.TextContent);
         Assert.Empty(cut.FindAll("#live-tv-video"));
         Assert.Empty(cut.FindAll("#live-tv-no-program"));
+        // Keine „Live"-Behauptung bei Off-Air: neutraler Kicker + Sendepause-Badge statt
+        // des roten Live-Badges — die Programm-Karte selbst laeuft unveraendert weiter.
+        var nowCard = cut.Find("#live-tv-now");
+        Assert.Empty(nowCard.QuerySelectorAll(".badge-live"));
+        Assert.Contains("Sendepause", nowCard.QuerySelector(".badge-offair")!.TextContent);
+        Assert.Contains("Laut Sendeplan", cut.Find(".livetv-kicker").TextContent);
         Assert.Equal("Laufender E2E-Film", cut.Find("#live-tv-now-title").TextContent.Trim());
         Assert.Contains("Gleich-Komödie", cut.Find("#live-tv-next").TextContent);
         Assert.DoesNotContain(ctx.JSInterop.Invocations, i => i.Identifier == "liveTv.attach");

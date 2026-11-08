@@ -191,26 +191,24 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         if (SkipBrowser) return;
 
         await SeedChannelWithRunningProgramAsync("Off-Air-Abendfilm");
-        using (var scope = Services.CreateScope())
-        {
-            var ct = TestContext.Current.CancellationToken;
-            var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(ct);
-            setup.TvSenderOnAir = false;
-            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().SaveChangesAsync(ct);
-        }
+        await SetOnAirAsync(false);
 
         await LoginAsync(UserAEmail);
         await Page.GotoAsync($"{ServerUrl}/live-tv");
 
         // Off-Air (Issue #348): das Off-Air-Bild steht im Player-Bereich — sichtbar und
-        // wirklich ausgeliefert —, die Programmauskunft-Karten laufen unveraendert weiter.
+        // wirklich ausgeliefert —, mit erklaerender Textzeile darueber; die
+        // Programmauskunft-Karten laufen unveraendert weiter, behaupten aber nichts „Live".
         await Expect(Page.Locator("#live-tv-off-air")).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 30_000 });
         var naturalWidth = await Page.EvaluateAsync<int>(
             "() => document.querySelector('#live-tv-off-air')?.naturalWidth ?? 0");
         Assert.True(naturalWidth > 0, "Das Off-Air-Bild wurde nicht wirklich ausgeliefert.");
+        await Expect(Page.Locator("#live-tv-off-air-hint")).ToContainTextAsync("nicht auf Sendung");
         await Expect(Page.Locator("#live-tv-now-title")).ToContainTextAsync("Off-Air-Abendfilm");
         await Expect(Page.Locator("#live-tv-next")).ToBeVisibleAsync();
+        Assert.Equal(0, await Page.Locator("#live-tv-now .badge-live").CountAsync());
+        await Expect(Page.Locator("#live-tv-now .badge-offair")).ToContainTextAsync("Sendepause");
         Assert.Equal(0, await Page.Locator("#live-tv-video").CountAsync());
     }
 

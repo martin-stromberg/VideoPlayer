@@ -75,6 +75,34 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
             },
             null);
 
+    // Gemeinsamer ServiceCollection-Aufbau aller Worker-Tests: Guide und Segmenter sind
+    // die einzigen variablen Fakes, der Rest der Registrierungen steht ueberall gleich.
+    private ServiceProvider BuildWorkerProvider(
+        IProgramGuideService? guide = null, ILiveStreamSegmenter? segmenter = null)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(_fixture.Db);
+        services.AddScoped<ProgramSettingsService>();
+        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
+            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
+        services.AddScoped<LiveStreamSegmentStore>();
+        services.AddSingleton<IProgramGuideService>(guide ?? new FakeGuide());
+        services.AddSingleton<ILiveStreamSegmenter>(segmenter ?? new FakeSegmenter());
+        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
+        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
+        services.AddSingleton(local);
+        services.AddSingleton(new SftpMediaSourceReader());
+        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
+            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
+        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
+            new VideoWebPlayer.Configuration.LiveStreamOptions()));
+        services.AddScoped<LiveStreamMediaResolver>();
+        services.AddScoped<LiveStreamCoordinator>();
+        return services.BuildServiceProvider();
+    }
+
     private readonly string _contentRoot = Path.Combine(Path.GetTempPath(), $"vwp-worker-{Guid.NewGuid():N}");
     private ProgramScheduleTestDb _fixture = null!;
 
@@ -98,27 +126,7 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
         var stale = Path.Combine(segDir, "seg_stale.ts");
         await File.WriteAllTextAsync(stale, "stale", ct);
 
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(_fixture.Db);
-        services.AddScoped<ProgramSettingsService>();
-        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
-            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
-        services.AddScoped<LiveStreamSegmentStore>();
-        services.AddSingleton<IProgramGuideService>(new FakeGuide());
-        services.AddSingleton<ILiveStreamSegmenter>(new FakeSegmenter());
-        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
-        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
-        services.AddSingleton(local);
-        services.AddSingleton(new SftpMediaSourceReader());
-        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
-            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
-        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
-        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
-            new VideoWebPlayer.Configuration.LiveStreamOptions()));
-        services.AddScoped<LiveStreamMediaResolver>();
-        services.AddScoped<LiveStreamCoordinator>();
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = BuildWorkerProvider();
 
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
         var segmenter = (FakeSegmenter)provider.GetRequiredService<ILiveStreamSegmenter>();
@@ -156,28 +164,8 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
         setup.TvSenderEnabled = false;
         await _fixture.Db.SaveChangesAsync(ct);
 
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(_fixture.Db);
-        services.AddScoped<ProgramSettingsService>();
-        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
-            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
-        services.AddScoped<LiveStreamSegmentStore>();
-        services.AddSingleton<IProgramGuideService>(new FakeGuide());
         var segmenter = new FakeSegmenter { Running = true };
-        services.AddSingleton<ILiveStreamSegmenter>(segmenter);
-        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
-        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
-        services.AddSingleton(local);
-        services.AddSingleton(new SftpMediaSourceReader());
-        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
-            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
-        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
-        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
-            new VideoWebPlayer.Configuration.LiveStreamOptions()));
-        services.AddScoped<LiveStreamMediaResolver>();
-        services.AddScoped<LiveStreamCoordinator>();
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = BuildWorkerProvider(segmenter: segmenter);
 
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
         var worker = new LiveStreamWorker(scopeFactory,
@@ -213,28 +201,8 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
         setup.TvSenderOnAir = false;
         await _fixture.Db.SaveChangesAsync(ct);
 
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(_fixture.Db);
-        services.AddScoped<ProgramSettingsService>();
-        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
-            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
-        services.AddScoped<LiveStreamSegmentStore>();
-        services.AddSingleton<IProgramGuideService>(new FakeGuide());
         var segmenter = new FakeSegmenter { Running = true };
-        services.AddSingleton<ILiveStreamSegmenter>(segmenter);
-        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
-        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
-        services.AddSingleton(local);
-        services.AddSingleton(new SftpMediaSourceReader());
-        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
-            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
-        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
-        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
-            new VideoWebPlayer.Configuration.LiveStreamOptions()));
-        services.AddScoped<LiveStreamMediaResolver>();
-        services.AddScoped<LiveStreamCoordinator>();
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = BuildWorkerProvider(segmenter: segmenter);
 
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
         var worker = new LiveStreamWorker(scopeFactory,
@@ -272,27 +240,7 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
 
         var guide = new FakeGuide();
         var segmenter = new FakeSegmenter { Running = true };
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(_fixture.Db);
-        services.AddScoped<ProgramSettingsService>();
-        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
-            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
-        services.AddScoped<LiveStreamSegmentStore>();
-        services.AddSingleton<IProgramGuideService>(guide);
-        services.AddSingleton<ILiveStreamSegmenter>(segmenter);
-        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
-        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
-        services.AddSingleton(local);
-        services.AddSingleton(new SftpMediaSourceReader());
-        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
-            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
-        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
-        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
-            new VideoWebPlayer.Configuration.LiveStreamOptions()));
-        services.AddScoped<LiveStreamMediaResolver>();
-        services.AddScoped<LiveStreamCoordinator>();
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = BuildWorkerProvider(guide, segmenter);
 
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
         var timeProvider = new ControllableTimeProvider();
@@ -355,27 +303,7 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
                 11, 183, HttpTransportFailure: false, DateTimeOffset.UtcNow, UndecodableInput: true)
         };
 
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(_fixture.Db);
-        services.AddScoped<ProgramSettingsService>();
-        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
-            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
-        services.AddScoped<LiveStreamSegmentStore>();
-        services.AddSingleton<IProgramGuideService>(guide);
-        services.AddSingleton<ILiveStreamSegmenter>(segmenter);
-        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
-        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
-        services.AddSingleton(local);
-        services.AddSingleton(new SftpMediaSourceReader());
-        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
-            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
-        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
-        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
-            new VideoWebPlayer.Configuration.LiveStreamOptions()));
-        services.AddScoped<LiveStreamMediaResolver>();
-        services.AddScoped<LiveStreamCoordinator>();
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = BuildWorkerProvider(guide, segmenter);
 
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
         var logger = new ListLogger<LiveStreamWorker>(new ConcurrentQueue<string>());
@@ -431,27 +359,7 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
         var guide = new FakeGuide { Result = new DtoProgramGuideNow { Now = entry } };
         var segmenter = new FakeSegmenter();
 
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(_fixture.Db);
-        services.AddScoped<ProgramSettingsService>();
-        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
-            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
-        services.AddScoped<LiveStreamSegmentStore>();
-        services.AddSingleton<IProgramGuideService>(guide);
-        services.AddSingleton<ILiveStreamSegmenter>(segmenter);
-        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
-        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
-        services.AddSingleton(local);
-        services.AddSingleton(new SftpMediaSourceReader());
-        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
-            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
-        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
-        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
-            new VideoWebPlayer.Configuration.LiveStreamOptions()));
-        services.AddScoped<LiveStreamMediaResolver>();
-        services.AddScoped<LiveStreamCoordinator>();
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = BuildWorkerProvider(guide, segmenter);
 
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
         var logger = new ListLogger<LiveStreamWorker>(new ConcurrentQueue<string>());

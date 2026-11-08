@@ -38,7 +38,7 @@ public sealed class TVSenderAdminTests_OnAir
             () => Assert.Contains("gestoppt", cut.Find("#tvsender-channel-status").TextContent),
             TimeSpan.FromSeconds(10));
         Assert.False((await fixture.Db.Setups.FirstAsync(ct)).TvSenderOnAir);
-        Assert.True(signal.NowNotifications >= 1, "Der On-Air-Wechsel hat den Worker nicht unverzueglich geweckt.");
+        Assert.True(signal.LiveNotifications >= 1, "Der On-Air-Wechsel hat den Live-Stream-Worker nicht unverzueglich geweckt.");
 
         cut.Find("#tvsender-on-air").Change(true);
         cut.WaitForAssertion(

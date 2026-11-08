@@ -2017,7 +2017,7 @@ else
         try
         {
             await ProgramSettings.UpdateTvSenderOnAirAsync(tvSenderOnAir);
-            ScheduleSignal.NotifyScheduleChangedNow();
+            ScheduleSignal.NotifyLiveScheduleChanged();
             channelStatus = tvSenderOnAir
                 ? "Der Sender ist wieder auf Sendung — der Live-Stream nimmt die Segmentierung auf."
                 : "Der Sendebetrieb wurde gestoppt — der Live-Stream liefert nichts mehr aus.";

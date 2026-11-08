@@ -2017,17 +2017,18 @@ else
         try
         {
             await ProgramSettings.UpdateTvSenderOnAirAsync(tvSenderOnAir);
-            ScheduleSignal.NotifyLiveScheduleChanged();
-            channelStatus = tvSenderOnAir
-                ? "Der Sender ist wieder auf Sendung — der Live-Stream nimmt die Segmentierung auf."
-                : "Der Sendebetrieb wurde gestoppt — der Live-Stream liefert nichts mehr aus.";
         }
         catch (Exception)
         {
             tvSenderOnAir = previous;
             onAirToggleEpoch++;
             onAirError = "Der Schalter konnte nicht umgestellt werden — der Sendebetrieb läuft wie zuvor. Bitte erneut versuchen.";
+            return;
         }
+        ScheduleSignal.NotifyLiveScheduleChanged();
+        channelStatus = tvSenderOnAir
+            ? "Der Sender ist wieder auf Sendung — der Live-Stream nimmt die Segmentierung auf."
+            : "Der Sendebetrieb wurde gestoppt — der Live-Stream liefert nichts mehr aus.";
     }
 
     private async Task SaveChannelSettingsAsync()

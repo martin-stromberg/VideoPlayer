@@ -165,7 +165,7 @@ public sealed class RestoreInProgressMiddlewareTests
     private sealed class FakeWebHostEnvironment : IWebHostEnvironment
     {
         public string ApplicationName { get; set; } = "VideoWebPlayer";
-        public string EnvironmentName { get; set; } = "Test";
+        public string EnvironmentName { get; set; } = "Testing";
         public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
         public string WebRootPath { get; set; } = AppContext.BaseDirectory;
         public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;

@@ -4,17 +4,19 @@
 @inject ApplicationDbContext DbContext
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
-@inject VideoWebPlayer.Services.MediaSourceScanner MediaSourceScanner
-@inject VideoWebPlayer.Services.MediaSourceClassifier MediaSourceClassifier
+@inject VideoWebPlayer.Services.MediaSourceScanCoordinator MediaSourceScanCoordinator
 @inject ILogger<MediaSourceExplorer> Logger
 @inject VideoWebPlayer.Services.Backups.IBackgroundProcessingGate BackgroundGate
-@inject VideoWebPlayer.Services.IPlaylistBackfillSignal PlaylistBackfillSignal
 @rendermode InteractiveServer
 
 <PageTitle>Dateiexplorer</PageTitle>
 
 <AuthorizeView>
     <Authorized Context="authContext">
+        @if (!string.IsNullOrWhiteSpace(rescanStatus))
+        {
+            <div class="alert alert-info" role="alert">@rescanStatus</div>
+        }
         @if (!isAdmin)
         {
             <div class="alert alert-danger">Zugriff verweigert: Nur Administratoren dürfen diese Seite sehen.</div>
@@ -45,17 +47,6 @@
                 <button class="btn btn-outline-secondary" @onclick="GoUp" disabled="@(currentCollection.ParentMediaCollectionId is null)">Nach oben</button>
                 <button class="btn btn-success" @onclick="RescanCurrent" disabled="@isRescanRunning">Neu erfassen</button>
             </div>
-
-            @if (!string.IsNullOrWhiteSpace(rescanStatus))
-            {
-                <div class="alert alert-info" role="alert">
-                    @rescanStatus
-                    @if (isRescanRunning)
-                    {
-                        <span class="ms-2">(gescannte Collections: @rescanScannedCollections)</span>
-                    }
-                </div>
-            }
 
             <nav aria-label="breadcrumb" class="mb-3">
                 <ol class="breadcrumb">
@@ -125,7 +116,6 @@
 
     private bool isRescanRunning;
     private string? rescanStatus;
-    private int rescanScannedCollections;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -251,33 +241,34 @@
         }
 
         isRescanRunning = true;
-        rescanScannedCollections = 0;
-        rescanStatus = "Neu erfassen: ScanDueAt auf MinValue und Komplettscan der Collection...";
+        rescanStatus = "Läuft…";
         await InvokeAsync(StateHasChanged);
+
+        var collectionId = currentCollection.Id;
 
         try
         {
-            await using var processingLease = await BackgroundGate.EnterOperationAsync("Manueller Collection-Scan", CancellationToken.None);
-            // Marker commits during the scan do not wake the playlist backfill; the end of the scan does (once).
-            using var playlistBackfillScanScope = PlaylistBackfillSignal.BeginScan();
-            rescanScannedCollections = await MediaSourceScanner.ScanCollectionTreeAsync(currentCollection.Id, CancellationToken.None);
-
-            rescanStatus = "Neu erfassen: Klassifizierung (nur diese Collection + Unterordner)...";
-            await InvokeAsync(StateHasChanged);
-            await MediaSourceClassifier.ClassifyCollectionTreeAsync(currentCollection.Id, CancellationToken.None);
-
-            rescanStatus = "Neu erfassen abgeschlossen.";
+            var result = await MediaSourceScanCoordinator.RescanCollectionTreeAsync(collectionId, "Manueller Collection-Scan", CancellationToken.None);
 
             currentCollection = await DbContext.MediaCollections
                 .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == currentCollection.Id && c.MediaSourceId == SourceId);
+                .FirstOrDefaultAsync(c => c.Id == collectionId && c.MediaSourceId == SourceId);
 
-            if (currentCollection is not null)
+            if (currentCollection is null)
+            {
+                rescanStatus = "Collection nicht mehr vorhanden.";
+            }
+            else
+            {
                 await LoadCurrentAsync();
+                rescanStatus = result.ClassificationDeferred
+                    ? $"Neu erfassen abgeschlossen. {result.NewItemsCount} neue Videos gefunden. Klassifizierung läuft im Hintergrund, das Ergebnis erscheint nach Abschluss."
+                    : $"Neu erfassen abgeschlossen. {result.NewItemsCount} neue Videos gefunden.";
+            }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Fehler beim Neu-Erfassen der Collection (Id={CollectionId}).", currentCollection.Id);
+            Logger.LogError(ex, "Fehler beim Neu-Erfassen der Collection (Id={CollectionId}).", collectionId);
             rescanStatus = $"Fehler beim Neu erfassen: {ex.Message}";
         }
         finally

@@ -10,6 +10,7 @@ using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Helpers;
@@ -62,10 +63,24 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
                 {
                     services.Configure<HttpsRedirectionOptions>(options => options.HttpsPort = null);
                 });
+                ConfigureWebHostBuilder(builder);
             });
     }
 
-    public async ValueTask InitializeAsync()
+    /// <summary>
+    /// Erweiterungspunkt fuer abgeleitete E2E-Basisklassen: wird innerhalb des
+    /// <c>WithWebHostBuilder</c>-Callbacks aufgerufen (z. B. um <c>UseSetting</c>-Umbiegen oder
+    /// Dienst-Neuregistrierungen fuer einen bestimmten Szenario-Test vorzunehmen). Laeuft erst
+    /// beim Host-Start in <see cref="InitializeAsync"/> — abgeleitete Klassen koennen in ihrer
+    /// eigenen <c>InitializeAsync</c> zuerst Fixtures hochfahren und dann
+    /// <c>base.InitializeAsync()</c> aufrufen.
+    /// </summary>
+    /// <param name="builder">Der <see cref="IWebHostBuilder"/> des Test-Hosts.</param>
+    protected virtual void ConfigureWebHostBuilder(IWebHostBuilder builder)
+    {
+    }
+
+    public virtual async ValueTask InitializeAsync()
     {
         _factory.UseKestrel();
         _factory.StartServer();
@@ -91,7 +106,7 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (Page is not null)
             await Page.CloseAsync();
@@ -176,7 +191,7 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// </remarks>
     /// <param name="interaction">The step to (re-)issue, e.g. typing into the live-search field.</param>
     /// <param name="waitForState">Waits for the state the step must produce.</param>
-    private static async Task DriveUntilStateAsync(Func<Task> interaction, Func<Task> waitForState)
+    protected static async Task DriveUntilStateAsync(Func<Task> interaction, Func<Task> waitForState)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(InteractionDeadlineMilliseconds);
         while (true)
@@ -826,8 +841,93 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         var user = await ResolveUserByEmailAsync(scope.ServiceProvider, userEmail);
         var sourceId = await EnsureMediaSourceIdAsync(db);
 
-        db.MediaSourceUsers.Add(new MediaSourceUser { UserId = user.Id, MediaSourceId = sourceId });
-        await db.SaveChangesAsync();
+        // Idempotent: MediaSourceUsers has a composite (MediaSourceId, UserId) primary key —
+        // a seed helper may have granted the access already.
+        if (!await db.MediaSourceUsers.AnyAsync(m => m.UserId == user.Id && m.MediaSourceId == sourceId))
+        {
+            db.MediaSourceUsers.Add(new MediaSourceUser { UserId = user.Id, MediaSourceId = sourceId });
+            await db.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>Applies a mutation to the persisted setup row — the shared pattern behind
+    /// <see cref="SetOnAirAsync"/> and feature-specific setup seeds. The implementation
+    /// lives in <see cref="SetupSeedHelpers"/>, shared with
+    /// <see cref="DeviceClientTestBase.SetOnAirAsync"/> (different test host, no shared base).</summary>
+    /// <param name="mutate">The mutation to apply to the setup row before saving.</param>
+    protected Task UpdateSetupAsync(Action<Setup> mutate)
+        => SetupSeedHelpers.UpdateSetupAsync(Services, mutate);
+
+    /// <summary>Sets the on-air switch of the TV channel (Issue #348) directly in the persisted setup row.</summary>
+    /// <param name="onAir">The value to persist for <see cref="Setup.TvSenderOnAir"/>.</param>
+    protected Task SetOnAirAsync(bool onAir) => UpdateSetupAsync(s => s.TvSenderOnAir = onAir);
+
+    /// <summary>
+    /// Seeds the program core the live-TV E2E tests share: a TV channel on its own media
+    /// source with a collection, a movie wired to a probed media item and the broadcast
+    /// slots that air it. Variations between the call sites (extra movie data like poster
+    /// or plot, different slot layouts, unique names) are carried by the parameters.
+    /// </summary>
+    /// <param name="db">The scoped database context of the test host.</param>
+    /// <param name="channelName">Name of the channel to create.</param>
+    /// <param name="movieTitle">Name of the movie to seed and air.</param>
+    /// <param name="itemDuration">Probed duration of the movie's media item.</param>
+    /// <param name="slots">The broadcast slots to schedule as (StartOffset, Duration, RuleType) tuples.</param>
+    /// <param name="StartOffset">Offset of the slot start relative to now (tuple element of <paramref name="slots"/>).</param>
+    /// <param name="Duration">Length of the slot (tuple element of <paramref name="slots"/>).</param>
+    /// <param name="RuleType">Rule type stamped on the slot (tuple element of <paramref name="slots"/>).</param>
+    /// <param name="configureMovie">Optional hook for extra movie data (poster, plot, genres), invoked on the movie before it is saved.</param>
+    protected static async Task SeedProgramCoreAsync(
+        ApplicationDbContext db,
+        string channelName,
+        string movieTitle,
+        TimeSpan itemDuration,
+        (TimeSpan StartOffset, TimeSpan Duration, ProgramRuleType RuleType)[] slots,
+        Func<ApplicationDbContext, Movie, Task>? configureMovie = null)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var channel = new TVChannel { Name = channelName };
+        db.TVChannels.Add(channel);
+        var source = new MediaSource { Name = $"{channelName}-Quelle {Guid.NewGuid():N}", Path = $"/e2e-{Guid.NewGuid():N}", Host = "localhost", Port = 22 };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(ct);
+
+        var collection = new MediaCollection { Name = $"{channelName}-Col {Guid.NewGuid():N}", MediaSourceId = source.Id, Path = $"/{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow };
+        db.MediaCollections.Add(collection);
+        await db.SaveChangesAsync(ct);
+
+        var movie = new Movie { Name = movieTitle, MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
+        if (configureMovie is not null)
+            await configureMovie(db, movie);
+        db.Movies.Add(movie);
+        var item = new MediaItem
+        {
+            Name = $"{movieTitle}.mkv",
+            Path = $"{collection.Path}/{Guid.NewGuid():N}.mkv",
+            MediaCollectionId = collection.Id,
+            CreatedAt = DateTime.UtcNow,
+            Duration = itemDuration,
+            DurationProbedAt = DateTime.UtcNow
+        };
+        db.MediaItems.Add(item);
+        await db.SaveChangesAsync(ct);
+        db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
+
+        var now = DateTime.UtcNow;
+        foreach (var (startOffset, duration, ruleType) in slots)
+        {
+            db.ProgramSlots.Add(new ProgramSlot
+            {
+                TVChannelId = channel.Id,
+                Start = now + startOffset,
+                End = now + startOffset + duration,
+                MediaItemId = item.Id,
+                MovieId = movie.Id,
+                RuleType = ruleType,
+                Status = ProgramSlotStatus.Scheduled
+            });
+        }
+        await db.SaveChangesAsync(ct);
     }
 
     /// <summary>
@@ -930,7 +1030,11 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
             return (episode.Id, show.Id);
         });
 
-    private static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
+    /// <summary>Returns the id of an existing media source, creating the shared "E2E Test Source"
+    /// when the fixture database has none yet.</summary>
+    /// <param name="db">The scoped database context of the test host.</param>
+    /// <returns>The id of the found or newly created media source.</returns>
+    protected static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
     {
         var existing = await db.MediaSources.FirstOrDefaultAsync();
         if (existing is not null)

@@ -1,6 +1,7 @@
 ﻿@using VideoWebPlayer.Client.Models
 @using VideoWebPlayer.Components.Shared.Media
 @page "/moviecollection/{Id:long}"
+@page "/movie/{StandaloneMovieId:long}"
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthenticationStateProvider AuthStateProvider
@@ -23,7 +24,7 @@ else if (selectedMovie != null)
         <button class="favorite-btn" @onclick="() => ToggleFavorite(selectedMovie)" title="Film als Favorit markieren">
             @((IsMovieFavorite) ? "★" : "☆")
         </button>
-        @if (collection?.Movies?.Length == 1)
+        @if (collection?.Movies?.Length == 1 && collection.Id > 0)
         {
             <UnlockButton Entry="collection" IsUnlocked="IsCollectionUnlocked" IsUnlockedChanged="OnCollectionUnlockedChanged" />
         }
@@ -48,6 +49,10 @@ else if (selectedMovie != null)
                     <div class="collection-meta">
                         <span class="collection-year">@GetYear(selectedMovie)</span>
                         <span class="collection-genres">@GetGenres(selectedMovie)</span>
+                        @if (!string.IsNullOrWhiteSpace(selectedMovie.AgeRating))
+                        {
+                            <span class="collection-agerating agerating-badge">@selectedMovie.AgeRating</span>
+                        }
                     </div>
                     <div class="collection-plot">@selectedMovie.Plot</div>
                 }
@@ -163,6 +168,7 @@ else
 
 @code {
     [Parameter] public long Id { get; set; }
+    [Parameter] public long? StandaloneMovieId { get; set; }
     [SupplyParameterFromQuery(Name = "movie")] public long? MovieId { get; set; }
     [Parameter][SupplyParameterFromQuery(Name = "position")] public long? Position { get; set; }
 
@@ -183,6 +189,7 @@ else
     private bool isDirty;
     private bool editSupportsPlot;
     private bool editSupportsGenres;
+    private bool editSupportsAgeRating;
     private string editObjectType = "";
     private long editId;
     private MetadataEditModel editModel = new();
@@ -204,7 +211,8 @@ else
 
         try
         {
-            collection = await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
+            collection = await LoadCollectionAsync();
+            if (StandaloneMovieId.HasValue) MovieId = StandaloneMovieId;
             genreOptions = await Client.RequestGenreOptionsAsync();
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("Could not resolve user from principal", StringComparison.Ordinal))
@@ -286,6 +294,10 @@ else
         <InputText class="form-control metadata-title-input" @bind-Value="editModel.Name" maxlength="512" />
         <ValidationMessage For="@(() => editModel.Name)" />
         <InputDate class="form-control metadata-date-input" @bind-Value="editModel.Date" />
+        @if (editSupportsAgeRating)
+        {
+            <AgeRatingSelect @bind-Value="editModel.AgeRating" />
+        }
         @if (editSupportsGenres)
         {
             <div class="genre-scrollbar metadata-genre-scrollbar">
@@ -430,11 +442,13 @@ else
         editId = target.Id;
         editSupportsPlot = target is DtoMovie;
         editSupportsGenres = target is DtoMovie;
+        editSupportsAgeRating = target is DtoMovie;
         editModel = new MetadataEditModel
         {
             Name = target.Name,
             Date = target.ReleaseDate,
             Plot = (target as DtoMovie)?.Plot ?? "",
+            AgeRating = (target as DtoMovie)?.AgeRating ?? "",
         };
         editContext = new EditContext(editModel);
         editContext.OnFieldChanged += OnEditFieldChanged;
@@ -461,7 +475,8 @@ else
                 ReleaseDate = editModel.Date,
                 PremieredAt = null,
                 Plot = editSupportsPlot ? editModel.Plot : null,
-                GenreNames = editSupportsGenres ? genres : []
+                GenreNames = editSupportsGenres ? genres : [],
+                AgeRating = editSupportsAgeRating ? editModel.AgeRating : null
             });
         }
         catch (Exception ex)
@@ -475,10 +490,22 @@ else
         isDirty = false;
     }
 
+    private async Task<DtoMovieCollection?> LoadCollectionAsync()
+    {
+        if (!StandaloneMovieId.HasValue)
+            return await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
+        var movie = await Client.RequestMovieAsync(StandaloneMovieId.Value);
+        if (movie is null) return null;
+        if (movie.Collection is { } parent)
+            return await Client.RequestMovieCollectionAsync(parent.Id) as DtoMovieCollection;
+        // A stand-alone film uses the existing movie detail/player without inventing a persisted collection.
+        return new DtoMovieCollection { Name = movie.Name, Movies = [movie], IsUnlocked = movie.IsUnlocked };
+    }
+
     private async Task ReloadCollectionAsync()
     {
         var movieId = selectedMovie?.Id;
-        collection = await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
+        collection = await LoadCollectionAsync();
         if (collection is null)
             return;
 

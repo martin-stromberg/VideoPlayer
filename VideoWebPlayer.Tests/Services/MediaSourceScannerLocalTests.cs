@@ -144,6 +144,60 @@ public class MediaSourceScannerLocalTests : IDisposable
         Assert.True(missing.ScanDueAt > start);
     }
 
+    [Fact]
+    public async Task ScanNextMediaCollection_ChangedFile_ResetsDurationFields()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var filePath = Path.Combine(_rootDir, "clip.mp4");
+        File.WriteAllText(filePath, "video");
+
+        await using var serviceProvider = await CreateServiceProviderAsync("scanner-local-duration-reset", ct);
+        using var scope = serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var source = new MediaSource
+        {
+            Name = "Local Source",
+            Path = _rootDir,
+            SourceType = MediaSourceType.LocalDirectory,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(ct);
+
+        var collection = new MediaCollection
+        {
+            Name = "root",
+            Path = _rootDir,
+            CreatedAt = DateTime.UtcNow,
+            MediaSource = source,
+            MediaSourceId = source.Id,
+            ScanDueAt = DateTime.UtcNow.AddDays(-1)
+        };
+        db.MediaCollections.Add(collection);
+        await db.SaveChangesAsync(ct);
+
+        var probedAt = DateTime.UtcNow.AddDays(-2);
+        var item = new MediaItem
+        {
+            Name = "clip.mp4",
+            Path = filePath,
+            CreatedAt = File.GetLastWriteTimeUtc(filePath).AddDays(-1),
+            MediaCollectionId = collection.Id,
+            Duration = TimeSpan.FromMinutes(90),
+            DurationProbedAt = probedAt
+        };
+        db.MediaItems.Add(item);
+        await db.SaveChangesAsync(ct);
+
+        var scanner = scope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
+        Assert.True(await scanner.ScanNextMediaCollection(ct));
+
+        var reloaded = await db.MediaItems.SingleAsync(i => i.Id == item.Id, ct);
+        Assert.Null(reloaded.Duration);
+        Assert.Null(reloaded.DurationProbedAt);
+    }
+
     private static async Task<ServiceProvider> CreateServiceProviderAsync(string dbName, CancellationToken ct)
     {
         var connectionString = $"Data Source=file:{dbName}?mode=memory&cache=shared";

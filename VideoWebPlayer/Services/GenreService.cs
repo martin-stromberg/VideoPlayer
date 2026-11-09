@@ -14,14 +14,17 @@ namespace VideoWebPlayer.Services;
 public sealed class GenreService : IGenreService
 {
     private readonly ApplicationDbContext _db;
+    private readonly TimeProvider _clock;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GenreService"/> class.
     /// </summary>
     /// <param name="db">Database context.</param>
-    public GenreService(ApplicationDbContext db)
+    /// <param name="clock">The server clock.</param>
+    public GenreService(ApplicationDbContext db, TimeProvider? clock = null)
     {
         _db = db;
+        _clock = clock ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -38,31 +41,8 @@ public sealed class GenreService : IGenreService
     /// <inheritdoc />
     public async Task<List<Genre>> GetSeasonalGenresAsync(CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow.Date;
-        var genres = await _db.Genres
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-
-        var active = new List<Genre>();
-
-        foreach (var genre in genres)
-        {
-            if (genre.StartDate == null || genre.EndDate == null)
-                continue;
-
-            var start = genre.StartDate.Value;
-            var end = genre.EndDate.Value;
-
-            while (end < now)
-            {
-                start = start.AddYears(1);
-                end = end.AddYears(1);
-            }
-
-            if (start <= now && end >= now)
-                active.Add(genre);
-        }
-
-        return active;
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var genres = await _db.Genres.AsNoTracking().ToListAsync(cancellationToken);
+        return genres.Where(g => SeasonalGenreWindow.GetExpiry(g.StartDate, g.EndDate, now).HasValue).ToList();
     }
 }

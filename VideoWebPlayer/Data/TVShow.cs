@@ -2,13 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml.Linq;
+using VideoWebPlayer.Utils;
 
 namespace VideoWebPlayer.Data
 {
     /// <summary>
     /// Represents a TV show entry and its metadata.
     /// </summary>
-    public class TVShow : MediaBaseEntry
+    public class TVShow : MediaBaseEntry, IAgeRated
     {
         // Bisherige Eigenschaften
         /// <summary>
@@ -42,6 +43,23 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public string? GenreNames { get; set; } // Kommagetrennt, falls mehrere Genre    
         /// <summary>
+        /// Gets or sets the normalized age rating for display (e.g. "FSK 12" or "PG-13").
+        /// </summary>
+        public string? AgeRating { get; set; }
+        /// <summary>
+        /// Gets or sets the unmodified age rating source value (e.g. "Rated PG-13" or "DE:16").
+        /// </summary>
+        public string? AgeRatingRaw { get; set; }
+        /// <summary>
+        /// Gets or sets the comparable minimum age derived from the rating, if known.
+        /// </summary>
+        public int? AgeRatingMinAge { get; set; }
+        /// <summary>
+        /// Gets or sets a value indicating when (or whether) the age rating has been classified for this show.
+        /// </summary>
+        public DateTime? AgeRatingClassifiedAt { get; set; }
+
+        /// <summary>
         /// Gets or sets the TV show genre link entries.
         /// </summary>
         public ICollection<TVShowGenre> TVShowGenres { get; set; } = new List<TVShowGenre>();
@@ -59,6 +77,11 @@ namespace VideoWebPlayer.Data
             Studio = GetElementValue(xml, "studio");
             GenreNames = string.Join(",", xml.Elements("genre").Select(g => g.Value));
             PremieredAt = DateTime.TryParse(GetElementValue(xml, "premiered"), out var dt) ? dt : null;
+
+            var (ageRatingRaw, ageRating) = AgeRatingNormalizer.ExtractFromXml(xml);
+            AgeRatingRaw = ageRatingRaw;
+            AgeRating = ageRating.DisplayValue;
+            AgeRatingMinAge = ageRating.MinAge;
         }
 
         /// <summary>

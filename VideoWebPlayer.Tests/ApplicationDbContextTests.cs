@@ -614,6 +614,25 @@ public class ApplicationDbContextTests
     }
 
     [Fact]
+    public async Task Update_CopiesHiddenInMenu()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var ctx = await SeedSourceOnlyAsync("source-updatehiddeninmenu", ct);
+
+        var update = new MediaSource
+        {
+            Name = "Hidden Source",
+            Path = "/media",
+            HiddenInMenu = true
+        };
+        ctx.Source.Update(update);
+        await ctx.Db.SaveChangesAsync(ct);
+
+        var reloaded = await ctx.Db.MediaSources.FirstAsync(ms => ms.Id == ctx.Source.Id, ct);
+        Assert.True(reloaded.HiddenInMenu);
+    }
+
+    [Fact]
     public async Task MediaSource_DefaultsToSftpSourceType()
     {
         var ct = TestContext.Current.CancellationToken;

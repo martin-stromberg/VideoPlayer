@@ -12,6 +12,8 @@ namespace VideoWebPlayer.Services
     /// </summary>
     public class MediaSourceScanService : BackgroundService
     {
+        private const int MaxCollectionsPerAutomaticRun = 64;
+
         private readonly IServiceProvider _serviceProvider;
         private readonly EventManager _eventManager;
         private readonly ILogger<MediaSourceScanService> _logger;
@@ -85,9 +87,6 @@ namespace VideoWebPlayer.Services
                     {
                         var now = _timeProvider.GetUtcNow();
                         using var innerScope = _serviceProvider.CreateScope();
-                        var scanner = innerScope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
-                        var classifier = innerScope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
-                        var gate = innerScope.ServiceProvider.GetService<VideoWebPlayer.Services.Backups.IBackgroundProcessingGate>();
                         var settings = settingsScope.ServiceProvider.GetRequiredService<ProgramSettingsService>();
                         var (scanProcessInterval, _) = await settings.GetScanIntervalsAsync(stoppingToken);
 
@@ -97,92 +96,10 @@ namespace VideoWebPlayer.Services
                         if (now - lastRun >= scanProcessInterval)
                         {
                             lastRun = now;
-                            // Marker commits during the scan do not wake the playlist backfill; the end of the scan does.
-                            using var playlistBackfillScanScope = _serviceProvider.GetService<IPlaylistBackfillSignal>()?.BeginScan();
-                            await using var processingLease = gate is null ? null : await gate.EnterOperationAsync("Automatischer Scanprozess", stoppingToken);
                             _logger.LogInformation("Starte Scanprozess (Intervall: {Interval}).", scanProcessInterval);
 
-                            _logger.LogInformation("Starte Scan aller Quellen.");
-
-                            // Z�hle Items vor dem Scan
-                            int itemsBeforeScan;
-                            {
-                                var db = innerScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
-                                itemsBeforeScan = await db.MediaItems.CountAsync(stoppingToken);
-                            }
-
-                            await scanner.ScanAllSourcesAsync(stoppingToken);
-
-                            // Z�hle Items nach dem Scan
-                            int itemsAfterScan;
-                            {
-                                var db = innerScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
-                                itemsAfterScan = await db.MediaItems.CountAsync(stoppingToken);
-                            }
-
-                            int newItemsCount = itemsAfterScan - itemsBeforeScan;
-                            _logger.LogInformation("Scan aller Quellen abgeschlossen. {NewItems} neue Items gefunden.", newItemsCount);
-
-                            // Sende SignalR-Update �ber NotificationService
-                            await _notificationService.NotifyNewVideosScannedAsync(0L, newItemsCount, stoppingToken);
-
-                            _logger.LogInformation("Pr�fe, ob Genres neu geladen werden m�ssen.");
-                            await classifier.CheckReloadGenres(stoppingToken);
-
-                            const int maxCollectionsPerRun = 64;
-                            var scannedCollections = 0;
-
-                            while (scannedCollections < maxCollectionsPerRun && await scanner.ScanNextMediaCollection(stoppingToken))
-                            {
-                                scannedCollections++;
-                                _logger.LogInformation("Eine Collection wurde gescannt (ScanNextMediaCollection gab 'true' zur�ck).");
-                            }
-
-                            if (scannedCollections > 0)
-                            {
-                                _logger.LogInformation("Klassifiziere MediaItems nach ScanNextMediaCollection.");
-                                await classifier.ClassifyMediaItemsAsync(stoppingToken);
-                                _logger.LogInformation("Klassifizierung abgeschlossen.");
-
-                                // If scanning produced (or updated) classifyable collections, run collection-classification as well.
-                                // This is required to create/update TV show seasons/episodes from newly scanned season folders.
-                                int unclassifiedBefore;
-                                {
-                                    var db = innerScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
-                                    unclassifiedBefore = await db.MediaCollections
-                                        .CountAsync(mc => mc.Classifyable && (mc.Changed || !mc.ClassifiedAt.HasValue), stoppingToken);
-                                }
-
-                                if (unclassifiedBefore > 0)
-                                {
-                                    _logger.LogInformation("Scan abgeschlossen. Starte Klassifizierung ({UnclassifiedCount} unclassifizierte Collections).", unclassifiedBefore);
-                                    await classifier.ClassifyMediaCollectionsAsync(stoppingToken);
-                                    _logger.LogInformation("Klassifizierung der Collections abgeschlossen.");
-                                    _logger.LogInformation("Klassifizierung abgeschlossen.");
-
-                                    // Sende SignalR-Update �ber NotificationService
-                                    await _notificationService.NotifyNewVideosScannedAsync(0L, unclassifiedBefore, stoppingToken);
-                                }
-                            }
-                            else
-                            {
-                                // Z�hle unclassifizierte Items vor Klassifizierung
-                                int unclassifiedBefore;
-                                {
-                                    var db = innerScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
-                                    unclassifiedBefore = await db.MediaCollections
-                                        .CountAsync(mc => mc.Classifyable && (mc.Changed || !mc.ClassifiedAt.HasValue), stoppingToken);
-                                }
-
-                                _logger.LogInformation("Scan abgeschlossen. Starte Klassifizierung ({UnclassifiedCount} unclassifizierte Collections).", unclassifiedBefore);
-                                await classifier.ClassifyMediaCollectionsAsync(stoppingToken);
-                                _logger.LogInformation("Klassifizierung der Collections abgeschlossen.");
-                                _logger.LogInformation("Klassifizierung abgeschlossen.");
-
-                                // Sende SignalR-Update �ber NotificationService
-                                await _notificationService.NotifyNewVideosScannedAsync(0L, unclassifiedBefore, stoppingToken);
-                            }
-
+                            var coordinator = innerScope.ServiceProvider.GetRequiredService<MediaSourceScanCoordinator>();
+                            await coordinator.RunFullScanAsync("Automatischer Scanprozess", MaxCollectionsPerAutomaticRun, stoppingToken);
                         }
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

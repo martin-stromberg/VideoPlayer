@@ -145,6 +145,31 @@ public class MediaSearchSelectorTests
         Assert.Equal(0, fakeClient.CallCount);
     }
 
+
+    [Fact]
+    public async Task AllowedMediaTypes_FiltersResultsToPermittedTypes()
+    {
+        using var ctx = new global::Bunit.BunitContext();
+        var fakeClient = CreateFakeClient(
+            new MediaEntryDto { Type = "TVShow", Id = 1, Title = "Serie Eins" },
+            new MediaEntryDto { Type = "Movie", Id = 2, Title = "Film Zwei" });
+        ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
+        ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);
+
+        var cut = ctx.Render<VideoWebPlayer.Components.Playlists.MediaSearchSelector>(parameters => parameters
+            .Add(c => c.AllowedMediaTypes, new[] { "TVShow" }));
+        var input = cut.Find("input.media-search-input");
+
+        await cut.InvokeAsync(() => input.Input("Eins"));
+
+        cut.WaitForAssertion(() =>
+        {
+            var tiles = cut.FindAll(".media-search-result");
+            Assert.Single(tiles);
+            Assert.Equal("TVShow", tiles[0].GetAttribute("data-media-type"));
+        }, TimeSpan.FromSeconds(3));
+    }
+
     /// <summary>
     /// <see cref="VideoWebPlayerClient"/> test double whose HTTP helper always throws, for verifying that
     /// a real search failure is logged and surfaced as an error state distinct from "no results".

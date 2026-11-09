@@ -24,6 +24,7 @@ namespace VideoWebPlayer.Data
             target.SourceType = source.SourceType;
             target.IconPictureId = source.IconPictureId;
             target.LastScannedAt = source.LastScannedAt;
+            target.HiddenInMenu = source.HiddenInMenu;
             // CreatedAt wird in der Regel nicht überschrieben
         }
     }

@@ -149,6 +149,11 @@ public sealed class MediaMetadataUpdateRequest
     /// Gets or sets the names of the genres assigned to the media entry.
     /// </summary>
     public string[] GenreNames { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the age rating (only supported for movies and TV shows; empty clears the value).
+    /// </summary>
+    public string? AgeRating { get; set; }
 }
 
 /// <summary>
@@ -165,6 +170,16 @@ public class DtoMovie : DtoMediaEntry
     /// Gets or sets the plot description of the movie.
     /// </summary>
     public string? Plot { get; set; }
+
+    /// <summary>
+    /// Gets or sets the normalized age rating for display (e.g. "FSK 12" or "PG-13").
+    /// </summary>
+    public string? AgeRating { get; set; }
+
+    /// <summary>
+    /// Gets or sets the comparable minimum age derived from the rating, if known.
+    /// </summary>
+    public int? AgeRatingMinAge { get; set; }
 
     /// <summary>
     /// Gets or sets the movie collection the movie belongs to, if any.
@@ -204,6 +219,16 @@ public class DtoTVShow : DtoMediaEntry
     /// Gets or sets the plot description of the TV show.
     /// </summary>
     public string? Plot { get; set; }
+
+    /// <summary>
+    /// Gets or sets the normalized age rating for display (e.g. "FSK 12" or "TV-14").
+    /// </summary>
+    public string? AgeRating { get; set; }
+
+    /// <summary>
+    /// Gets or sets the comparable minimum age derived from the rating, if known.
+    /// </summary>
+    public int? AgeRatingMinAge { get; set; }
 }
 
 /// <summary>

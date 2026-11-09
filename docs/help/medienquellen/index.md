@@ -1,6 +1,6 @@
 # Medienquellen
 
-Medienquellen sind die Speicherorte, aus denen der VideoWebPlayer Videos einliest. Neben entfernten SFTP-Servern kann seit dieser Version auch ein lokales Verzeichnis auf dem Server als Quelle dienen.
+Medienquellen sind die Speicherorte, aus denen der VideoWebPlayer Videos einliest. Neben entfernten SFTP-Servern kann seit dieser Version auch ein lokales Verzeichnis auf dem Server als Quelle dienen. Beim Einlesen wertet die Klassifizierung auch die Altersfreigaben aus den NFO-Dateien aus; fehlende Angaben kann optional eine Online-Quelle ergänzen.
 
 ## Inhalt
 

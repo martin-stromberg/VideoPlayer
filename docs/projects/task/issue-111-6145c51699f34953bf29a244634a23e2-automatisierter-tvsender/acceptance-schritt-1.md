@@ -1,0 +1,37 @@
+# Abnahmeprüfung – Entwicklungsschritt 1 „Videolaufzeit erfassen"
+
+Geprüfter Stand: Commit `c7a7b74` auf `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-1-videolaufzeit` (Diff-Basis: Projekt-Branch `task/issue-111-...-automatisierter-tvsender`). Prüfer: Devin (unabhängig vom Implementierer-Stand; Code, Build und Tests selbst verifiziert).
+
+## Ergebnis
+
+**Status:** Erfüllt
+
+## Abweichungen
+
+Keine. Alle fachlichen Anforderungen des Schritts sind im Code nachweisbar umgesetzt und durch Tests abgesichert:
+
+- [x] `dotnet build VideoPlayer.sln` in **Debug und Release** selbst ausgeführt: je 0 Fehler (140 Warnungen, alle in unveränderten Dateien — pre-existing).
+- [x] Volle Testsuite `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj` selbst ausgeführt: **1795 grün, 1 übersprungen, 0 fehlgeschlagen** (3 m 51 s). Der einzige Skip (`DevicePlaylistE2ETests_Playback.PairedDevice_ReportsProgressForMovieWithoutCollection_ContinueWatchingListStillLoads`) ist der bekannte Alt-Skip.
+- [x] Gegenprobe 1: `existingItem.DurationProbedAt = null;` in `MediaSourceScanner.cs:274` entfernt → `ScanNextMediaCollection_ChangedFile_ResetsDurationFields` schlägt wie erwartet fehl (`Assert.Null(): Actual 2026-10-19T...`). Änderung per `git checkout` zurückgenommen, Arbeitsverzeichnis wieder sauber.
+- [x] Gegenprobe 2: `seconds > 0` → `seconds >= 0` in `FfprobeMediaDurationProbe.TryParseDurationOutput` → `TryParseDurationOutput_InvalidValues_ReturnNull("0")` schlägt wie erwartet fehl. Ebenfalls zurückgenommen.
+- [x] Fehlgeschlagene Probes werden **dauerhaft markiert statt endlos wiederholt**: `MediaDurationProbeService.ProbeItemAsync` setzt `DurationProbedAt` auch bei `Duration = null`/Exception; die Pending-Abfrage filtert strikt auf `DurationProbedAt == null` (`MediaDurationProbeService.cs:79`). Belegt durch `ProbePendingAsync_FailedProbe_MarksProbedWithoutDuration` und `..._ProbeThrows_MarksFailedAndContinues` (Nachbar-Item im selben Batch wird trotzdem verarbeitet).
+- [x] Reset bei Dateiwechsel greift: `MediaSourceScanner.cs:265-275` setzt `Duration` und `DurationProbedAt` bei `CreatedAt`-Änderung zurück (gilt für lokale und SFTP-Quellen, gleicher Codepfad). Neuer Test deckt es ab und wurde per Gegenprobe verifiziert.
+- [x] `MediaItems.Duration` + `MediaItems.DurationProbedAt` in `VideoWebPlayerBackupData.OptionalRestoreColumns` registriert (`VideoWebPlayerBackupData.cs:76-77`) inkl. Alt-Backup-Regressionstest `ReadFromAsync_LegacyBackupWithoutDurationColumnsInMediaItems_RestoresSuccessfully` (stript beide Spalten aus dem Archiv, Restore läuft fehlerfrei, Felder bleiben `null` → werden vom Worker automatisch nachgeprobt).
+- [x] Migration `20261021033436_AddMediaItemDuration` legt beide NULL-Spalten plus Index `IX_MediaItems_DurationProbedAt` an; `ModelSnapshot` aktualisiert; Anwendung beim Start via `db.Database.Migrate()` (`WebApplicationExtensions.MigrateDatabase`).
+- [x] Fehlendes ffprobe-Binary erzeugt **keine Crash-Loop**: `FfprobeLocator.Resolve() == null` → einmalige Warnung (statisches `_missingBinaryLogged`) → `ProbePendingAsync` liefert 0 → Worker schläft `IntervalSeconds` und versucht es später erneut. Test `ProbePendingAsync_NoFfprobe_LeavesItemsUnprobed` belegt, dass Items unangetastet bleiben.
+- [x] Lizenz/Bereitstellung plausibel: kein Bundling, keine FFmpeg-Verlinkung — ffprobe wird als eigenständiger Prozess aufgerufen (stdin/stdout), Auffindung über `MediaProbe:FfprobePath` → `tools/ffmpeg/` → `PATH`. Dokumentiert in `docs/help/videolaufzeit.md` (Installationshinweise, Suchreihenfolge, Konfigurationstabelle, LGPL-/GPL-Einordnung) sowie `README.md` und `docs/RELEASE_NOTES.md`.
+- [x] NFO ist **keine** Laufzeitquelle: einzige Quelle ist der ffprobe-Prozessaufruf (`FfprobeMediaDurationProbe`), lokal per Dateipfad, bei SFTP per Stream (`pipe:0`) ohne Komplett-Download.
+- [x] Neue Videos (Scan) und Bestand (Backfill) laufen ohne manuelles Eingreifen: `MediaDurationProbeWorker` (HostedService, DI in `ServiceCollectionExtensions.cs:234-237`) tastet `DurationProbedAt == null` periodisch ab — neue wie alte Items über denselben Mechanismus.
+
+## Hinweise
+
+1. **Mechanismus statt Scan-Einbettung:** Die Laufzeitermittlung läuft ausschließlich über den Worker, nicht innerhalb des Scanners. Neue Items bekommen `DurationProbedAt = null` beim Anlegen und werden innerhalb eines Worker-Intervalls geprobt — ergebnisgleich zur Anforderung („beim regulären Medien-Scan sowie automatisierte Nachtrags-Befüllung"), fachlich unbedenklich.
+2. **Transiente Fehler werden permanent markiert:** Ein temporär nicht erreichbarer SFTP-Server oder eine kurzzeitig gesperrte lokale Datei führt zu `DurationProbedAt` gesetzt + `Duration = null`; eine erneute Prüfung erfolgt erst nach erkanntem Dateiwechsel. Das ist die geforderte „nicht endlos wiederholen"-Semantik, sollte aber bei großen SFTP-Ausfällen bewusst sein (betroffene Dateien sind dann dauerhaft von der späteren Sendeplanung ausgeschlossen, bis sich die Datei ändert oder manuell `DurationProbedAt` zurückgesetzt wird).
+3. **Restore-Gate-Lease über den gesamten Drain-Loop:** `MediaDurationProbeWorker` hält die `IBackgroundProcessingGate`-Lease, während es *alle* pending Items in Batches abarbeitet (`do/while`, `MediaDurationProbeWorker.cs:71-75`). Bei großem Backlog (z. B. Erst-Backfill über SFTP mit Timeout-Risiko je Datei) wartet eine ausgelöste Wiederherstellung bis zum kompletten Durchlauf. Korrektheit ist gegeben; fairer wäre ein Re-Acquire je Batch.
+4. **Konfigurierter, aber nicht existierender `FfprobePath` → `null` ohne Fallback** auf Konventionsverzeichnisse/PATH (bewusst, abgesichert durch `FfprobeLocatorTests.Resolve_ConfiguredPathMissing_ReturnsNull`). Verdeckt Tippfehler in der Konfiguration stillschweigend — im Dokumentationsabschnitt und im Verhalten konsistent.
+5. **`VideoFileExtensions.IsVideoFileName` ist ungenutzt** — nur `All` wird referenziert (`MediaDurationProbeService`, `MediaSourceClassifier`). Kleiner toter Code-Bestand, kein Fehler.
+6. **Case-Sensitivity:** Der DB-Filter `mi.Name.EndsWith(ext)` wird von EF Core für SQLite als `LIKE '%.mp4'` übersetzt und ist damit ASCII-fallinsensitiv — `.MP4`-Dateien würden geprobt. Der Classifier (`Path.GetExtension` + `Contains`, case-sensitiv) ignoriert solche Dateien ohnehin; Verhalten ist konsistent bzw. eine harmlose Obermenge. `Name` enthält bei beiden Readern den reinen Dateinamen — der `EndsWith`-Filter auf `Name` ist korrekt.
+7. **Kein Test gegen ein echtes ffprobe-Binary:** Alle Prozessaufrufe laufen über die interne `_executeAsync`-Naht (Mock). Pragmatisch, da ffprobe in der CI nicht garantiert ist; die Argument- und Parsing-Logik ist durch `FfprobeMediaDurationProbeTests` (inkl. Timeout-/Exit-Code-/N-A-/Parse-Pfaden) gut abgedeckt. Die reale Prozessanbindung (`ExecuteProcessAsync`) ist damit ungetestet — bewusstes Restrisiko.
+8. **TimeSpan-Roundtrip im Backup** ist nicht neu: `ContinueWatchingEntry.Position` nutzt denselben generischen Serialisierungs-/Deserialisierungspfad (`JsonSerializer` ↔ `ToDbValue`), daher kein zusätzlicher Regressionstest nötig; der Pflicht-Regressionstest für fehlende Spalten existiert.
+9. `MediaItem.cs` enthält eine nebenbei erfolgte Encoding-Korrektur im XML-Kommentar (`Repr�sentiert` → `Repräsentiert`) — unkritisch.
+10. `steps.md` steht für Schritt 1 weiterhin auf „In Arbeit" — korrekt, da die Abnahme erst mit diesem Bericht erfolgt.

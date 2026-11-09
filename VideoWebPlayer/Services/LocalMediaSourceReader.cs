@@ -179,6 +179,18 @@ namespace VideoWebPlayer.Services
         }
 
         /// <summary>
+        /// Resolves a file name relative to the collection path to its physical file-system path —
+        /// the same resolution <see cref="OpenFileStream"/> performs, exposed for callers that hand
+        /// the file to external tools (e.g. the live stream's ffmpeg process). Returns
+        /// <c>null</c> when the name resolves outside the source root or is not a file.
+        /// </summary>
+        /// <param name="collection">The media collection the file name is resolved against.</param>
+        /// <param name="fileName">The file name to resolve.</param>
+        /// <returns>The physical path, or <c>null</c> when it cannot be resolved.</returns>
+        public string? ResolveLocalFilePath(MediaCollection collection, string fileName)
+            => ResolveFilePath(collection, fileName);
+
+        /// <summary>
         /// Löst eine Dateiangabe relativ zum Collection-Pfad auf und liefert den tatsächlichen Dateipfad.
         /// Liefert null bei Pfaden außerhalb des Quell-Roots oder bei ReparsePoint-/Nicht-Datei-Einträgen.
         /// </summary>

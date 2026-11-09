@@ -256,7 +256,7 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
 
     [Fact]
     [Trait("Category", "E2E")]
-    public async Task Admin_Installs_Update_Through_Post_And_Sees_Result()
+    public async Task Admin_Installs_Update_Via_Static_Progress_Page()
     {
         EnsureBrowserAvailable();
         await LoginAsync();
@@ -266,10 +266,41 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
 
         await _page.GetByRole(AriaRole.Button, new() { Name = "Update installieren" }).ClickAsync();
 
-        await Expect(_page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("/admin/updates\\?updateStatus="));
-        await Expect(_page.GetByText("Installation gestartet.")).ToBeVisibleAsync();
+        // Die Schaltfläche navigiert zuerst auf die statische Fortschrittsseite.
+        await Expect(_page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("/update-progress\\.html$"));
+        await Expect(_page.GetByRole(AriaRole.Heading, new() { Name = "Update wird installiert" })).ToBeVisibleAsync();
+
+        // Die Seite löst die Installation selbst per POST aus (Fire-and-forget).
+        await WaitForInstallTriggeredAsync();
         Assert.Equal(1, _updates.DownloadCount);
         Assert.Equal(1, _updates.InstallCount);
+
+        // Der Prozessstopp wird durch ein Offline-Browserfenster simuliert.
+        await _context.SetOfflineAsync(true);
+        await Expect(_page.Locator("#status")).ToContainTextAsync("Neustart läuft");
+        await _context.SetOfflineAsync(false);
+
+        // Sobald der Server wieder antwortet, leitet die Seite auf die Startseite weiter.
+        await Expect(_page).ToHaveURLAsync(
+            new System.Text.RegularExpressions.Regex($"{System.Text.RegularExpressions.Regex.Escape(_serverUrl)}/$"));
+    }
+
+    [Fact]
+    [Trait("Category", "E2E")]
+    public async Task Update_Progress_Page_Returns_To_Admin_When_Nothing_Is_Installable()
+    {
+        EnsureBrowserAvailable();
+        await LoginAsync();
+        _updates.Status = FakeUpdateBackend.CreateStatus(AutoUpdateState.Idle);
+
+        await _page.GotoAsync($"{_serverUrl}/update-progress.html");
+        await Expect(_page.GetByRole(AriaRole.Heading, new() { Name = "Update wird installiert" })).ToBeVisibleAsync();
+
+        // Der Install-Endpunkt lehnt mit 409 ab; die Seite kehrt zur Update-Verwaltung zurück.
+        await Expect(_page).ToHaveURLAsync(
+            new System.Text.RegularExpressions.Regex("/admin/updates$"),
+            new() { Timeout = 30_000 });
+        Assert.Equal(0, _updates.InstallCount);
     }
 
     [Fact]
@@ -354,6 +385,17 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
     {
         await Expect(_page.GetByRole(AriaRole.Heading, new() { Name = "Systemupdates" })).ToBeVisibleAsync();
         await _page.WaitForTimeoutAsync(1_000);
+    }
+
+    private async Task WaitForInstallTriggeredAsync()
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        while (_updates.InstallCount == 0)
+        {
+            if (DateTime.UtcNow > deadline)
+                Assert.Fail("Die Fortschrittsseite hat die Installation nicht ausgelöst.");
+            await Task.Delay(100);
+        }
     }
 
     private async Task AssertKeyControlsVisibleAsync()

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Update wird installiert – VideoWebPlayer</title>
+<style>
+    :root {
+        --vp-bg: #131313;
+        --vp-surface: #201f1f;
+        --vp-text: #e5e2e1;
+        --vp-text-muted: #bda9a6;
+        --vp-border: rgba(255, 255, 255, 0.1);
+        --vp-primary: #e50914;
+        --vp-secondary-soft: #83cfff;
+        --vp-secondary: #00a8e8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background:
+            radial-gradient(circle at top right, rgba(0, 168, 232, 0.09), transparent 34rem),
+            linear-gradient(180deg, #121212 0%, var(--vp-bg) 48%, #0f0f0f 100%);
+        color: var(--vp-text);
+        padding: 1.5rem;
+    }
+
+    main {
+        width: 100%;
+        max-width: 34rem;
+        text-align: center;
+        background: var(--vp-surface);
+        border: 1px solid var(--vp-border);
+        border-radius: 12px;
+        padding: 2.5rem 2rem;
+    }
+
+    .spinner {
+        width: 3rem;
+        height: 3rem;
+        margin: 0 auto 1.5rem;
+        border-radius: 50%;
+        border: 4px solid var(--vp-border);
+        border-top-color: var(--vp-primary);
+        animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    h1 {
+        margin: 0 0 0.75rem;
+        font-family: Montserrat, Inter, "Segoe UI", sans-serif;
+        font-size: 1.6rem;
+        font-weight: 800;
+        letter-spacing: 0;
+    }
+
+    #status {
+        margin: 0 0 0.75rem;
+        font-size: 1.05rem;
+    }
+
+    .hint {
+        margin: 0;
+        color: var(--vp-text-muted);
+        font-size: 0.9rem;
+    }
+
+    #manual {
+        display: inline-block;
+        margin-top: 1.5rem;
+        color: var(--vp-secondary-soft);
+    }
+
+    #manual:hover {
+        color: var(--vp-secondary);
+    }
+</style>
+</head>
+<body>
+<main>
+    <div class="spinner" aria-hidden="true"></div>
+    <h1>Update wird installiert</h1>
+    <p id="status" role="status">Update wird gestartet …</p>
+    <p class="hint">Diese Seite prüft den Server selbstständig und leitet dich nach dem Neustart weiter. Du musst nichts tun — bitte lass den Tab einfach geöffnet.</p>
+    <a id="manual" href="/" hidden>Zur Startseite</a>
+</main>
+<script>
+    'use strict';
+
+    var INSTALL_URL = '/api/updates/install';
+    var HOME_URL = '/';
+    var ADMIN_URL = '/admin/updates';
+    var POLL_INTERVAL_MS = 2000;
+    // Download, Backup und Shutdown können je nach Datenlage dauern.
+    var SHUTDOWN_TIMEOUT_MS = 30 * 60 * 1000;
+
+    var statusEl = document.getElementById('status');
+    var manualEl = document.getElementById('manual');
+
+    function setStatus(text) {
+        statusEl.textContent = text;
+    }
+
+    function sleep(ms) {
+        return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
+
+    function isServerUp() {
+        return fetch(HOME_URL, { cache: 'no-store', credentials: 'same-origin' })
+            .then(function (response) { return response.ok; })
+            .catch(function () { return false; });
+    }
+
+    function requestInstall() {
+        return fetch(INSTALL_URL, {
+            method: 'POST',
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function (response) {
+            return response.status;
+        }).catch(function () {
+            // Die Antwort darf verloren gehen — der Server ist dann bereits im Shutdown.
+            return 0;
+        });
+    }
+
+    function waitForShutdown() {
+        var deadline = Date.now() + SHUTDOWN_TIMEOUT_MS;
+        return new Promise(function (resolve) {
+            function poll() {
+                isServerUp().then(function (up) {
+                    if (!up) {
+                        resolve(true);
+                    } else if (Date.now() >= deadline) {
+                        resolve(false);
+                    } else {
+                        setTimeout(poll, POLL_INTERVAL_MS);
+                    }
+                });
+            }
+            poll();
+        });
+    }
+
+    function waitForRestart() {
+        return new Promise(function (resolve) {
+            function poll() {
+                isServerUp().then(function (up) {
+                    if (up) {
+                        resolve();
+                    } else {
+                        setTimeout(poll, POLL_INTERVAL_MS);
+                    }
+                });
+            }
+            poll();
+        });
+    }
+
+    function goBackToAdmin() {
+        location.replace(ADMIN_URL);
+    }
+
+    function run() {
+        requestInstall().then(function (code) {
+            if (code === 400 || code === 401 || code === 403) {
+                goBackToAdmin();
+                return;
+            }
+
+            if (code === 409) {
+                setStatus('Das Update kann nicht gestartet werden — es läuft bereits eine Aktion oder es ist keine installierbare Version bekannt.');
+                setTimeout(goBackToAdmin, 5000);
+                return;
+            }
+
+            // 202 oder verlorene Antwort: Die Installation läuft — erst auf den Shutdown
+            // warten und danach auf den Neustart, damit kein Circuit-Fehler entsteht.
+            setStatus('Update läuft — die Anwendung wird neu gestartet …');
+
+            waitForShutdown().then(function (wentDown) {
+                if (!wentDown) {
+                    // Der Server ist nie weggegangen: Die Installation wurde vermutlich
+                    // abgelehnt oder ist gescheitert — zurück zur Statusseite.
+                    goBackToAdmin();
+                    return;
+                }
+
+                setStatus('Neustart läuft — bitte warten …');
+                waitForRestart().then(function () {
+                    location.replace(HOME_URL);
+                });
+            });
+        });
+    }
+
+    run();
+</script>
+</body>
+</html>

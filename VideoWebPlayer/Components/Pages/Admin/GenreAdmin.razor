@@ -220,8 +220,10 @@ else
         if (editGenre == null)
             return;
 
-        var dbGenres = await DbContext.Genres.Include(g => g.AlternateNames)
-            .Where(g => g.Name == editGenre.Name).ToListAsync();
+        var editedName = (editGenre.Name ?? string.Empty).Trim();
+        var dbGenres = (await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync())
+            .Where(g => string.Equals(g.Name?.Trim(), editedName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
         foreach (var dbGenre in dbGenres)
         {

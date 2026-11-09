@@ -1,6 +1,8 @@
 @using Microsoft.JSInterop
 @using VideoWebPlayer.Client.Models
 @using VideoWebPlayer.ViewModels
+@* CssFormat statt kulturabhaengigem ToString: "width:59,38%" (de-DE-Komma) ist ungueltiges CSS
+   und laesst den Fortschrittsbalken immer voll wirken (N26). *@
 
 @inject IJSRuntime JS
 @inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
@@ -11,10 +13,23 @@
 {
     <div class="player-overlay">
         <div class="player-content">
-            @if (currentPlaylistId.HasValue && !string.IsNullOrEmpty(currentPlaylistName))
+            @if (currentPlaylistId.HasValue)
             {
-                <div class="playlist-playback-badge" id="playlist-playback-badge">
-                    [@currentPlaylistName: @currentPlaylistPosition/@playlistTotalCount]
+                <div class="player-title-bar">
+                    @if (!string.IsNullOrEmpty(currentPlaylistName))
+                    {
+                        <div class="playlist-playback-badge" id="playlist-playback-badge">
+                            [@currentPlaylistName: @currentPlaylistPosition/@playlistTotalCount]
+                        </div>
+                    }
+                    <div class="playlist-playback-controls">
+                        <button class="playlist-nav-btn playlist-previous-button" @onclick="OnPreviousPlaylistEntryAsync" title="Vorheriger (Playlist)" aria-label="Vorheriger (Playlist)">
+                            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+                        </button>
+                        <button class="playlist-nav-btn playlist-next-button" @onclick="OnNextPlaylistEntryAsync" title="Nächster (Playlist)" aria-label="Nächster (Playlist)">
+                            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                        </button>
+                    </div>
                 </div>
             }
             @* @onerror: Ein Ladefehler des Videostroms erreicht nur den Browser, nicht die Bibliothek -
@@ -34,7 +49,7 @@
                 <div class="alert alert-danger player-stream-error" id="player-stream-error">@MediaAccessErrorMessages.PlaybackFailed</div>
             }
             <div class="player-progress-rail" aria-hidden="true">
-                <div class="player-progress-fill" style="width:@ProgressPercent%"></div>
+                <div class="player-progress-fill" style="width:@CssFormat.Percent(ProgressPercent)"></div>
             </div>
             @if (currentPlaylistId.HasValue)
             {
@@ -42,10 +57,6 @@
                 {
                     <div class="alert alert-danger playlist-navigation-error" id="playlist-navigation-error">@playlistNavigationErrorMessage</div>
                 }
-                <div class="playlist-playback-controls">
-                    <button class="btn btn-sm btn-secondary playlist-previous-button" @onclick="OnPreviousPlaylistEntryAsync" title="Vorheriger (Playlist)">&#9664; Vorheriger (Playlist)</button>
-                    <button class="btn btn-sm btn-secondary playlist-next-button" @onclick="OnNextPlaylistEntryAsync" title="Nächster (Playlist)">Nächster (Playlist) &#9654;</button>
-                </div>
                 @if (playlistEndReached)
                 {
                     <div class="alert alert-info playlist-end-reached" id="playlist-end-reached">

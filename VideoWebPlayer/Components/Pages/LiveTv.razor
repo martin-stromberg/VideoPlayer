@@ -1,0 +1,536 @@
+@page "/live-tv"
+@using Microsoft.JSInterop
+@using VideoWebPlayer.Client
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Account.Pages.Shared
+@using VideoWebPlayer.Components.Playlists
+@using VideoWebPlayer.Services
+@using VideoWebPlayer.ViewModels
+@inject AuthenticationStateProvider AuthStateProvider
+@inject VideoWebPlayerClient Client
+@inject IProgramGuideApiClient ProgramGuideClient
+@inject ProgramSettingsService ProgramSettings
+@inject VideoWebPlayer.Services.StaticAssetVersioner AssetVersions
+@inject IJSRuntime JS
+@inject ILogger<LiveTv> Logger
+@inject TimeProvider TimeProvider
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+
+<PageTitle>Live-TV</PageTitle>
+
+@if (!isAuthenticated)
+{
+    @* Muster Home.razor: nicht angemeldete Anwender erhalten den Login-Dialog statt eines Fehlerbilds. *@
+    <LoginForm />
+}
+else if (isLoading)
+{
+    <section class="media-section">
+        <p id="live-tv-loading">Lade Daten...</p>
+    </section>
+}
+else if (!tvSenderEnabled)
+{
+    <section class="media-section">
+        <div class="alert alert-info" id="live-tv-disabled">Der TV-Sender ist nicht freigeschaltet.</div>
+    </section>
+}
+else if (!tvSenderAccessGranted)
+{
+    <section class="media-section">
+        <div class="alert alert-info" id="live-tv-no-access">@LiveTvErrorMessages.Forbidden</div>
+    </section>
+}
+else if (!string.IsNullOrWhiteSpace(loadError))
+{
+    <section class="media-section">
+        <div class="alert alert-danger" id="live-tv-error">@loadError</div>
+    </section>
+}
+else
+{
+    <div class="livetv-page">
+        <header class="livetv-header">
+            <h1>Live-TV</h1>
+        </header>
+
+        @* Player links, Programm-Karten rechts/darunter (sendeplan-vorschau.html):
+           kompakte program-cards mit Poster, Uhrzeit, Titel und kurzer Beschreibung. *@
+        <div class="livetv-layout">
+            <div class="livetv-main">
+                @* Player-Bereich: bei laufender Sendung das Video (attach via liveTv.js - nativ oder hls.js);
+                   bei Sendeluecke die verstaendliche Hinweismeldung. *@
+                <div class="livetv-player-wrap">
+                    @if (!tvSenderOnAir)
+                    {
+                        <img class="livetv-off-air" id="live-tv-off-air" src="@OffAirImageUrl" alt="@LiveTvErrorMessages.NotOnAir" />
+                        @* Sichtbarer Hinweis ueber dem Testbild (wie die Fehler-Overlays):
+                           das Farbbalken-Bild allein wirkt wie ein Ladefehler. *@
+                        <div class="alert alert-info livetv-hint" id="live-tv-off-air-hint">@LiveTvErrorMessages.NotOnAir</div>
+                    }
+                    else if (guide?.Now is not null)
+                    {
+                        <video @ref="_videoRef" id="live-tv-video" class="livetv-video" controls autoplay muted playsinline></video>
+                        @if (unsupportedBrowser)
+                        {
+                            <div class="alert alert-warning livetv-hint" id="live-tv-unsupported">@LiveTvErrorMessages.UnsupportedBrowser</div>
+                        }
+                        else if (streamError)
+                        {
+                            <div class="alert alert-warning livetv-hint" id="live-tv-stream-error" data-error-kind="@streamErrorKind">@LiveTvErrorMessages.StreamUnavailable</div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="livetv-gap" id="live-tv-no-program">
+                            <strong>@LiveTvErrorMessages.NoProgramRunning</strong>
+                            @if (guide?.Next is { } nextGap)
+                            {
+                                <span>Nächste Sendung um @FormatTime(nextGap.StartUtc): @nextGap.Title</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="livetv-side">
+                @if (guide?.Now is { } nowEntry)
+                {
+                    @* Off-Air behauptet die Karte nichts „Live": neutraler Kicker und
+                       Sendepause-Badge statt „Jetzt läuft"/rotem Live-Badge — Karten-Inhalt
+                       (Zeit, Titel, Beschreibung, Fortschritt) bleibt unveraendert. *@
+                    <span class="livetv-kicker">@(tvSenderOnAir ? "Jetzt läuft" : "Laut Sendeplan")</span>
+                    <section class="program-card compact now-card" id="live-tv-now">
+                        <div class="program-poster"><img src="@PosterUrl(nowEntry)" alt="" /></div>
+                        <div class="program-body">
+                            @if (tvSenderOnAir)
+                            {
+                                <span class="program-badge badge-live">Live</span>
+                            }
+                            else
+                            {
+                                <span class="program-badge badge-offair">Sendepause</span>
+                            }
+                            <span class="program-time">
+                                @FormatTime(nowEntry.StartUtc)&nbsp;–&nbsp;@FormatTime(nowEntry.EndUtc)
+                                @if (nowEntry.RemainingSeconds is { } remaining)
+                                {
+                                    <text>&nbsp;(noch @FormatDuration(remaining))</text>
+                                }
+                            </span>
+                            <span class="program-title" id="live-tv-now-title">@CardTitle(nowEntry)</span>
+                            @if (CardSub(nowEntry) is { } nowSub)
+                            {
+                                <span class="program-sub">@nowSub</span>
+                            }
+                            <p class="program-desc">@Desc(nowEntry)</p>
+                            @if (nowEntry.PositionSeconds is { } position && nowEntry.DurationSeconds > 0)
+                            {
+                                <div class="progress-track" aria-hidden="true">
+                                    <div class="progress-fill" style="width:@CssFormat.Percent(ProgressPercent(position, nowEntry.DurationSeconds))"></div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                }
+
+                @if (guide?.Next is { } nextEntry)
+                {
+                    <span class="livetv-kicker">Gleich</span>
+                    <section class="program-card compact" id="live-tv-next">
+                        <div class="program-poster"><img src="@PosterUrl(nextEntry)" alt="" /></div>
+                        <div class="program-body">
+                            <span class="program-time">@FormatTime(nextEntry.StartUtc)</span>
+                            <span class="program-title">@CardTitle(nextEntry)</span>
+                            @if (CardSub(nextEntry) is { } nextSub)
+                            {
+                                <span class="program-sub">@nextSub</span>
+                            }
+                        </div>
+                    </section>
+                }
+
+                @if (upcoming.Length > 0)
+                {
+                    <span class="livetv-kicker">Die nächsten Stunden</span>
+                    <ul class="livetv-upcoming-list" id="live-tv-upcoming">
+                        @foreach (var item in BuildUpcomingDisplayItems(upcoming))
+                        {
+                            if (item is UpcomingClipBlockItem block)
+                            {
+                                var blockFirst = block.Clips[0];
+                                var blockLast = block.Clips[^1];
+                                var blockExpanded = expandedClipBlockId == blockFirst.SlotId;
+                                @* Block-Karte wie im Sendeplan: ein Eintrag fuer den lueckenlosen
+                                   Clip-Fuell-Lauf statt einer Karte je Kurz-Clip; der Icon-Button
+                                   klappt die Einzelclips in der Karte auf. *@
+                                <li class="livetv-upcoming-row program-card compact livetv-clip-block" data-first-slot-id="@blockFirst.SlotId" data-clip-count="@block.Clips.Count">
+                                    <div class="program-poster"><img src="/images/placeholder.png" alt="" /></div>
+                                    <div class="program-body">
+                                        <span class="program-time">@FormatTime(blockFirst.StartUtc)&nbsp;–&nbsp;@FormatTime(blockLast.EndUtc)</span>
+                                        <span class="program-title">Platzhalter-Clips</span>
+                                        <span class="program-sub">@block.Clips.Count Clips · Gesamtdauer @((blockLast.EndUtc - blockFirst.StartUtc).ToString(@"hh\:mm\:ss"))</span>
+                                        <p class="program-desc">Automatische Restzeit-Auffüllung aus Clip-Gruppen.</p>
+                                        <button class="livetv-clip-block-toggle" title="Platzhalter-Clips anzeigen" aria-label="Platzhalter-Clips anzeigen" aria-expanded="@(blockExpanded ? "true" : "false")" @onclick="() => expandedClipBlockId = blockExpanded ? null : blockFirst.SlotId">
+                                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+                                        </button>
+                                        @if (blockExpanded)
+                                        {
+                                            <ul class="livetv-clip-block-detail">
+                                                @foreach (var clip in block.Clips)
+                                                {
+                                                    <li class="livetv-clip-block-row" data-slot-id="@clip.SlotId">
+                                                        <span class="livetv-clip-block-time">@FormatTime(clip.StartUtc)</span>
+                                                        <span class="livetv-clip-block-duration">@((clip.EndUtc - clip.StartUtc).ToString(@"hh\:mm\:ss"))</span>
+                                                        <span class="livetv-clip-block-title" title="@CardTitle(clip)">@CardTitle(clip)</span>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                    </div>
+                                </li>
+                            }
+                            else if (item is UpcomingEntryItem single)
+                            {
+                                var entry = single.Entry;
+                                <li class="livetv-upcoming-row program-card compact" data-slot-id="@entry.SlotId">
+                                    <div class="program-poster"><img src="@PosterUrl(entry)" alt="" /></div>
+                                    <div class="program-body">
+                                        <span class="program-time">@FormatTime(entry.StartUtc)</span>
+                                        <span class="program-title">@CardTitle(entry)</span>
+                                        @if (CardSub(entry) is { } sub)
+                                        {
+                                            <span class="program-sub">@sub</span>
+                                        }
+                                        <p class="program-desc">@Desc(entry)</p>
+                                    </div>
+                                </li>
+                            }
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const int PreviewHours = 6;
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(15);
+
+    private bool isAuthenticated;
+    private bool tvSenderEnabled;
+    private bool tvSenderAccessGranted;
+    // On-Air-Schalter (Setup.TvSenderOnAir): aus = Off-Air-Bild statt Player; je Poll-Tick
+    // neu gelesen, damit die Seite ohne Reload umspringt. Default true wie die Spalte.
+    private bool tvSenderOnAir = true;
+    private bool isLoading = true;
+    private string? loadError;
+    private bool streamError;
+    // Fehlerart des letzten Stream-Fehlers (hls.js ErrorType bzw. native/script) —
+    // nur Diagnose-Attribut am Hinweis-Element, keine eigene Anzeige.
+    private string? streamErrorKind;
+    private bool unsupportedBrowser;
+
+    private DtoProgramGuideNow? guide;
+    private DtoProgramGuideEntry[] upcoming = [];
+    // SlotId des ersten Clips des aufgeklapten Clip-Blocks — ueber die 15-s-Pollings hinweg
+    // stabil, so dass die Detail-Liste offen bleibt, solange der Block im Plan steht.
+    private long? expandedClipBlockId;
+
+    private ElementReference _videoRef;
+    private DotNetObjectReference<LiveTv>? _dotNetRef;
+    private long? _attachedSlotId;
+    private PeriodicTimer? _timer;
+    private readonly CancellationTokenSource _cts = new();
+    private Task? _pollTask;
+
+    private string? StreamUrl
+        => string.IsNullOrWhiteSpace(Client.AuthorizationToken)
+            ? null
+            : $"/api/live-stream/live.m3u8?access_token={Uri.EscapeDataString(Client.AuthorizationToken)}";
+
+    private string HlsScriptUrl => AssetVersions.Url("js/vendor/hls.min.js");
+
+    private string OffAirImageUrl => AssetVersions.Url("images/live-tv-off-air.png");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = auth.User.Identity?.IsAuthenticated == true;
+        if (!isAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await Client.EnsureAuthorizationTokenSilentlyAsync(auth.User);
+        // N28: erst das globale Flag, dann die Benutzer-Freigabe (Admins implizit) — ohne
+        // Freigabe wird kein Guide-Aufruf gestartet.
+        tvSenderEnabled = await ProgramSettings.GetTvSenderEnabledAsync();
+        if (tvSenderEnabled)
+        {
+            var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            tvSenderAccessGranted = await ProgramSettings.IsTvSenderAccessGrantedAsync(
+                userId, auth.User.HasClaim("IsAdmin", "True"));
+        }
+        if (tvSenderAccessGranted)
+        {
+            tvSenderOnAir = await ProgramSettings.GetTvSenderOnAirAsync();
+            await RefreshGuideAsync(isInitial: true);
+        }
+        isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!isAuthenticated || !tvSenderEnabled || !tvSenderAccessGranted)
+            return;
+
+        // Die Aktualisierungsschleife wird erst auf der interaktiven Instanz gestartet —
+        // OnInitializedAsync laeuft auch beim Prerender, dessen Wegwerf-Instanz nie disposed
+        // wird und sonst einen Timer fuer den Prozessrest mitschleppt.
+        if (firstRender)
+            _pollTask = PollLoopAsync();
+
+        // Off-Air verhaelt sich attach-seitig wie „kein laufender Slot": ein bestehender
+        // Attach wird detacht (hls.js-Re-Attach samt 5-s-Fehlerschleife stoppt), ohne
+        // Re-Attach bleibt der Player aus.
+        var currentSlotId = tvSenderOnAir ? guide?.Now?.SlotId : null;
+        if (currentSlotId == _attachedSlotId)
+            return;
+
+        if (_attachedSlotId is not null)
+            await DetachPlayerAsync();
+
+        if (currentSlotId is not null && _videoRef.Context != null && StreamUrl is { } streamUrl)
+        {
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            streamError = false;
+            streamErrorKind = null;
+            unsupportedBrowser = false;
+            _attachedSlotId = currentSlotId;
+            await JS.InvokeVoidAsync("liveTv.attach", _videoRef, streamUrl, HlsScriptUrl, _dotNetRef);
+        }
+        else
+        {
+            _attachedSlotId = null;
+        }
+    }
+
+    private async Task PollLoopAsync()
+    {
+        _timer = new PeriodicTimer(PollInterval, TimeProvider);
+        try
+        {
+            while (await _timer.WaitForNextTickAsync(_cts.Token))
+            {
+                try
+                {
+                    // Datenabruf darf auf dem Hintergrundthread laufen; nur das Rendern geht ueber den
+                    // Dispatcher. Ein einzelner fehlschlagender Tick beendet die Schleife nicht.
+                    // Der On-Air-Stand liest den scoped DbContext — wie jeder DbContext-Zugriff
+                    // geht er ueber den Dispatcher (Muster: ProbeProgressLoopAsync in TVSenderAdmin).
+                    await InvokeAsync(async () =>
+                        tvSenderOnAir = await ProgramSettings.GetTvSenderOnAirAsync(_cts.Token));
+                    await RefreshGuideAsync(isInitial: false);
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Live-TV-Aktualisierung fehlgeschlagen; wird erneut versucht.");
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler in der Live-TV-Aktualisierungsschleife");
+        }
+    }
+
+    /// <summary>
+    /// Laedt Jetzt/Gleich und die Vorschau. Beim ersten Laden entscheidet ein Fehler ueber die
+    /// Fehleranzeige; bei den Timer-Laeufen bleibt der letzte Stand sichtbar und es wird erneut
+    /// versucht (stiller Retry), damit ein kurzer Aussetzer die Ansicht nicht leerraeumt.
+    /// </summary>
+    private async Task RefreshGuideAsync(bool isInitial)
+    {
+        // Jetzt/Gleich und Vorschau werden unabhaengig geholt: scheitert einer der beiden
+        // Aufrufe dauerhaft, aktualisiert sich der andere Bereich trotzdem weiter —
+        // ein gekoppelter Abruf wuerde die Upcoming-Liste bei einem `now`-Fehler einfrieren.
+        try
+        {
+            guide = await ProgramGuideClient.RequestProgramGuideNowAsync(_cts.Token);
+            if (isInitial)
+                loadError = null;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Programmauskunft (Jetzt/Gleich) fuer Live-TV konnte nicht geladen werden.");
+            if (isInitial)
+            {
+                loadError = LiveTvErrorMessages.Describe(ex) ?? LiveTvErrorMessages.LoadFailed;
+                return; // wie zuvor: beim Initialfehler wird nichts Weiteres geholt
+            }
+        }
+
+        try
+        {
+            upcoming = await ProgramGuideClient.RequestProgramGuideUpcomingAsync(PreviewHours, _cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Programmvorschau fuer Live-TV konnte nicht geladen werden.");
+            if (isInitial)
+                loadError = LiveTvErrorMessages.Describe(ex) ?? LiveTvErrorMessages.LoadFailed;
+        }
+    }
+
+    private async Task DetachPlayerAsync()
+    {
+        try { await JS.InvokeVoidAsync("liveTv.detach", _videoRef); } catch { }
+        _attachedSlotId = null;
+    }
+
+    [JSInvokable]
+    public Task NotifyStreamPlaying()
+    {
+        streamError = false;
+        streamErrorKind = null;
+        unsupportedBrowser = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task NotifyStreamError(string kind)
+    {
+        streamError = true;
+        streamErrorKind = kind;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task NotifyStreamUnsupported()
+    {
+        unsupportedBrowser = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    // Anzeige-Sequenz der Vorschau: entweder eine Einzelkarte je Eintrag oder eine
+    // Block-Karte fuer >= 2 lueckenlose Clip-Fuell-Eintraege derselben Programmregel
+    // (dieselbe Anzeige-Gruppierung wie der Sendeplan, vgl. TVSenderAdmin.BuildScheduleDisplayItems).
+    internal abstract record UpcomingDisplayItem;
+
+    internal sealed record UpcomingEntryItem(DtoProgramGuideEntry Entry) : UpcomingDisplayItem;
+
+    internal sealed record UpcomingClipBlockItem : UpcomingDisplayItem
+    {
+        // Invariante wie im Sendeplan: ein Block umfasst immer mindestens 2 Clips — weniger
+        // wird als Einzelkarte gerendert (siehe FlushClipRun).
+        public UpcomingClipBlockItem(IReadOnlyList<DtoProgramGuideEntry> clips)
+        {
+            ArgumentNullException.ThrowIfNull(clips);
+            if (clips.Count < 2)
+                throw new ArgumentOutOfRangeException(nameof(clips), clips.Count,
+                    "Ein Platzhalter-Clip-Block umfasst mindestens 2 Clips.");
+            Clips = clips;
+        }
+
+        public IReadOnlyList<DtoProgramGuideEntry> Clips { get; }
+    }
+
+    // Reine Anzeige-Gruppierung der Vorschau: lueckenlose Laeufe von Clip-Fuell-Eintraegen
+    // derselben Programmregel kollabieren ab 2 Clips zu einer Block-Karte. Blockgrenzen sind
+    // der ProgramRuleId-Wechsel, eine Zeitluecke (entry.StartUtc != prev.EndUtc) und jeder
+    // Nicht-Clip-Fuell-Eintrag. Die Programmauskunft liefert nur Scheduled-Slots — ein
+    // Status-Filter wie im Sendeplan entfaellt hier.
+    internal static IReadOnlyList<UpcomingDisplayItem> BuildUpcomingDisplayItems(IReadOnlyList<DtoProgramGuideEntry> entries)
+    {
+        var items = new List<UpcomingDisplayItem>();
+        var run = new List<DtoProgramGuideEntry>();
+        foreach (var entry in entries)
+        {
+            var continuesRun = entry.IsClipFill && run.Count > 0
+                && entry.ProgramRuleId == run[^1].ProgramRuleId && entry.StartUtc == run[^1].EndUtc;
+            if (continuesRun)
+            {
+                run.Add(entry);
+            }
+            else
+            {
+                FlushClipRun(items, run);
+                if (entry.IsClipFill)
+                    run.Add(entry);
+                else
+                    items.Add(new UpcomingEntryItem(entry));
+            }
+        }
+        FlushClipRun(items, run);
+        return items;
+    }
+
+    private static void FlushClipRun(List<UpcomingDisplayItem> items, List<DtoProgramGuideEntry> run)
+    {
+        if (run.Count >= 2)
+        {
+            items.Add(new UpcomingClipBlockItem(run.ToList()));
+        }
+        else
+        {
+            foreach (var entry in run)
+                items.Add(new UpcomingEntryItem(entry));
+        }
+        run.Clear();
+    }
+
+    // Bei Serien traegt die Karte den Serientitel als Hauptzeile, die Episoden-Kurzinfo als
+    // Unterzeile ("S6 E42"); Filme und namentlich aufgeloeste Clips zeigen den Guide-Titel.
+    private static string CardTitle(DtoProgramGuideEntry entry) => entry.ShowName ?? entry.Title;
+
+    private static string? CardSub(DtoProgramGuideEntry entry)
+        => ProgramGuideEntryText.ShortSubtitle(entry.SeasonNumber, entry.EpisodeNumber);
+
+    private static string Desc(DtoProgramGuideEntry entry)
+        => entry.Description ?? ProgramGuideEntryText.NoDescriptionText;
+
+    private string PosterUrl(DtoProgramGuideEntry entry)
+        => MediaPictureUrlResolver.Resolve(entry.PosterPictureId, Client.AuthorizationToken);
+
+    private static string FormatTime(DateTimeOffset utc) => utc.ToLocalTime().ToString("HH:mm");
+
+    private static string FormatDuration(double seconds)
+    {
+        var span = TimeSpan.FromSeconds(seconds);
+        return span.TotalHours >= 1
+            ? $"{(int)span.TotalHours} Std. {span.Minutes} Min."
+            : $"{Math.Max(1, span.Minutes)} Min.";
+    }
+
+    // Gibt den nackten Prozentwert als double zurueck; die CSS-Einbettung formatiert ueber
+    // CssFormat.Percent invariant — sonst landet unter de-DE ein Komma im style-Attribut
+    // ("width:59,38%"), das der Browser verwirft und den Balken voll wirken laesst.
+    private static double ProgressPercent(double position, double duration)
+        => Math.Clamp(position / duration * 100d, 0d, 100d);
+
+    public async ValueTask DisposeAsync()
+    {
+        await _cts.CancelAsync();
+        _timer?.Dispose();
+        if (_pollTask is not null)
+        {
+            try { await _pollTask; } catch { }
+        }
+        if (_attachedSlotId is not null)
+            await DetachPlayerAsync();
+        _dotNetRef?.Dispose();
+        _cts.Dispose();
+    }
+}

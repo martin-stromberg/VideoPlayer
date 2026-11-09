@@ -80,6 +80,16 @@ public class Setup
     public bool TvSenderEnabled { get; set; }
 
     /// <summary>
+    /// Gets or sets the admin on-air switch of the automated TV channel: only when set does
+    /// the live stream run — the HLS delivery (<c>/api/live-stream/*</c>) and the ffmpeg
+    /// segmentation behind it. Effective only within <see cref="TvSenderEnabled"/>; the
+    /// schedule generation, program guide and all other TV-channel functions keep running
+    /// either way. Default: <see langword="true"/> — upgraded installations and legacy
+    /// backups keep their previous behaviour.
+    /// </summary>
+    public bool TvSenderOnAir { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets the German federal state (ISO-3166-2 code like <c>DE-NW</c>) whose public
     /// holidays the automated TV channel's holiday rules (<c>ProgramRuleRecurrence.Holiday</c>)
     /// follow. <c>null</c> means only holidays valid in all of Germany apply.
@@ -114,12 +124,14 @@ public class Setup
     /// or after this local time (until <see cref="ProgramScheduleAgeWindowNightEndLocal"/>).
     /// Default: 20:00.
     /// </summary>
+    /// <value>The earliest local air time for FSK-12 material.</value>
     public TimeOnly ProgramScheduleAgeWindow12Local { get; set; } = new(20, 0);
 
     /// <summary>
     /// Gets or sets the earliest local air time of the FSK-16 window: titles with a minimum
     /// age of 16–17 may only start airing at or after this local time. Default: 22:00.
     /// </summary>
+    /// <value>The earliest local air time for FSK-16 material.</value>
     public TimeOnly ProgramScheduleAgeWindow16Local { get; set; } = new(22, 0);
 
     /// <summary>
@@ -128,6 +140,7 @@ public class Setup
     /// <see cref="ProgramScheduleUnknownRatingMode"/> — unrated material) may only start
     /// airing at or after this local time. Default: 23:00.
     /// </summary>
+    /// <value>The earliest local air time for FSK-18 and unrated material.</value>
     public TimeOnly ProgramScheduleAgeWindow18Local { get; set; } = new(23, 0);
 
     /// <summary>
@@ -136,6 +149,7 @@ public class Setup
     /// <see cref="ProgramScheduleAgeWindow12Local"/> so the night window is unambiguous.
     /// Default: 06:00.
     /// </summary>
+    /// <value>The local end time of all night windows.</value>
     public TimeOnly ProgramScheduleAgeWindowNightEndLocal { get; set; } = new(6, 0);
 
     /// <summary>

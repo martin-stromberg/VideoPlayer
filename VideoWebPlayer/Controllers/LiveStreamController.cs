@@ -82,6 +82,11 @@ public class LiveStreamController : ApiBaseController
                     CurrentUser?.Id, CurrentUser?.IsAdmin ?? false, HttpContext.RequestAborted))
                 return Forbid();
 
+            // On-Air-Gate: abgeschalteter Sendebetrieb liefert keinerlei Stream-Daten aus —
+            // weder echte Playlist/Segmente noch den Standby-Pfad (404 wie das Feature-Gate).
+            if (!await _settings.GetTvSenderOnAirAsync(HttpContext.RequestAborted))
+                return NotFound();
+
             var accessToken = HttpContext.Request.Query["access_token"].ToString();
             var path = await _segmentStore.TryResolveFileAsync(fileName, HttpContext.RequestAborted);
 

@@ -77,6 +77,8 @@ public sealed class ProgramSettingsService
     /// upgrade and the first request): the loser then hits the single-row unique index on
     /// <c>SaveChanges</c> and reads the winner's row instead of adding a second one.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The inserted setup row — or the winner's row after a lost insert race.</returns>
     private async Task<Setup> CreateSetupAsync(CancellationToken cancellationToken)
     {
         var setup = new Setup();
@@ -207,6 +209,31 @@ public sealed class ProgramSettingsService
     {
         var setup = await GetOrCreateSetupAsync(cancellationToken);
         setup.TvSenderEnabled = enabled;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the admin on-air switch of the automated TV channel (effective only within
+    /// <see cref="GetTvSenderEnabledAsync"/>).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Whether the TV channel's live stream is on air.</returns>
+    public async Task<bool> GetTvSenderOnAirAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return setup.TvSenderOnAir;
+    }
+
+    /// <summary>
+    /// Persists the admin on-air switch of the automated TV channel. Waking the workers is
+    /// the caller's task (<see cref="IProgramScheduleSignal"/>), as with every other switch.
+    /// </summary>
+    /// <param name="onAir">Whether the TV channel's live stream is on air.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task UpdateTvSenderOnAirAsync(bool onAir, CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.TvSenderOnAir = onAir;
         await _db.SaveChangesAsync(cancellationToken);
     }
 

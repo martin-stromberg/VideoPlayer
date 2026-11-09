@@ -116,6 +116,32 @@ public sealed class ProgramSettingsServiceTests
     }
 
     [Fact]
+    public async Task GetTvSenderOnAirAsync_DefaultsToTrue()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-onair-default", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        Assert.True(await service.GetTvSenderOnAirAsync(ct));
+    }
+
+    [Fact]
+    public async Task UpdateTvSenderOnAirAsync_Roundtrip()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-onair-roundtrip", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        await service.UpdateTvSenderOnAirAsync(false, ct);
+        Assert.False(await service.GetTvSenderOnAirAsync(ct));
+        Assert.False((await fixture.Db.Setups.AsNoTracking().SingleAsync(ct)).TvSenderOnAir);
+
+        await service.UpdateTvSenderOnAirAsync(true, ct);
+        Assert.True(await service.GetTvSenderOnAirAsync(ct));
+        Assert.True((await fixture.Db.Setups.AsNoTracking().SingleAsync(ct)).TvSenderOnAir);
+    }
+
+    [Fact]
     public async Task UpdateMdnsAdvertisementEnabledAsync_Persists()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -145,6 +145,27 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
     }
 
     [Fact]
+    public async Task PairedDevice_OffAir_PlaylistAndStandby_Return404()
+    {
+        // On-Air-Gate (Issue #348): freigeschaltet + berechtigter Zuschauer, aber der
+        // Sendebetrieb ist aus — weder die echte Playlist/Segmente noch der Standby-Pfad
+        // werden ausgeliefert.
+        var ct = TestContext.Current.CancellationToken;
+        await SeedSegmentDirectoryAsync();
+        var (_, payload) = await CreateUserAndPairDeviceAsync($"live-offair-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
+        await SetOnAirAsync(false);
+
+        using var http = CreateHttpClient();
+        var playlist = await http.GetAsync($"/api/live-stream/live.m3u8?access_token={payload.Token!}", ct);
+        var segment = await http.GetAsync($"/api/live-stream/seg_001.ts?access_token={payload.Token!}", ct);
+        var standby = await http.GetAsync($"/api/live-stream/standby_0_00.ts?access_token={payload.Token!}", ct);
+
+        Assert.Equal(HttpStatusCode.NotFound, playlist.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, segment.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, standby.StatusCode);
+    }
+
+    [Fact]
     public async Task PairedDevice_RequestPlaylist_TransitionsStandbyToReal_Discontinuity()
     {
         var ct = TestContext.Current.CancellationToken;

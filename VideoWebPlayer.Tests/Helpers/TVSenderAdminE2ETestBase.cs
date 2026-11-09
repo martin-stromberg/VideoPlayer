@@ -35,19 +35,8 @@ public abstract class TVSenderAdminE2ETestBase : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync(readyTabSelector, new PageWaitForSelectorOptions { Timeout = 30_000 });
     }
 
-    /// <summary>Applies a mutation to the persisted setup row — the shared pattern behind
-    /// <see cref="EnableTvSenderAsync"/> and feature-specific setup seeds.</summary>
-    protected async Task UpdateSetupAsync(Action<Setup> mutate)
-    {
-        using var scope = Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var ct = TestContext.Current.CancellationToken;
-        var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(ct);
-        mutate(setup);
-        await db.SaveChangesAsync(ct);
-    }
-
-    /// <summary>Enables the TV-sender feature flag directly in the persisted setup row.</summary>
+    /// <summary>Enables the TV-sender feature flag directly in the persisted setup row
+    /// (Setup-Mutationen laufen ueber <see cref="PlaylistsE2ETestBase.UpdateSetupAsync"/>).</summary>
     protected Task EnableTvSenderAsync() => UpdateSetupAsync(s => s.TvSenderEnabled = true);
 
     /// <summary>
@@ -59,6 +48,7 @@ public abstract class TVSenderAdminE2ETestBase : PlaylistsE2ETestBase
     /// <param name="releaseToAudience">With <see langword="false"/> the grant loop is skipped
     /// and the source stays unreleased — for tests that need a missing audience grant
     /// (e.g. the content-scope check).</param>
+    /// <returns>The persisted media collection.</returns>
     protected async Task<MediaCollection> SeedSharedCollectionAsync(string name, bool releaseToAudience = true)
     {
         using var scope = Services.CreateScope();
@@ -96,6 +86,7 @@ public abstract class TVSenderAdminE2ETestBase : PlaylistsE2ETestBase
     /// <param name="minAge">Normalized minimum age (<see cref="IAgeRated.AgeRatingMinAge"/>) —
     /// <see langword="null"/> leaves the rating unknown.</param>
     /// <param name="releaseToAudience">Forwarded to <see cref="SeedSharedCollectionAsync"/>.</param>
+    /// <returns>The persisted movie id.</returns>
     protected async Task<long> SeedMovieWithItemAsync(string name, TimeSpan duration, int? minAge = null, bool releaseToAudience = true)
     {
         var collection = await SeedSharedCollectionAsync("movies", releaseToAudience);
@@ -138,6 +129,7 @@ public abstract class TVSenderAdminE2ETestBase : PlaylistsE2ETestBase
     /// <param name="priority">Rule priority — higher wins on overlapping occurrences.</param>
     /// <param name="slotDuration">Optional fixed slot duration; <see langword="null"/> lets the
     /// material length decide.</param>
+    /// <returns>The persisted program rule id.</returns>
     protected async Task<long> SeedMovieRuleAsync(string name, int hour, int minute, long movieId, int priority = 0, TimeSpan? slotDuration = null)
     {
         using var scope = Services.CreateScope();
@@ -169,6 +161,9 @@ public abstract class TVSenderAdminE2ETestBase : PlaylistsE2ETestBase
     /// fresh collection and releases the source for every non-admin user so the clips are
     /// schedulable — returns the media item ids in seed order.
     /// </summary>
+    /// <param name="Name">Clip file name (tuple element of <paramref name="clips"/>).</param>
+    /// <param name="clips">The clips to seed as (Name, Duration) tuples.</param>
+    /// <returns>The media item ids in seed order.</returns>
     protected async Task<List<long>> SeedClipItemsAsync(params (string Name, TimeSpan? Duration)[] clips)
     {
         var collection = await SeedSharedCollectionAsync("clips");

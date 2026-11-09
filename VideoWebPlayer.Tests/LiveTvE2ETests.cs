@@ -40,54 +40,48 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
 
     /// <summary>Same seed as <see cref="SeedChannelWithRunningProgramAsync"/> but with an
     /// empty segment directory — the server answers the playlist with the standby stream.</summary>
+    /// <param name="movieTitle">Movie name to seed and air.</param>
     private async Task SeedChannelWithRunningProgram_NoPlaylistAsync(string movieTitle)
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await SeedSegmentDirectoryAsync(scope.ServiceProvider, db, writePlaylist: false);
-        await SeedProgramCoreAsync(db, movieTitle);
+        await SeedLiveTvProgramAsync(db, movieTitle);
     }
 
     /// <summary>
     /// Seeds channel + movie + media item + one running and one upcoming broadcast slot, plus the
     /// HLS segment directory so the player actually reaches <c>live.m3u8</c>.
     /// </summary>
+    /// <param name="movieTitle">Movie name to seed and air.</param>
     private async Task SeedChannelWithRunningProgramAsync(string movieTitle)
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await SeedSegmentDirectoryAsync(scope.ServiceProvider, db);
-        await SeedProgramCoreAsync(db, movieTitle);
+        await SeedLiveTvProgramAsync(db, movieTitle);
     }
 
-    private static async Task SeedProgramCoreAsync(ApplicationDbContext db, string movieTitle)
-    {
-        var channel = new TVChannel { Name = "Live-E2E-Sender" };
-        db.TVChannels.Add(channel);
-        var source = new MediaSource { Name = $"Live-E2E-Quelle {Guid.NewGuid():N}", Path = "/e2e-live", Host = "localhost", Port = 22 };
-        db.MediaSources.Add(source);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var collection = new MediaCollection { Name = $"Live-E2E-Col {Guid.NewGuid():N}", MediaSourceId = source.Id, Path = $"/{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow };
-        db.MediaCollections.Add(collection);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var poster = new Picture { Data = [0x42], ContentType = "image/png", Type = "poster" };
-        db.Pictures.Add(poster);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var movie = new Movie { Name = movieTitle, MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow, Plot = "Handlung des Abendfilms.", GenreNames = "Drama", PosterPictureId = poster.Id };
-        db.Movies.Add(movie);
-        var item = new MediaItem { Name = "live.mkv", Path = $"{collection.Path}/live.mkv", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(90), DurationProbedAt = DateTime.UtcNow };
-        db.MediaItems.Add(item);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
-
-        var now = DateTime.UtcNow;
-        db.ProgramSlots.AddRange(
-            new ProgramSlot { TVChannelId = channel.Id, Start = now.AddMinutes(-30), End = now.AddMinutes(60), MediaItemId = item.Id, MovieId = movie.Id, RuleType = ProgramRuleType.MoviePrimeTime, Status = ProgramSlotStatus.Scheduled },
-            new ProgramSlot { TVChannelId = channel.Id, Start = now.AddMinutes(60), End = now.AddMinutes(150), MediaItemId = item.Id, MovieId = movie.Id, RuleType = ProgramRuleType.SeriesFixedTime, Status = ProgramSlotStatus.Scheduled });
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-    }
+    /// <summary>The <see cref="PlaylistsE2ETestBase.SeedProgramCoreAsync"/> shape of this
+    /// test class: fixed channel name, poster/plot/genre on the movie and a running plus
+    /// an upcoming broadcast slot.</summary>
+    /// <param name="db">The scoped database context of the test host.</param>
+    /// <param name="movieTitle">Movie name to seed and air.</param>
+    private static Task SeedLiveTvProgramAsync(ApplicationDbContext db, string movieTitle)
+        => SeedProgramCoreAsync(db, "Live-E2E-Sender", movieTitle, TimeSpan.FromMinutes(90),
+            [
+                (TimeSpan.FromMinutes(-30), TimeSpan.FromMinutes(90), ProgramRuleType.MoviePrimeTime),
+                (TimeSpan.FromMinutes(60), TimeSpan.FromMinutes(90), ProgramRuleType.SeriesFixedTime)
+            ],
+            configureMovie: async (movieDb, movie) =>
+            {
+                var poster = new Picture { Data = [0x42], ContentType = "image/png", Type = "poster" };
+                movieDb.Pictures.Add(poster);
+                await movieDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+                movie.PosterPictureId = poster.Id;
+                movie.Plot = "Handlung des Abendfilms.";
+                movie.GenreNames = "Drama";
+            });
 
     [Fact]
     public async Task LiveTv_ViaNavMenu_ShowsPlayerAndProgram()
@@ -146,23 +140,8 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
             setup.TvSenderEnabled = true;
             var userA = await db.Users.SingleAsync(u => u.Email == UserAEmail, TestContext.Current.CancellationToken);
             db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = userA.Id });
-            var channel = new TVChannel { Name = "Luecken-Sender" };
-            db.TVChannels.Add(channel);
-            var source = new MediaSource { Name = $"Luecken-Quelle {Guid.NewGuid():N}", Path = "/e2e-gap", Host = "localhost", Port = 22 };
-            db.MediaSources.Add(source);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            var collection = new MediaCollection { Name = $"Luecken-Col {Guid.NewGuid():N}", MediaSourceId = source.Id, Path = $"/{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow };
-            db.MediaCollections.Add(collection);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            var movie = new Movie { Name = "Später-Film", MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
-            db.Movies.Add(movie);
-            var item = new MediaItem { Name = "gap.mkv", Path = $"{collection.Path}/gap.mkv", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(45), DurationProbedAt = DateTime.UtcNow };
-            db.MediaItems.Add(item);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
-            var start = DateTime.UtcNow.AddHours(2);
-            db.ProgramSlots.Add(new ProgramSlot { TVChannelId = channel.Id, Start = start, End = start.AddMinutes(45), MediaItemId = item.Id, MovieId = movie.Id, RuleType = ProgramRuleType.Filler, Status = ProgramSlotStatus.Scheduled });
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await SeedProgramCoreAsync(db, "Luecken-Sender", "Später-Film", TimeSpan.FromMinutes(45),
+                [(TimeSpan.FromHours(2), TimeSpan.FromMinutes(45), ProgramRuleType.Filler)]);
         }
 
         await LoginAsync(UserAEmail);
@@ -181,6 +160,35 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         // nächsten ReconcileAsync-Lauf als Displaced verwirft — ein zur Laufzeit geschriebener
         // Slot überlebt daher nicht bis zur sichtbaren Wiederherstellung. Der Mechanismus ist
         // über die bUnit-Statusuebergaenge und den Player-Test abgesichert.
+    }
+
+    [Fact]
+    public async Task LiveTv_OffAir_ShowsOffAirImage_GuideStillRenders()
+    {
+        if (SkipBrowser) return;
+
+        await SeedChannelWithRunningProgramAsync("Off-Air-Abendfilm");
+        await SetOnAirAsync(false);
+
+        await LoginAsync(UserAEmail);
+        await Page.GotoAsync($"{ServerUrl}/live-tv");
+
+        // Off-Air (Issue #348): das Off-Air-Bild steht im Player-Bereich — sichtbar und
+        // wirklich ausgeliefert —, mit erklaerender Textzeile darueber; die
+        // Programmauskunft-Karten laufen unveraendert weiter, behaupten aber nichts „Live".
+        await Expect(Page.Locator("#live-tv-off-air")).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 30_000 });
+        // naturalWidth > 0 erst, wenn die Bildantwort eingetroffen und decodiert ist —
+        // Sichtbarkeit allein garantiert die Auslieferung nicht (Race).
+        await Page.WaitForFunctionAsync(
+            "() => (document.querySelector('#live-tv-off-air')?.naturalWidth ?? 0) > 0",
+            options: new PageWaitForFunctionOptions { Timeout = 30_000 });
+        await Expect(Page.Locator("#live-tv-off-air-hint")).ToContainTextAsync("nicht auf Sendung");
+        await Expect(Page.Locator("#live-tv-now-title")).ToContainTextAsync("Off-Air-Abendfilm");
+        await Expect(Page.Locator("#live-tv-next")).ToBeVisibleAsync();
+        Assert.Equal(0, await Page.Locator("#live-tv-now .badge-live").CountAsync());
+        await Expect(Page.Locator("#live-tv-now .badge-offair")).ToContainTextAsync("Sendepause");
+        Assert.Equal(0, await Page.Locator("#live-tv-video").CountAsync());
     }
 
     [Fact]

@@ -201,6 +201,15 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
     }
 
     /// <summary>
+    /// Sets the on-air switch of the TV channel (Issue #348) directly in the persisted
+    /// setup row — delegates to <see cref="SetupSeedHelpers"/>, shared with
+    /// <see cref="PlaylistsE2ETestBase.SetOnAirAsync"/> (different test host, no shared base).
+    /// </summary>
+    /// <param name="onAir">The value to persist for <see cref="Setup.TvSenderOnAir"/>.</param>
+    protected Task SetOnAirAsync(bool onAir)
+        => SetupSeedHelpers.SetOnAirAsync(Services, onAir);
+
+    /// <summary>
     /// Creates a user, pairs a device for them via the QR bootstrap and returns both.
     /// </summary>
     /// <param name="email">The user's email address.</param>

@@ -357,6 +357,27 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
         Assert.IsType<NotFoundResult>(result);
     }
 
+    [Theory]
+    [InlineData("live.m3u8")]
+    [InlineData("standby_0_00.ts")]
+    [InlineData("seg_001.ts")]
+    public async Task GetFile_OffAir_Returns404(string fileName)
+    {
+        // On-Air-Gate (Issue #348): freigeschaltet + Benutzer-Freigabe, aber Sendebetrieb
+        // aus — weder echte Dateien noch der Standby-Pfad werden ausgeliefert. Playlist
+        // und Segment liegen vor, nur das Gate erklaert die 404.
+        var ct = TestContext.Current.CancellationToken;
+        await File.WriteAllTextAsync(Path.Combine(_segDir, "live.m3u8"),
+            "#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:6.0,\nseg_001.ts\n", ct);
+        await File.WriteAllTextAsync(Path.Combine(_segDir, "seg_001.ts"), "segment-bytes", ct);
+        (await _fixture.Db.Setups.FirstAsync(ct)).TvSenderOnAir = false;
+        await _fixture.Db.SaveChangesAsync(ct);
+
+        var result = await _controller.GetFile(fileName);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
     [Fact]
     public async Task GetFile_MissingPlaylist_WithoutStandbyAssets_Returns404()
     {

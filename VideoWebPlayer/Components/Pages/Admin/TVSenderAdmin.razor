@@ -715,6 +715,19 @@ else
                     </div>
                 </div>
                 <div class="admin-sub-card">
+                    <h3 class="mb-2">Sendebetrieb</h3>
+                    <div class="form-check mb-2">
+                        <input type="checkbox" class="form-check-input" id="tvsender-on-air"
+                               @key="onAirToggleEpoch" checked="@tvSenderOnAir" @onchange="ToggleOnAirAsync" />
+                        <label class="form-check-label" for="tvsender-on-air">On Air — Live-Stream senden</label>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(onAirError))
+                    {
+                        <div class="alert alert-danger" id="tvsender-on-air-error">@onAirError</div>
+                    }
+                    <span class="form-text" id="tvsender-on-air-hint">Steuert nur den Live-Stream: ausgeschaltet läuft keine Segmentierung und der Stream-Endpunkt liefert nichts aus — Sendeplan und Programmauskunft laufen weiter. Wirkt sofort, ohne „Speichern".</span>
+                </div>
+                <div class="admin-sub-card">
                     <h3 class="mb-2">Segmentierung</h3>
                     @if (ffmpegPath is null)
                     {
@@ -1146,6 +1159,15 @@ else
 @code {
     private bool isAdmin;
     private bool tvSenderEnabled = true;
+    // On-Air-Schalter (Setup.TvSenderOnAir): eigener, sofort wirkender Umschalter in der
+    // Sub-Karte „Sendebetrieb" — nicht Teil des gebündelten „Speichern".
+    private bool tvSenderOnAir = true;
+    // @key der On-Air-Checkbox: zählt bei jedem Fehlschlag hoch, damit der Renderer das
+    // Element neu zeichnet — checked allein liefert dann denselben Wert wie vor dem Klick,
+    // erzeugt also keinen Diff und der sichtbare Haken bliebe auf der nie persistierten
+    // Stellung stehen.
+    private int onAirToggleEpoch;
+    private string? onAirError;
     private string userId = string.Empty;
     private TVChannel? channel;
     private string channelName = string.Empty;
@@ -1260,6 +1282,8 @@ else
         tvSenderEnabled = await ProgramSettings.GetTvSenderEnabledAsync();
         if (!tvSenderEnabled)
             return;
+
+        tvSenderOnAir = await ProgramSettings.GetTvSenderOnAirAsync();
 
         await Client.EnsureAuthorizationTokenSilentlyAsync(auth.User);
         userId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
@@ -1978,6 +2002,34 @@ else
     // accept both; anything else is rejected with a friendly status in the caller.
     private static bool TryParseWindowTime(string? value, out TimeOnly result)
         => TimeOnly.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out result);
+
+    // Sofort wirkender Sendeschalter (eigene Sub-Karte „Sendebetrieb"): persistiert direkt
+    // und weckt den Live-Stream-Worker ungebatcht — ein Schalter soll nicht das
+    // Debounce-Fenster des gebündelten Signals abwarten. Scheitert das Update, springt die
+    // Checkbox auf den vorigen Stand zurück (über onAirToggleEpoch neu gezeichnet, s. o.)
+    // und die Sub-Karte zeigt die Fehlermeldung direkt am Schalter.
+    private async Task ToggleOnAirAsync(ChangeEventArgs e)
+    {
+        var previous = tvSenderOnAir;
+        tvSenderOnAir = e.Value is bool b && b;
+        channelStatus = null;
+        onAirError = null;
+        try
+        {
+            await ProgramSettings.UpdateTvSenderOnAirAsync(tvSenderOnAir);
+        }
+        catch (Exception)
+        {
+            tvSenderOnAir = previous;
+            onAirToggleEpoch++;
+            onAirError = "Der Schalter konnte nicht umgestellt werden — der Sendebetrieb läuft wie zuvor. Bitte erneut versuchen.";
+            return;
+        }
+        ScheduleSignal.NotifyLiveScheduleChanged();
+        channelStatus = tvSenderOnAir
+            ? "Der Sender ist wieder auf Sendung — der Live-Stream nimmt die Segmentierung auf."
+            : "Der Sendebetrieb wurde gestoppt — der Live-Stream liefert nichts mehr aus.";
+    }
 
     private async Task SaveChannelSettingsAsync()
     {

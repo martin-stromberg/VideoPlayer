@@ -46,6 +46,15 @@
     background: #000;
 }
 
+/* Off-Air-Testbild fuellt den Player-Bereich exakt wie das Video (16:9). */
+.livetv-off-air {
+    width: 100%;
+    display: block;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: #000;
+}
+
 .livetv-hint {
     position: absolute;
     left: 1rem;
@@ -71,6 +80,13 @@
 
 .livetv-gap .bi {
     font-size: 2rem;
+}
+
+/* Sendepause-Badge der „Laut Sendeplan"-Karte im Off-Air-Zustand: dieselbe Pille wie
+   .badge-live (app.css), aber neutral — die Karte behauptet nichts „Live". */
+.badge-offair {
+    background: var(--vp-surface-high);
+    color: var(--vp-text-muted);
 }
 
 .livetv-kicker {

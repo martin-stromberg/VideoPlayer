@@ -122,7 +122,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidWeekdays)}",
         $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidHolidayAnchor)}",
         $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidHolidayBeforeDays)}",
-        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidHolidayAfterDays)}"
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.ValidHolidayAfterDays)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.TvSenderOnAir)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -148,6 +149,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Setups), nameof(Setup.MdnsAdvertisementEnabled), true),
         (nameof(ApplicationDbContext.MovieMediaItems), nameof(MovieMediaItem.IsTrailer), false),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.TvSenderEnabled), false),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.TvSenderOnAir), true),
         (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.HiddenInMenu), false),
         (nameof(ApplicationDbContext.ProgramSlots), nameof(ProgramSlot.IsClipFill), false)
     };

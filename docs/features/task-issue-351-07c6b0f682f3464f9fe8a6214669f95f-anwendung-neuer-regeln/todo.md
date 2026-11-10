@@ -10,7 +10,7 @@ Branch: `task/issue-351-07c6b0f682f3464f9fe8a6214669f95f-anwendung-neuer-regeln`
 | [x] | 3 | Anforderung übersetzen (Unteragent) | `requirement.md` |
 | [x] | 4 | Bestandsaufnahme (Unteragent) | `inventory.md`, `inventory/` |
 | [x] | 5 | Umsetzungsplanung (Unteragent) | `plan.md` |
-| [ ] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
+| [x] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
 | [ ] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
 | [ ] | 5c | Planungscommit | – |
 | [ ] | 6 | Implementierung (Unteragent) | Codeänderungen |

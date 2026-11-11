@@ -850,6 +850,35 @@ Gruppen in Startreihenfolge geprüft; Ausstrahlungen, die vollständig vor
    `MaterializeOccurrenceEvicting` auf dem Basisfenster, `Evicts`-Konfliktauflösung,
    `InsertClipFill`, `FillGaps`, `PersistCursors`.
 
+### Frische Regeln im bestehenden Plan (Issue #351)
+
+Eine Occurrence, die gehaltene Slots gleicher Priorität überlappt, wurde früher bei
+jedem nicht verdrängbaren Konkurrenten atomar verworfen — wegen des Id-Tie-Breaks
+konnte eine neu angelegte Regel (stets die höchste Id) nie gewinnen und materialisierte
+nur in freien Fenstern bzw. erst am Horizont-Rand. `Evicts` entscheidet bei
+Gleichpriorität jetzt in zwei Frische-Stufen vor der Seniorität: **(a)** zur
+materialisierenden Regel existiert keine `ProgramRuleCursor`-Zeile (nie materialisiert;
+eine Regel nur mit `clipgroup:{id}`-Zeilen gilt bereits als etabliert), **(b)** ihr
+`UpdatedAt` (gesetzt bei Anlage, `UpdateRuleAsync`, `SetRuleActiveAsync`) ist jünger als
+das `CreatedAt` des konkurrierenden Slots (Re-Aktivierung/Bearbeitung — Cursor-Zeilen
+überleben die Deaktivierung bewusst). Der Gleichregel-Schutz (`loser.Id == winner.Id` →
+kein Gewinn) steht vor den Frische-Stufen, damit eine bearbeitete Regel nie ihre eigene
+Belegung verdrängt. Konvergenz: Der Verlierer wird mit jüngerem `CreatedAt` neu
+materialisiert und der Gewinner erhält Cursor-Zeilen — beide Stufen erlöschen, danach
+gilt wieder die Seniorität (`winner.Id < loser.Id`).
+
+Die Occurrence-Schleife iteriert chronologisch (`Priority desc → StartUtc → Rule.Id`
+statt `Rule.Id → StartUtc`): Nur so materialisiert die gewinnende frühere Occurrence vor
+der späteren Verlierer-Occurrence desselben Tages, die ihre verdrängte Ausstrahlung dann
+noch im selben Lauf hinter dem frischen Block neu materialisiert (`ShiftPastInvaders`).
+Die Verdrängung selbst ist slot-genau: `DisplaceRuleFuture` entfernt ab dem ersten
+konfligierenden Slot — das nicht überlappte Präfix eines teilüberlappten Blocks bleibt
+Scheduled — und die `losers` werden deterministisch (Start, dann `ProgramRuleId`)
+abgearbeitet. Ein verworfener Sammlungsfilm (`collection:{id}`-Strang) kaskadiert über
+`RewindCursor` auf den Vorgänger des frühesten verdrängten Films: Die Folge-Blöcke
+derselben Regel tragen danach die jeweils früheren Sammlungsfilme — kein Film sendet vor
+seinem Vorgänger.
+
 ### Repräsentantenwahl und toleranter Laufzeitvergleich
 
 Zu einem Inhalt (Film/Episode) können mehrere `MediaItem`s verlinkt sein;

@@ -43,6 +43,7 @@ public sealed class ProgramScheduleConventionTests
         "ProgramScheduleServiceTests_Interleaving.cs",
         "ProgramScheduleServiceTests_Issue315.cs",
         "ProgramScheduleServiceTests_Issue320.cs",
+        "ProgramScheduleServiceTests_NewRules.cs",
         "ProgramScheduleServiceTests_PrimetimeAgeWindow.cs",
         "ProgramScheduleServiceTests_PrimetimeGrace.cs",
         "ProgramScheduleServiceTests_PrimetimeRolling.cs",

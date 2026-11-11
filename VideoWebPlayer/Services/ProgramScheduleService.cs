@@ -357,13 +357,17 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var newSlots = new List<ProgramSlot>();
         var blocked = keptSlots.Select(s => new Interval(s.Start, s.End)).ToList();
 
+        // Slot-exact displacement from the first conflicting position: the scheduled prefix
+        // of a partially overlapped airing stays (maximal preservation), only its suffix
+        // from <paramref name="fromStartUtc"/> on is displaced — identical to the former
+        // whole-airing displacement when called with the airing's head start.
         void DisplaceRuleFuture(long ruleId, DateTime fromStartUtc)
         {
-            foreach (var airing in window.Airings.Where(a => a[0].ProgramRuleId == ruleId && a[0].Start >= fromStartUtc))
+            foreach (var airing in window.Airings.Where(a => a[0].ProgramRuleId == ruleId))
             {
                 foreach (var slot in airing)
                 {
-                    if (slot.End <= coverageStart || slot.Status != ProgramSlotStatus.Scheduled || Protected(slot))
+                    if (slot.Start < fromStartUtc || slot.End <= coverageStart || slot.Status != ProgramSlotStatus.Scheduled || Protected(slot))
                         continue;
                     slot.Status = ProgramSlotStatus.Displaced;
                     displaced.Add(slot);
@@ -395,29 +399,54 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             var loser = kept.ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
             if (loser is null)
                 return true;
-            return winner.Priority > loser.Priority
-                || (winner.Priority == loser.Priority && winner.Id < loser.Id);
+            // A rule never evicts its own kept airing — not even when it counts as fresh
+            // below: a changed rule must not displace the slots it just holds (Issue #351).
+            if (loser.Id == winner.Id)
+                return false;
+            if (winner.Priority > loser.Priority)
+                return true;
+            if (winner.Priority < loser.Priority)
+                return false;
+            // Equal priority: a fresh rule wins the window it was created or re-activated
+            // into — either it never materialized at all (no cursor row exists; a rule
+            // carrying only clip-group cursors already counts as established — clip
+            // progress is cursor work too), or its last change/(re-)activation postdates
+            // the competing slot's materialization. Both freshness stages die out on the
+            // win: the loser re-materializes with a younger CreatedAt and the winner
+            // gains cursor rows — from then on seniority decides again (Issue #351).
+            if (!cursors.ContainsKey(winner.Id))
+                return true;
+            if (winner.UpdatedAt > kept.CreatedAt)
+                return true;
+            return winner.Id < loser.Id;
         }
 
         // Occurrences from the widened lookback serve only as reproduction anchors — re-materializing
         // them could write shifted content behind the kept tail that the next run could not prove
         // again (oscillation). Re-materialization therefore stays on the base window.
-        foreach (var occurrence in window.Occurrences.Where(o => o.StartUtc >= coverageStart - OccurrenceLookback).OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
+        // Chronological iteration (start time before rule id — Issue #351): only when the
+        // winning earlier occurrence materialized before the losing rule's own later
+        // occurrence of the same day can the displaced airing re-materialize shifted
+        // behind the fresh block in the same run instead of being lost until the next run.
+        foreach (var occurrence in window.Occurrences.Where(o => o.StartUtc >= coverageStart - OccurrenceLookback).OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.StartUtc).ThenBy(o => o.Rule.Id))
         {
             var losers = MaterializeOccurrenceEvicting(occurrence, states, keptSlots, blocked, newSlots, coverageStart, BoundaryAfter(window.BoundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary, Evicts, ageRule);
             if (losers is not null && losers.Count > 0)
             {
-                foreach (var loser in losers)
+                foreach (var loser in losers.OrderBy(l => l.Start).ThenBy(l => l.ProgramRuleId ?? 0))
                 {
                     if (loser.ProgramRuleId is not { } loserRuleId)
                         continue;
                     var airing = window.Airings.FirstOrDefault(a => a.Contains(loser));
                     // A kept slot can only lose starting inside this occurrence's window —
                     // slots reaching across its start are overshooting tails that air to the
-                    // end (the materialization already started behind them).
+                    // end (the materialization already started behind them). Displacement
+                    // is slot-exact from the first conflicting slot: the kept prefix of a
+                    // partially overlapped airing stays; follow-up calls for already
+                    // displaced slots of the same airing are no-ops via the status check.
                     if (airing is not null)
                     {
-                        DisplaceRuleFuture(loserRuleId, airing[0].Start);
+                        DisplaceRuleFuture(loserRuleId, loser.Start);
                     }
                     else if (loser.Status == ProgramSlotStatus.Scheduled && loser.End > coverageStart && !Protected(loser))
                     {

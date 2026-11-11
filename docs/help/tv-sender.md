@@ -249,7 +249,13 @@ Dabei gilt:
   niedriger priorisierter Regeln: Ihre Ausstrahlung wird am Fensterbeginn einer schwächeren
   Regel nicht gestoppt, sondern füllt ihr eigenes Fenster vollständig; die verdrängte
   Ausstrahlung verschiebt sich hinter das reale Ende der Belegung oder wartet auf ihre nächste
-  Sendezeit.
+  Sendezeit. Eine Ausnahme vom Gleichstands-Tie-Break gilt für **frische Regeln**: Eine neu
+  angelegte, bearbeitete oder reaktivierte Regel setzt sich beim nächsten Planlauf einmalig
+  gegen die gleich priorisierte Bestandsbelegung durch — sie erscheint dadurch auch mitten im
+  bereits geplanten Horizont statt erst am Planende; die verdrängte Ausstrahlung wird nicht
+  gelöscht, sondern verschiebt sich hinter den neuen Block (höchstens ihr letzter Titel wartet
+  auf die nächste Sendezeit). Eine Regel verdrängt dabei niemals ihre eigene Belegung, und
+  sobald die frische Regel einmal eingeplant ist, entscheidet wieder das Regelalter.
 - **Videos werden niemals gekürzt:** Ein einmal eingeplantes Video läuft immer vollständig —
   auch über das Ende seines Regelfensters hinaus (Überlauf). Beginnt z. B. 15 Minuten vor dem
   nächsten Sendefenster ein 45-minütiger Film, läuft er zu Ende und die folgende Ausstrahlung

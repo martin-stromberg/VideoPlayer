@@ -25,16 +25,9 @@ public sealed class ProgramScheduleServiceTests_PriorityTakeover
     private static async Task<List<ProgramSlot>> ScheduledAsync(ProgramScheduleTestDb fixture, CancellationToken ct)
         => (await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Scheduled).ToList();
 
-    private static async Task<MovieCollection> SeedCollectionAsync(
+    private static Task<MovieCollection> SeedCollectionAsync(
         ProgramScheduleTestDb fixture, string name, int movies, int minutes)
-    {
-        var collection = new MovieCollection { Name = name, MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
-        fixture.Db.MovieCollections.Add(collection);
-        await fixture.SaveDiagAsync();
-        for (var i = 1; i <= movies; i++)
-            await fixture.CreateMovieAsync($"{name} {i}", 1, TimeSpan.FromMinutes(minutes), collection.Id, releaseDate: new DateTime(2000, 1, i));
-        return collection;
-    }
+        => fixture.CreateCollectionAsync(name, movies, TimeSpan.FromMinutes(minutes));
 
     // The live case of the issue: the high-priority special rule (daily 14:00, 5 h) must
     // not stop at the lower-priority regular window (daily 16:00) — it fills its own slot

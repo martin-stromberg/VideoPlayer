@@ -1,0 +1,15 @@
+# Tasks: Automatisierung wiederkehrender Architektur-, Sicherheits- und Compliance-Reviews
+
+| # | Bereich | Aufgabe | Status | Testnachweis |
+|---|---------|---------|--------|--------------|
+| 1 | Automatisierung | Composite Action `.github/actions/create-review-issue/action.yml` anlegen (Inputs `label-name`, `label-color`, `label-description`, `issue-title`, `issue-body`, `title-suffix-format`; Label-Sicherstellung via `gh label create --force`, Duplikat-Guard via `gh issue list`, Issue-Erzeugung via `gh issue create` mit Perioden-Suffix, `::notice::` im Skip-Fall) | Offen | — |
+| 2 | Workflows | `.github/workflows/review-architecture-security.yml` anlegen (`name: Architecture and Security Review`, Cron `0 4 1 * *` + `workflow_dispatch`, `permissions: contents: read` + `issues: write`, `actions/checkout@v7` vor der lokalen Action, Concurrency-Gruppe, monatlicher Prüfauftrag wörtlich als `issue-body`, Label `automated-review-architecture-security`, `title-suffix-format: %Y-%m`) | Offen | — |
+| 3 | Workflows | `.github/workflows/review-nuget-weekly.yml` anlegen (`name: NuGet Dependency Review`, Cron `0 5 * * 1` + `workflow_dispatch`, `actions/checkout@v7` vor der lokalen Action, wöchentlicher Prüfauftrag wörtlich inkl. PR-Umsetzungsanweisung, Label `automated-review-nuget`, `title-suffix-format: %G-W%V`) | Offen | — |
+| 4 | Workflows | `.github/workflows/review-compliance-yearly.yml` anlegen (`name: Compliance and Copyright Review`, Cron `0 4 1 1 *` + `workflow_dispatch`, `actions/checkout@v7` vor der lokalen Action, jährlicher Prüfauftrag wörtlich, Label `automated-review-compliance`, `title-suffix-format: %Y`) | Offen | — |
+| 5 | Dokumentation | `docs/REVIEW_AUTOMATION.md` anlegen (Zeitpläne, Issue-Inhalte, Label-/Duplikatmechanismus, `@softwarewerkstatt`-Voraussetzung, Aktivierung erst nach Promotion auf `main`) | Offen | — |
+| 6 | Dokumentation | `docs/STAGING_WORKFLOW.md` erweitern: drei Workflows in Tabelle „CI Workflow Files" eintragen + Klärungssatz zur NuGet-Prüfung im Security-Abschnitt | Offen | — |
+| 7 | Dokumentation | `README.md` um kurzen Hinweis mit Link auf `docs/REVIEW_AUTOMATION.md` ergänzen | Offen | — |
+| 8 | Dokumentation | `docs/RELEASE_NOTES.md` um Infrastruktur-Hinweis auf die Review-Automatisierung ergänzen | Offen | — |
+| 9 | Dokumentation | `docs/REVIEW_AUTOMATION.md` in `docs/INDEX.md` eintragen | Offen | — |
+| 10 | Qualitätsprüfung | DoD-Nachweise erbringen: `dotnet build VideoPlayer.sln` in Debug und Release fehlerfrei, volle Suite `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj` grün (preexisting `TvSenderOnAirE2ETests`-Flakes bei Ausfall einzeln wiederholen), MarkdownLinkCheck (`dotnet run --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -c Release -- --root .`) fehlerfrei, YAML-Syntax der neuen Dateien sichtprüfen | Offen | — |
+| 11 | Verifikation | Nach Promotion auf `main`: `workflow_dispatch`-Lauf je Workflow auslösen — Issue-Erzeugung (Titel, Body, `@softwarewerkstatt`, Label) und Skip-Fall bei Zweitlauf prüfen | Offen | — |

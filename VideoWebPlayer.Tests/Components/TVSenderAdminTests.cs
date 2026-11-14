@@ -510,10 +510,20 @@ public sealed class TVSenderAdminTests
         var item = await fixture.Db.MovieMediaItems
             .Where(m => m.MovieId == movie.Id).Select(m => m.MediaItemId).SingleAsync(ct);
 
+        // Beide Slots muessen am selben lokalen Kalendertag liegen: Die Ansicht
+        // gruppiert die Karten nach lokalem Startdatum und rendert nur den
+        // vorausgewaehlten Tag. Der laufende Slot beginnt bei now und ist damit
+        // immer "heute"; der verdrängte Slot liegt am selben Tag so frueh, wie
+        // es das 2h-Ladefenster der Seite erlaubt.
         var now = DateTime.UtcNow;
-        await fixture.CreateSlotAsync(channel.Id, now.AddMinutes(-30), now.AddMinutes(30), item, movieId: movie.Id);
-        await fixture.CreateSlotAsync(channel.Id, now.AddMinutes(30), now.AddMinutes(90), item, movieId: movie.Id,
-            status: ProgramSlotStatus.Displaced);
+        var localMidnightUtc = TimeZoneInfo.ConvertTimeToUtc(
+            TimeZoneInfo.ConvertTime(now, TimeZoneInfo.Local).Date, TimeZoneInfo.Local);
+        var displacedStart = localMidnightUtc > now.AddHours(-2)
+            ? localMidnightUtc
+            : now.AddHours(-2).AddMinutes(1);
+        await fixture.CreateSlotAsync(channel.Id, displacedStart, displacedStart.AddMinutes(30), item,
+            movieId: movie.Id, status: ProgramSlotStatus.Displaced);
+        await fixture.CreateSlotAsync(channel.Id, now, now.AddMinutes(60), item, movieId: movie.Id);
 
         var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
         using var _ctx = ctx;
@@ -524,7 +534,12 @@ public sealed class TVSenderAdminTests
         var cards = cut.FindAll("#tvsender-schedule-cards .program-card.tvsender-slot-row");
         Assert.Equal(2, cards.Count);
 
-        var live = cards[0];
+        var displaced = cards[0];
+        Assert.Contains("tvsender-slot-displaced", displaced.ClassList);
+        Assert.Contains("Verdrängt", displaced.TextContent);
+        Assert.Empty(displaced.QuerySelectorAll(".badge-live"));
+
+        var live = cards[1];
         Assert.Contains("slot-now", live.ClassList);
         Assert.Single(live.QuerySelectorAll(".badge-live"));
         Assert.Single(live.QuerySelectorAll(".progress-track .progress-fill"));
@@ -535,11 +550,6 @@ public sealed class TVSenderAdminTests
         var img = live.QuerySelector(".program-poster img");
         Assert.NotNull(img);
         Assert.Contains($"/api/pictures/{poster.Id}", img!.GetAttribute("src"));
-
-        var displaced = cards[1];
-        Assert.Contains("tvsender-slot-displaced", displaced.ClassList);
-        Assert.Contains("Verdrängt", displaced.TextContent);
-        Assert.Empty(displaced.QuerySelectorAll(".badge-live"));
     }
 
     [Fact]

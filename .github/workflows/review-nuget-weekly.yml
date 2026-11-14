@@ -1,0 +1,62 @@
+name: NuGet Dependency Review
+
+# Weekly on Monday at 05:00 UTC (cron) plus a manual workflow_dispatch trigger for
+# testing. Creates a GitHub issue that asks @softwarewerkstatt to analyse all used
+# NuGet packages - but only while no open issue with the label automated-review-nuget
+# exists, so there is at most one open review cycle of this type at any time. This is
+# an additional analysis task and intentionally does not replace the weekly
+# vulnerability scan in security-scan.yml (which runs one hour earlier). Scheduled
+# workflows only run from the default branch (main), so this workflow becomes active
+# after the staging -> main promotion.
+on:
+  schedule:
+    # Weekly on Monday at 05:00 UTC, one hour after the security-scan.yml run.
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: review-nuget-weekly
+  cancel-in-progress: false
+
+jobs:
+  create-review-issue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # Required so the repository-local composite action below is available in the
+      # runner workspace (same pattern as security-scan.yml / staging-ci.yml).
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Create NuGet dependency review issue
+        uses: ./.github/actions/create-review-issue
+        with:
+          label-name: automated-review-nuget
+          label-color: "D93F0B"
+          label-description: "Automatisch erzeugtes Issue für die wöchentliche NuGet-Paketprüfung"
+          issue-title: Wöchentliche NuGet-Paketprüfung
+          title-suffix-format: "%G-W%V"
+          issue-body: |
+            @softwarewerkstatt
+
+            Bitte analysiere alle verwendeten NuGet-Pakete.
+
+            Prüfe:
+
+            - Verfügbare Updates
+            - Security-Updates
+            - Pakete mit bekannt gewordenen Schwachstellen
+            - Veraltete oder nicht mehr gepflegte Pakete
+            - Empfohlene Nachfolgepakete
+            - Mögliche Breaking Changes bei Updates
+
+            Erstelle konkrete Update-Empfehlungen inklusive Risikobewertung.
+
+            Setze die unbedenklichen Empfehlungen (niedriges bis mittleres Risiko)
+            direkt in einem Pull Request um. Risikoreiche oder aufgeschobene
+            Empfehlungen dokumentiere im PR-Body bzw. als eigenes Folge-Issue.

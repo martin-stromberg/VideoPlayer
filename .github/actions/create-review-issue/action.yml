@@ -1,0 +1,66 @@
+name: Create review issue
+
+description: >
+  Ensures the review-type label exists, checks whether an open issue already carries it
+  and only then creates a new issue with the given title (extended by a period suffix
+  derived from title-suffix-format) and body. Used by the scheduled workflows
+  review-architecture-security.yml, review-nuget-weekly.yml and
+  review-compliance-yearly.yml, so the label/guard/create logic only exists once instead
+  of being duplicated between them.
+
+inputs:
+  label-name:
+    description: Name of the review-type label; created idempotently and used for the duplicate guard.
+    required: true
+  label-color:
+    description: Hex color (without '#') used when the label is created.
+    required: true
+  label-description:
+    description: Description used when the label is created.
+    required: true
+  issue-title:
+    description: Base issue title; the period suffix is appended in parentheses when title-suffix-format is set.
+    required: true
+  issue-body:
+    description: Full issue body; must begin with the @softwarewerkstatt mention.
+    required: true
+  title-suffix-format:
+    description: date(1) format string for the period suffix appended to the title (empty = no suffix).
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure review label exists
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        LABEL_NAME: ${{ inputs.label-name }}
+        LABEL_COLOR: ${{ inputs.label-color }}
+        LABEL_DESCRIPTION: ${{ inputs.label-description }}
+      run: gh label create "$LABEL_NAME" --color "$LABEL_COLOR" --description "$LABEL_DESCRIPTION" --force -R ${{ github.repository }}
+
+    - name: Create review issue unless one is already open
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        LABEL_NAME: ${{ inputs.label-name }}
+        ISSUE_TITLE: ${{ inputs.issue-title }}
+        ISSUE_BODY: ${{ inputs.issue-body }}
+        TITLE_SUFFIX_FORMAT: ${{ inputs.title-suffix-format }}
+      run: |
+        set -euo pipefail
+
+        existing=$(gh issue list --state open --label "$LABEL_NAME" --json number --jq 'length' -R ${{ github.repository }})
+        if [ "$existing" != "0" ]; then
+          echo "::notice::Ein offenes Issue des Typs '$LABEL_NAME' existiert bereits - es wird kein neues Issue erzeugt."
+          exit 0
+        fi
+
+        title="$ISSUE_TITLE"
+        if [ -n "$TITLE_SUFFIX_FORMAT" ]; then
+          title="$title ($(date -u +"$TITLE_SUFFIX_FORMAT"))"
+        fi
+
+        gh issue create -R ${{ github.repository }} --title "$title" --body "$ISSUE_BODY" --label "$LABEL_NAME"

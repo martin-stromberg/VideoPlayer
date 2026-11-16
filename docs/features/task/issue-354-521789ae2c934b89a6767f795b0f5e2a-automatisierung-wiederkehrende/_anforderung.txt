@@ -1,0 +1,94 @@
+Titel: Automatisierung wiederkehrender Architektur-, Sicherheits- und Compliance-Reviews
+
+Beschreibung
+
+Ziel ist die EinfÃ¼hrung mehrerer zeitgesteuerter GitHub Actions, die automatisch Issues erzeugen und dabei den Account @softwarewerkstatt erwÃ¤hnen. Die ErwÃ¤hnung soll die automatische Analyse und Bearbeitung anstoÃŸen. Die Issues dÃ¼rfen jeweils nur angelegt werden, falls aktuell keiner offenen Issues des vorherigen Zyklus vorliegen. 
+
+Umzusetzende PrÃ¼fungen
+
+1. Monatliches Architektur- und Sicherheitsreview
+
+Intervall:
+- Jeden Monat am ersten Tag
+
+Automatisch erzeugtes Issue:
+
+@softwarewerkstatt
+
+Bitte fÃ¼hre ein Architektur- und Sicherheitsreview durch.
+
+PrÃ¼fe insbesondere:
+
+- Neue Sicherheitsrisiken in verwendeten Frameworks und Bibliotheken
+- Bekannte Schwachstellen (CVEs) in NuGet-AbhÃ¤ngigkeiten
+- Neue Empfehlungen fÃ¼r ASP.NET Core, Blazor, .NET und verwandte Technologien
+- Ã„nderungen bei Authentifizierung und Autorisierung
+- Neue oder inzwischen bevorzugte Design Patterns
+- Veraltete, abgekÃ¼ndigte oder problematische APIs
+- VerbesserungsmÃ¶glichkeiten hinsichtlich Wartbarkeit, Erweiterbarkeit und Testbarkeit
+- Aktuelle Empfehlungen zu Logging, Telemetrie und Monitoring
+- Relevante Erkenntnisse aus der Community, Microsoft-Dokumentation und Sicherheitsmeldungen
+
+Erstelle eine priorisierte Liste konkreter Handlungsempfehlungen.
+
+2. WÃ¶chentliche NuGet-PrÃ¼fung
+
+Intervall:
+- WÃ¶chentlich
+
+Automatisch erzeugtes Issue:
+
+@softwarewerkstatt
+
+Bitte analysiere alle verwendeten NuGet-Pakete.
+
+PrÃ¼fe:
+
+- VerfÃ¼gbare Updates
+- Security-Updates
+- Pakete mit bekannt gewordenen Schwachstellen
+- Veraltete oder nicht mehr gepflegte Pakete
+- Empfohlene Nachfolgepakete
+- MÃ¶gliche Breaking Changes bei Updates
+
+Erstelle konkrete Update-Empfehlungen inklusive Risikobewertung.
+
+Setze die unbedenklichen Empfehlungen (niedriges bis mittleres Risiko)
+direkt in einem Pull Request um. Risikoreiche oder aufgeschobene
+Empfehlungen dokumentiere im PR-Body bzw. als eigenes Folge-Issue.
+
+3. JÃ¤hrliches Compliance- und Copyright-Review
+
+Intervall:
+- JÃ¤hrlich am 1. Januar
+
+Automatisch erzeugtes Issue:
+
+@softwarewerkstatt
+
+Bitte fÃ¼hre das jÃ¤hrliche Compliance-Review durch.
+
+PrÃ¼fe:
+
+- Copyright-Hinweise im Quellcode
+- Copyright-Angaben auf Webseiten
+- Copyright-Angaben in About-Dialogen
+- Impressum
+- DatenschutzerklÃ¤rung
+- Drittanbieter-Lizenzen
+- Open-Source-Verpflichtungen
+- Unternehmens- und Kontaktinformationen
+- App-Store-Metadaten (falls vorhanden)
+
+Erstelle konkrete Ã„nderungsvorschlÃ¤ge und liste erkannte Risiken oder Handlungsbedarfe auf.
+
+Akzeptanzkriterien
+
+- FÃ¼r jede PrÃ¼fung existiert eine separate GitHub Action.
+- Die AusfÃ¼hrung erfolgt zeitgesteuert Ã¼ber einen Cron-Trigger.
+- Die erzeugten Issues verwenden aussagekrÃ¤ftige Titel.
+- Der Account @softwarewerkstatt wird automatisch im Issue erwÃ¤hnt.
+- Bereits bestehende offene Issues desselben Typs werden vor der Erstellung geprÃ¼ft, um Duplikate zu vermeiden.
+- Die LÃ¶sung ist vollstÃ¤ndig innerhalb des Repositories dokumentiert.
+
+

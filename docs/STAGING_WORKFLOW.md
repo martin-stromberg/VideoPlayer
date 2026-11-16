@@ -161,6 +161,7 @@ git push origin feature/your-feature-name
 - **Dependency vulnerabilities**: Zero high/critical vulnerabilities allowed
 - **CodeQL analysis**: Must pass without security alerts
 - **Static analysis**: Must pass compiler warnings as errors
+- **Review-Automatisierung**: Der woechentliche Vulnerability-Scan bleibt unveraendert; das woechentliche NuGet-Review-Issue (`review-nuget-weekly.yml`) ist ein ergaenzender Analyse-Auftrag fuer @softwarewerkstatt, kein Ersatz
 
 ### Code Quality
 - **Formatting**: Code must match dotnet-format standards
@@ -250,6 +251,9 @@ If version bumping fails:
 - `.github/workflows/sync-staging-with-main.yml` ("Backmerge Main to Staging") - Automatischer PR main -> staging nach jedem Push auf main
 - `.github/workflows/release.yml` ("Release") - Release-Pipeline (push auf main oder `v*.*.*`-Tag)
 - `.github/workflows/security-scan.yml` ("Security Scan") - Woechentlicher, von Code-Aenderungen unabhaengiger Dependency-Scan
+- `.github/workflows/review-architecture-security.yml` ("Architecture and Security Review") - Monatliches Review-Issue fuer @softwarewerkstatt (Cron am 1., Duplikat-Guard per Label `automated-review-architecture-security`)
+- `.github/workflows/review-nuget-weekly.yml` ("NuGet Dependency Review") - Woechentliches NuGet-Review-Issue fuer @softwarewerkstatt (Cron montags, Label `automated-review-nuget`)
+- `.github/workflows/review-compliance-yearly.yml` ("Compliance and Copyright Review") - Jaehrliches Compliance-Review-Issue fuer @softwarewerkstatt (Cron am 1. Januar, Label `automated-review-compliance`)
 - `scripts/resolve-release-version.mjs` - Versions-/Ref-Klassifikation und Asset-Repair fuer `release.yml`
 - `release.config.js` - semantic-release-Konfiguration (ersetzt das fruehere `compute-version.sh`)
 

@@ -273,6 +273,129 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         return (show, season, episodes);
     }
 
+    /// <summary>Creates a show with several seasons — the "3–8 Staffeln à 10–20 Episoden"
+    /// stock of the practice tests: the episode count per season is scattered
+    /// deterministically over [<paramref name="episodesPerSeasonMin"/>..
+    /// <paramref name="episodesPerSeasonMax"/>] (no randomness), each episode's runtime
+    /// jitters around <paramref name="baseDuration"/> by an index-dependent multiple of
+    /// <paramref name="durationJitterSeconds"/> and every
+    /// <paramref name="doubleLengthEveryNth"/>-th episode of the whole show (counted from 1;
+    /// 0 disables) runs double length — near-equal runtimes with occasional double episodes.</summary>
+    /// <param name="name">The show name.</param>
+    /// <param name="seasonCount">How many seasons to create.</param>
+    /// <param name="episodesPerSeasonMin">Minimum episodes per season.</param>
+    /// <param name="episodesPerSeasonMax">Maximum episodes per season.</param>
+    /// <param name="baseDuration">The base runtime each episode jitters around.</param>
+    /// <param name="durationJitterSeconds">Jitter step in seconds (index-dependent ±0–2×).</param>
+    /// <param name="doubleLengthEveryNth">Every n-th episode of the show runs double length (0 = none).</param>
+    /// <param name="sourceId">The media source id.</param>
+    /// <param name="ageRatingMinAge">Optional minimum age the episodes inherit.</param>
+    /// <param name="Show">Tuple element: the created show.</param>
+    /// <param name="Seasons">Tuple element: the created seasons.</param>
+    /// <returns>The created show, its seasons and all episodes in air order
+    /// (season, then number — matching <see cref="ProgramScheduleService"/>'s expansion).</returns>
+    public async Task<(TVShow Show, List<TVShowSeason> Seasons, List<TVShowEpisode> Episodes)> CreateMultiSeasonShowAsync(
+        string name, int seasonCount, int episodesPerSeasonMin, int episodesPerSeasonMax,
+        TimeSpan baseDuration, int durationJitterSeconds = 30, int doubleLengthEveryNth = 0,
+        long sourceId = 1, int? ageRatingMinAge = null)
+    {
+        await EnsureSourceAsync(sourceId);
+        var show = new TVShow { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow, AgeRatingMinAge = ageRatingMinAge };
+        Db.TVShows.Add(show);
+        await SaveDiagAsync();
+
+        var seasons = new List<TVShowSeason>();
+        var episodes = new List<TVShowEpisode>();
+        var spread = Math.Max(1, episodesPerSeasonMax - episodesPerSeasonMin + 1);
+        var globalIndex = 0;
+        for (var s = 1; s <= seasonCount; s++)
+        {
+            var season = new TVShowSeason { Name = $"Staffel {s}", TVShowId = show.Id, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            Db.TVShowSeasons.Add(season);
+            await SaveDiagAsync();
+            seasons.Add(season);
+
+            var episodeCount = episodesPerSeasonMin + (s - 1) * 3 % spread;
+            for (var i = 1; i <= episodeCount; i++)
+            {
+                globalIndex++;
+                var episode = new TVShowEpisode { Name = $"{name} S{s}E{i}", TVShowSeasonId = season.Id, Number = i, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+                Db.TVShowEpisodes.Add(episode);
+                await SaveDiagAsync();
+                var duration = baseDuration + TimeSpan.FromSeconds(((i - 1) % 5 - 2) * durationJitterSeconds);
+                if (doubleLengthEveryNth > 0 && globalIndex % doubleLengthEveryNth == 0)
+                    duration += baseDuration;
+                var item = await CreateMediaItemAsync(sourceId, duration);
+                Db.TVShowEpisodeMediaItems.Add(new TVShowEpisodeMediaItem { TVShowEpisodeId = episode.Id, MediaItemId = item.Id });
+                episodes.Add(episode);
+            }
+        }
+        await SaveDiagAsync();
+        return (show, seasons, episodes);
+    }
+
+    /// <summary>Creates a movie collection plus <paramref name="movieCount"/> movies in
+    /// ascending release-date order — the air order of the ordered
+    /// <c>collection:{id}</c> strand.</summary>
+    /// <param name="name">The collection name; movies are named "{name} {i}".</param>
+    /// <param name="movieCount">How many movies to create.</param>
+    /// <param name="duration">The probed runtime of every movie's media item.</param>
+    /// <param name="releaseDateStart">Release date of the first movie (one day per film;
+    /// default 2000-01-01).</param>
+    /// <param name="sourceId">The media source id.</param>
+    /// <returns>The created collection.</returns>
+    public async Task<MovieCollection> CreateCollectionAsync(string name, int movieCount, TimeSpan duration, DateTime? releaseDateStart = null, long sourceId = 1)
+    {
+        await EnsureSourceAsync(sourceId);
+        var collection = new MovieCollection { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+        Db.MovieCollections.Add(collection);
+        await SaveDiagAsync();
+        var start = releaseDateStart ?? new DateTime(2000, 1, 1);
+        for (var i = 1; i <= movieCount; i++)
+            await CreateMovieAsync($"{name} {i}", sourceId, duration, collection.Id, releaseDate: start.AddDays(i - 1));
+        return collection;
+    }
+
+    /// <summary>Seeds a practical library stock — several multi-season shows (3–8 seasons
+    /// à 10–20 episodes with jittered runtimes and occasional double episodes), two movie
+    /// collections and standalone movies — and wires two genres for rotation rules:
+    /// "Serien" (all shows) and "Filme" (all movies including the collection films).</summary>
+    /// <param name="sourceId">The media source id.</param>
+    /// <param name="Show">Tuple element (per show): the created show.</param>
+    /// <param name="Seasons">Tuple element (per show): its seasons.</param>
+    /// <param name="Shows">Tuple element: the seeded shows with seasons and episodes.</param>
+    /// <param name="Collections">Tuple element: the seeded movie collections.</param>
+    /// <param name="Movies">Tuple element: the seeded standalone movies.</param>
+    /// <returns>The seeded shows (with seasons and episodes), collections, standalone movies
+    /// and genres.</returns>
+    public async Task<(List<(TVShow Show, List<TVShowSeason> Seasons, List<TVShowEpisode> Episodes)> Shows,
+        List<MovieCollection> Collections, List<Movie> Movies, List<Genre> Genres)> SeedRealisticLibraryAsync(long sourceId = 1)
+    {
+        var shows = new List<(TVShow, List<TVShowSeason>, List<TVShowEpisode>)>
+        {
+            await CreateMultiSeasonShowAsync("Serie Alpha", 4, 10, 14, TimeSpan.FromMinutes(45), durationJitterSeconds: 60, doubleLengthEveryNth: 9, sourceId: sourceId),
+            await CreateMultiSeasonShowAsync("Serie Beta", 6, 12, 18, TimeSpan.FromMinutes(42), durationJitterSeconds: 45, doubleLengthEveryNth: 7, sourceId: sourceId),
+            await CreateMultiSeasonShowAsync("Serie Gamma", 3, 10, 20, TimeSpan.FromMinutes(48), durationJitterSeconds: 30, doubleLengthEveryNth: 11, sourceId: sourceId)
+        };
+        var collections = new List<MovieCollection>
+        {
+            await CreateCollectionAsync("Reihe Eins", 8, TimeSpan.FromMinutes(95), sourceId: sourceId),
+            await CreateCollectionAsync("Reihe Zwei", 6, TimeSpan.FromMinutes(105), sourceId: sourceId)
+        };
+        var movies = new List<Movie>();
+        for (var i = 1; i <= 6; i++)
+            movies.Add(await CreateMovieAsync($"Einzelfilm {i}", sourceId, TimeSpan.FromMinutes(85 + i * 5)));
+
+        var showGenre = await CreateGenreAsync("Serien", sourceId);
+        var movieGenre = await CreateGenreAsync("Filme", sourceId);
+        foreach (var (show, _, _) in shows)
+            await LinkShowGenreAsync(show.Id, showGenre.Id);
+        var collectionMovieIds = await Db.Movies.Where(m => m.MovieCollectionId != null && m.MediaSourceId == sourceId).Select(m => m.Id).ToListAsync();
+        foreach (var movieId in movies.Select(m => m.Id).Concat(collectionMovieIds))
+            await LinkMovieGenreAsync(movieId, movieGenre.Id);
+        return (shows, collections, movies, [showGenre, movieGenre]);
+    }
+
     /// <summary>Creates a genre row on the given source (optionally hidden, with alternate names
     /// and a seasonal window).</summary>
     /// <param name="name">The genre name.</param>
@@ -337,6 +460,10 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     /// <param name="clipGroupIds">Optional clip group links.</param>
     /// <param name="placeholderGrace">Optional placeholder grace.</param>
     /// <param name="validity">Optional validity window.</param>
+    /// <param name="createdUtc">Optional creation timestamp (default <see cref="DateTime.UtcNow"/>)
+    /// — deterministic control of the rule's age vs. the slots' materialization time.</param>
+    /// <param name="updatedUtc">Optional last-change timestamp (default <see cref="DateTime.UtcNow"/>)
+    /// — the freshness proof of re-activation/edit scenarios (Issue #351).</param>
     /// <returns>The created program rule.</returns>
     public async Task<ProgramRule> CreateRuleAsync(
         long channelId, string name, ProgramRuleType type, ProgramRuleRecurrence recurrence,
@@ -345,7 +472,8 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         DayOfWeek? dayOfWeek = null, DateOnly? singleDate = null, bool isActive = true,
         IEnumerable<long>? genreIds = null, IEnumerable<long>? mediaSourceIds = null,
         IEnumerable<long>? clipGroupIds = null, TimeSpan? placeholderGrace = null,
-        ProgramRuleValidityInput? validity = null)
+        ProgramRuleValidityInput? validity = null,
+        DateTime? createdUtc = null, DateTime? updatedUtc = null)
     {
         var rule = new ProgramRule
         {
@@ -363,8 +491,8 @@ internal sealed class ProgramScheduleTestDb : IDisposable
             Priority = priority,
             IsActive = isActive,
             PlaceholderGrace = placeholderGrace ?? ProgramRule.DefaultPlaceholderGrace,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = createdUtc ?? DateTime.UtcNow,
+            UpdatedAt = updatedUtc ?? DateTime.UtcNow
         };
         // Same mode-to-field normalization the service persists with — not a local copy.
         ProgramRuleService.ApplyValidity(rule, validity);
@@ -389,6 +517,23 @@ internal sealed class ProgramScheduleTestDb : IDisposable
             await SaveDiagAsync();
         }
         return rule;
+    }
+
+    /// <summary>De-/re-activates a rule the exact same way
+    /// <see cref="ProgramRuleService.SetRuleActiveAsync"/> does — sets <c>IsActive</c> AND
+    /// bumps <c>UpdatedAt</c> (the re-activation freshness proof of Issue #351); the seed
+    /// helper <see cref="CreateRuleAsync"/> or a direct <c>IsActive</c> write would leave the
+    /// timestamp untouched.</summary>
+    /// <param name="rule">The tracked rule entity.</param>
+    /// <param name="isActive">The new active flag.</param>
+    /// <param name="updatedUtc">Optional explicit timestamp (default
+    /// <see cref="DateTime.UtcNow"/>) for deterministic comparisons against slot
+    /// materialization times.</param>
+    public async Task SetRuleActiveAsync(ProgramRule rule, bool isActive, DateTime? updatedUtc = null)
+    {
+        rule.IsActive = isActive;
+        rule.UpdatedAt = updatedUtc ?? DateTime.UtcNow;
+        await SaveDiagAsync();
     }
 
     public async Task<TVChannel> GetChannelAsync(CancellationToken ct)

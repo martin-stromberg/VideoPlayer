@@ -37,6 +37,18 @@ public static class WebApplicationExtensions
     /// <returns>The same <see cref="WebApplication"/> instance.</returns>
     public static WebApplication UseVideoWebPlayer(this WebApplication app)
     {
+        // Optionale PathBase-Unterstuetzung fuer den Betrieb hinter einem Reverse Proxy
+        // unter einem URL-Unterpfad (z. B. https://example.com/videoplayer/) statt einer
+        // eigenen Domain/Subdomain. Ueber den Konfigurationsschluessel "PathBase" gesetzt;
+        // Standardwert leer, dann unveraenderter Betrieb im Domain-Root wie bisher. Muss
+        // als eine der ersten Middlewares laufen, damit Routing/Endpoint-Matching weiter
+        // unten bereits den bereinigten Pfad sieht.
+        var pathBase = app.Configuration["PathBase"];
+        if (!string.IsNullOrWhiteSpace(pathBase))
+        {
+            app.UsePathBase(pathBase);
+        }
+
         // Requests mit ungültigem Host-Header früh ablehnen: Razor-Endpunkte würden sonst
         // bei der Initialisierung des NavigationManager mit UriFormatException scheitern
         // und auch der Error-Handler würde erneut werfen.

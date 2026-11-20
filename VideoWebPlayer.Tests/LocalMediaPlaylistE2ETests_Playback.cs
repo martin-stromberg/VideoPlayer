@@ -43,7 +43,7 @@ public sealed class LocalMediaPlaylistE2ETests_Playback : LocalMediaPlaylistE2ET
 
         var start = await Client.StartPlaylistAsync(playlist.Id, firstEntry.TopLevelEntry!.Id);
         Assert.Equal(firstMovieId, start.MediaId);
-        Assert.Equal($"/api/items/movie/{firstMovieId}/stream", start.StreamUrl);
+        Assert.Equal($"api/items/movie/{firstMovieId}/stream", start.StreamUrl);
 
         using var http = CreateHttpClient();
         var stream = await http.GetAsync($"{start.StreamUrl}?access_token={SessionToken}", ct);

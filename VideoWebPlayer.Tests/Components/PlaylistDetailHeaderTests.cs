@@ -297,7 +297,7 @@ public class PlaylistDetailHeaderTests
             CurrentEntryId = 10,
             MediaType = "movie",
             MediaId = 100,
-            StreamUrl = "/api/items/movie/100/stream"
+            StreamUrl = "api/items/movie/100/stream"
         });
         using var ctx = CreateContext(mock);
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -326,7 +326,7 @@ public class PlaylistDetailHeaderTests
             CurrentEntryId = 10,
             MediaType = "movie",
             MediaId = 100,
-            StreamUrl = "/api/items/movie/100/stream"
+            StreamUrl = "api/items/movie/100/stream"
         });
         using var ctx = CreateContext(mock);
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -350,7 +350,7 @@ public class PlaylistDetailHeaderTests
             CurrentEntryId = 11,
             MediaType = "episode",
             MediaId = 200,
-            StreamUrl = "/api/items/tvshowepisode/200/stream"
+            StreamUrl = "api/items/tvshowepisode/200/stream"
         });
         using var ctx = CreateContext(mock);
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;

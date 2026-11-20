@@ -21,7 +21,7 @@ public class VideoPlayerStreamErrorTests
     public async Task StreamError_ShowsMessageInsteadOfStayingSilent()
     {
         using var ctx = CreateTestContext();
-        var cut = RenderPlayer(ctx, "/api/items/movie/7/stream");
+        var cut = RenderPlayer(ctx, "api/items/movie/7/stream");
 
         Assert.Empty(cut.FindAll("#player-stream-error"));
 
@@ -41,7 +41,7 @@ public class VideoPlayerStreamErrorTests
     public async Task StreamError_IsClearedWhenAnotherTitleIsLoaded()
     {
         using var ctx = CreateTestContext();
-        var cut = RenderPlayer(ctx, "/api/items/movie/7/stream");
+        var cut = RenderPlayer(ctx, "api/items/movie/7/stream");
 
         var video = cut.Find("#video-player-element");
         await cut.InvokeAsync(() => video.TriggerEventAsync("onerror", new EventArgs()));
@@ -49,7 +49,7 @@ public class VideoPlayerStreamErrorTests
 
         cut.Render(parameters => parameters
             .Add(p => p.Show, true)
-            .Add(p => p.StreamUrl, "/api/items/movie/8/stream")
+            .Add(p => p.StreamUrl, "api/items/movie/8/stream")
             .Add(p => p.MediaType, "movie")
             .Add(p => p.MediaId, 8L));
 
@@ -63,7 +63,7 @@ public class VideoPlayerStreamErrorTests
     public async Task StreamError_IsClearedWhenTheSameTitleLoadsAfterAll()
     {
         using var ctx = CreateTestContext();
-        var cut = RenderPlayer(ctx, "/api/items/movie/7/stream");
+        var cut = RenderPlayer(ctx, "api/items/movie/7/stream");
 
         var video = cut.Find("#video-player-element");
         await cut.InvokeAsync(() => video.TriggerEventAsync("onerror", new EventArgs()));

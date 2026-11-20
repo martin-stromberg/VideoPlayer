@@ -111,7 +111,7 @@ public class PlaylistDetailTests
                 CurrentPosition = 1,
                 CurrentEntryId = 42,
                 CurrentEntry = new DtoPlaylistEntry { Id = 42, PlaylistId = 1, MediaType = "Movie", MediaId = 7 },
-                StreamUrl = "/api/items/movie/7/stream",
+                StreamUrl = "api/items/movie/7/stream",
                 MediaType = "movie",
                 MediaId = 7
             });
@@ -150,7 +150,7 @@ public class PlaylistDetailTests
                 CurrentPosition = 1,
                 CurrentEntryId = 42,
                 CurrentEntry = new DtoPlaylistEntry { Id = 42, PlaylistId = 1, MediaType = "Movie", MediaId = 7 },
-                StreamUrl = "/api/items/movie/7/stream",
+                StreamUrl = "api/items/movie/7/stream",
                 MediaType = "movie",
                 MediaId = 7,
                 StartPositionSeconds = 600
@@ -305,7 +305,7 @@ public class PlaylistDetailTests
                 CurrentPosition = 2,
                 CurrentEntryId = 200,
                 CurrentEntry = new DtoPlaylistEntry { Id = 200, PlaylistId = 1, MediaType = "Movie", MediaId = 20 },
-                StreamUrl = "/api/items/movie/20/stream",
+                StreamUrl = "api/items/movie/20/stream",
                 MediaType = "movie",
                 MediaId = 20,
                 StartPositionSeconds = 450
@@ -323,7 +323,7 @@ public class PlaylistDetailTests
                 CurrentPosition = 1,
                 CurrentEntryId = 100,
                 CurrentEntry = new DtoPlaylistEntry { Id = 100, PlaylistId = 1, MediaType = "Movie", MediaId = 10 },
-                StreamUrl = "/api/items/movie/10/stream",
+                StreamUrl = "api/items/movie/10/stream",
                 MediaType = "movie",
                 MediaId = 10,
                 StartPositionSeconds = 300
@@ -449,7 +449,7 @@ public class PlaylistDetailTests
                     CurrentPosition = 1,
                     CurrentEntryId = entryId,
                     CurrentEntry = new DtoPlaylistEntry { Id = entryId, PlaylistId = playlistId, MediaType = "Movie", MediaId = mediaId },
-                    StreamUrl = $"/api/items/movie/{mediaId}/stream",
+                    StreamUrl = $"api/items/movie/{mediaId}/stream",
                     MediaType = "movie",
                     MediaId = mediaId,
                     StartPositionSeconds = startPositionSeconds

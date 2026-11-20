@@ -33,7 +33,7 @@ public sealed class DevicePlaylistE2ETests_Playback : DeviceClientTestBase
         var start = await Client.StartPlaylistAsync(playlistId, entryId: null);
         Assert.Equal(firstEntryId, start.CurrentEntryId);
         Assert.Equal(firstMovieId, start.MediaId);
-        Assert.Equal($"/api/items/movie/{firstMovieId}/stream", start.StreamUrl);
+        Assert.Equal($"api/items/movie/{firstMovieId}/stream", start.StreamUrl);
 
         using var progressHttp = CreateHttpClient();
         var reported = await ContinueWatchingTestHelper.ReportProgressAsync(progressHttp, payload.Token, firstMovieId, playlistId, ct);

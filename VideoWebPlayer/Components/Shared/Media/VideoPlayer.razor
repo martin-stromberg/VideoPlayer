@@ -409,7 +409,7 @@
     {
         MediaType = playerMediaType;
         MediaId = mediaId;
-        StreamUrl = $"/api/items/{PlaylistEntryMediaTypeResolver.ResolveItemStreamType(entryMediaType)}/{mediaId}/stream?access_token={AuthToken}";
+        StreamUrl = $"api/items/{PlaylistEntryMediaTypeResolver.ResolveItemStreamType(entryMediaType)}/{mediaId}/stream?access_token={AuthToken}";
         StartPositionSeconds = startPositionSeconds > 0 ? startPositionSeconds : null;
     }
 

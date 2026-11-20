@@ -247,18 +247,18 @@
 
     private void Back()
     {
-        Navigation.NavigateTo("/admin/mediasources");
+        Navigation.NavigateTo("admin/mediasources");
     }
 
     private void OpenExplorer()
     {
         if (IsNew)
             return;
-        Navigation.NavigateTo($"/admin/mediasources/{Id}/explorer");
+        Navigation.NavigateTo($"admin/mediasources/{Id}/explorer");
     }
 
     private string GetIconUrl(long iconPictureId)
-        => $"/api/sourceicons/{iconPictureId}?access_token={Client.AuthorizationToken}";
+        => $"api/sourceicons/{iconPictureId}?access_token={Client.AuthorizationToken}";
 
     private void ToggleUser(string userId, ChangeEventArgs e)
     {

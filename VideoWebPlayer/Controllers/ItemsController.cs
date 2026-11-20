@@ -262,7 +262,7 @@ public class ItemsController : ApiBaseController
                 Id = mc.Id,
                 Title = mc.Name,
                 Description = "",
-                Url = $"/moviecollection/{mc.Id}",
+                Url = $"moviecollection/{mc.Id}",
                 CreatedAt = mc.CreatedAt,
                 PictureId = mc.PosterPictureId,
                 ItemCount = _db.Movies.Count(m => m.MovieCollectionId == mc.Id)
@@ -295,7 +295,7 @@ public class ItemsController : ApiBaseController
                 Id = ts.Id,
                 Title = ts.Name,
                 Description = ts.Plot,
-                Url = $"/tvshow/{ts.Id}",
+                Url = $"tvshow/{ts.Id}",
                 CreatedAt = ts.CreatedAt,
                 PictureId = ts.PosterPictureId
             })
@@ -327,7 +327,7 @@ public class ItemsController : ApiBaseController
                 Id = m.Id,
                 Title = m.Name,
                 Description = m.Plot,
-                Url = $"/movie/{m.Id}",
+                Url = $"movie/{m.Id}",
                 CreatedAt = m.CreatedAt,
                 PictureId = m.PosterPictureId
             })
@@ -359,7 +359,7 @@ public class ItemsController : ApiBaseController
                 Id = s.Id,
                 Title = s.Name,
                 Description = "",
-                Url = $"/tvshow/season/{s.Id}",
+                Url = $"tvshow/season/{s.Id}",
                 CreatedAt = s.CreatedAt,
                 PictureId = s.PosterPictureId
             })
@@ -391,7 +391,7 @@ public class ItemsController : ApiBaseController
                 Id = e.Id,
                 Title = e.Name,
                 Description = e.Plot,
-                Url = $"/tvshow/episode/{e.Id}",
+                Url = $"tvshow/episode/{e.Id}",
                 CreatedAt = e.CreatedAt,
                 PictureId = e.PosterPictureId
             })

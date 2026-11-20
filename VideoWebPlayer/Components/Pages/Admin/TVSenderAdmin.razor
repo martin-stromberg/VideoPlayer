@@ -33,7 +33,7 @@ else if (!tvSenderEnabled)
     <section class="admin-console">
         <div class="alert alert-info" id="tvsender-disabled">
             Der TV-Sender ist nicht freigeschaltet. Die Freischaltung erfolgt unter
-            <a href="/admin/program-settings">Einrichtung → Allgemein</a>.
+            <a href="admin/program-settings">Einrichtung → Allgemein</a>.
         </div>
     </section>
 }
@@ -52,7 +52,7 @@ else
                     <span class="admin-chip admin-chip-success" id="tvsender-header-channel" title="Sender-Status">Sender: @channel.Name</span>
                     <span class="admin-chip" id="tvsender-header-interval" title="Generierungsintervall">Plan alle @intervalMinutes&nbsp;Min aktiv</span>
                 }
-                <a class="btn btn-outline-light" href="/admin">Zurück</a>
+                <a class="btn btn-outline-light" href="admin">Zurück</a>
             </div>
         </header>
 
@@ -568,7 +568,7 @@ else
                                 var blockRunning = IsBlockRunning(block);
                         <div class="program-card tvsender-clip-block @(blockRunning ? "slot-now" : "")" data-first-slot-id="@blockFirst.Id" data-clip-count="@block.Clips.Count">
                             <div class="program-poster">
-                                <img src="/images/placeholder.png" alt="" />
+                                <img src="images/placeholder.png" alt="" />
                             </div>
                             <div class="program-body">
                                 <div class="program-badges">

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using VideoWebPlayer.Components;
@@ -48,6 +49,19 @@ public static class WebApplicationExtensions
         {
             app.UsePathBase(pathBase);
         }
+
+        // Liest X-Forwarded-Proto/-For vom Reverse Proxy, damit Request.Scheme/RemoteIp den
+        // echten Client widerspiegeln statt der eigenen Loopback-Verbindung des Proxys.
+        // Vertrauen ist auf Loopback beschraenkt: der Reverse Proxy laeuft auf demselben Host,
+        // und der Anwendungsport ist zusaetzlich direkt erreichbar (nicht nur ueber den Proxy) -
+        // ein weiter gefasstes Vertrauen wuerde das Faelschen dieser Header von dort erlauben.
+        var forwardedHeadersOptions = new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor
+        };
+        forwardedHeadersOptions.KnownProxies.Add(System.Net.IPAddress.Loopback);
+        forwardedHeadersOptions.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+        app.UseForwardedHeaders(forwardedHeadersOptions);
 
         // Requests mit ungültigem Host-Header früh ablehnen: Razor-Endpunkte würden sonst
         // bei der Initialisierung des NavigationManager mit UriFormatException scheitern

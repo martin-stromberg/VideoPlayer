@@ -21,7 +21,7 @@ public class NavMenuLiveTvTests
 
         var cut = ctx.RenderNavMenu();
 
-        var links = cut.FindAll("a.nav-link").Where(a => a.GetAttribute("href")?.Equals("/live-tv", StringComparison.OrdinalIgnoreCase) == true).ToArray();
+        var links = cut.FindAll("a.nav-link").Where(a => a.GetAttribute("href")?.Equals("live-tv", StringComparison.OrdinalIgnoreCase) == true).ToArray();
         var link = Assert.Single(links);
         Assert.Equal("Live-TV", link.TextContent.Trim());
     }
@@ -35,7 +35,7 @@ public class NavMenuLiveTvTests
 
         var cut = ctx.RenderNavMenu();
 
-        Assert.DoesNotContain(cut.FindAll("a.nav-link"), a => a.GetAttribute("href")?.Equals("/live-tv", StringComparison.OrdinalIgnoreCase) == true);
+        Assert.DoesNotContain(cut.FindAll("a.nav-link"), a => a.GetAttribute("href")?.Equals("live-tv", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class NavMenuLiveTvTests
 
         var cut = ctx.RenderNavMenu();
 
-        Assert.DoesNotContain(cut.FindAll("a.nav-link"), a => a.GetAttribute("href")?.Equals("/live-tv", StringComparison.OrdinalIgnoreCase) == true);
+        Assert.DoesNotContain(cut.FindAll("a.nav-link"), a => a.GetAttribute("href")?.Equals("live-tv", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     [Fact]
@@ -59,6 +59,6 @@ public class NavMenuLiveTvTests
 
         var cut = ctx.RenderNavMenu();
 
-        Assert.Contains(cut.FindAll("a.nav-link"), a => a.GetAttribute("href")?.Equals("/live-tv", StringComparison.OrdinalIgnoreCase) == true);
+        Assert.Contains(cut.FindAll("a.nav-link"), a => a.GetAttribute("href")?.Equals("live-tv", StringComparison.OrdinalIgnoreCase) == true);
     }
 }

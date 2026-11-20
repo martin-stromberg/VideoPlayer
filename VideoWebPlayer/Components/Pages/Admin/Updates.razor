@@ -113,7 +113,7 @@ else
                 }
 
                 <div class="update-action-row">
-                    <form method="post" action="/admin/updates/api/check">
+                    <form method="post" action="admin/updates/api/check">
                         @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
                         {
                             <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
@@ -357,7 +357,7 @@ else
     // Die Fortschrittsseite ist statisch und überlebt den Prozessstopp; sie löst die
     // Installation selbst aus und pollt anschließend auf den Neustart.
     private void NavigateToUpdateProgress()
-        => NavigationManager.NavigateTo("/update-progress.html", forceLoad: true);
+        => NavigationManager.NavigateTo("update-progress.html", forceLoad: true);
 
     private void ResetDefaults()
     {

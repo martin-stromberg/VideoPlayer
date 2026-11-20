@@ -29,7 +29,7 @@ public sealed class VideoWebPlayerClientTests_DeviceRunEndToEnd : DeviceClientTe
 
         var start = await Client.StartPlaylistAsync(playlistId, entryId: null);
         Assert.Equal(firstEntryId, start.CurrentEntryId);
-        Assert.Equal($"/api/items/movie/{firstMovieId}/stream", start.StreamUrl);
+        Assert.Equal($"api/items/movie/{firstMovieId}/stream", start.StreamUrl);
 
         // ReportPlaybackProgressAsync throws on any non-success answer, so reaching the next line means
         // the server accepted the report (it is written to the database by the buffered worker afterwards).

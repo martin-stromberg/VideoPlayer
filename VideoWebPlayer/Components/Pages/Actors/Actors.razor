@@ -50,7 +50,7 @@ else
         {
             <MediaBox Title="@GetActorTitle(actor)"
                       ImageUrl="@GetActorPictureUrl(actor.PictureUrl)"
-                      LinkUrl="@($"/actors/{actor.Id}")" />
+                      LinkUrl="@($"actors/{actor.Id}")" />
         }
     </div>
     @if (isLoading)
@@ -208,5 +208,5 @@ else
     private string GetActorPictureUrl(string? pictureUrl)
         => !string.IsNullOrWhiteSpace(pictureUrl) && !string.IsNullOrWhiteSpace(Client.AuthorizationToken)
             ? $"{pictureUrl}?access_token={Client.AuthorizationToken}"
-            : "/images/placeholder.png";
+            : "images/placeholder.png";
 }

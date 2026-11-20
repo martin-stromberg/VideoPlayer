@@ -29,7 +29,7 @@ public class PlaylistsListCoverTests
 
         var images = cut.FindAll(".playlist-card-cover-image");
         var single = Assert.Single(images);
-        Assert.Contains("/api/playlists/1/cover", single.GetAttribute("src"));
+        Assert.Contains("api/playlists/1/cover", single.GetAttribute("src"));
     }
 
     [Fact]

@@ -129,8 +129,8 @@
 
     private string GetPosterUrl(ApiModels.MediaEntryDto entry)
         => entry.PictureId.HasValue
-            ? $"/api/pictures/{entry.PictureId}?access_token={Vm.AuthorizationToken}"
-            : "/images/placeholder.png";
+            ? $"api/pictures/{entry.PictureId}?access_token={Vm.AuthorizationToken}"
+            : "images/placeholder.png";
 
     private async Task OnMovieSelected(ApiModels.MediaEntryDto movie)
     {

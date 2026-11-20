@@ -357,7 +357,7 @@ else if (playlist is not null)
     /// stale cached response for the same <c>/cover</c> endpoint.
     /// </summary>
     private string CoverImageUrl
-        => $"/api/playlists/{Id}/cover?access_token={Client.AuthorizationToken}&v={playlist?.CoverPictureId}";
+        => $"api/playlists/{Id}/cover?access_token={Client.AuthorizationToken}&v={playlist?.CoverPictureId}";
 
     /// <summary>
     /// Error from a failed <see cref="StartPlaybackAsync"/> call (e.g. the requested entry is locked or
@@ -430,7 +430,7 @@ else if (playlist is not null)
             // for this initial render and for later Next/Previous/Advance updates in OnPlaylistEntryIdChanged.
             playbackStart.StreamUrl = $"{playbackStart.StreamUrl}?access_token={Client.AuthorizationToken}";
             playbackError = null;
-            NavigationManager.NavigateTo($"/playlists/{Id}?entryId={playbackStart.CurrentEntryId}", replace: true);
+            NavigationManager.NavigateTo($"playlists/{Id}?entryId={playbackStart.CurrentEntryId}", replace: true);
         }
         catch (Exception ex)
         {
@@ -449,7 +449,7 @@ else if (playlist is not null)
     {
         playbackStart = null;
         playbackError = null;
-        NavigationManager.NavigateTo($"/playlists/{Id}", replace: true);
+        NavigationManager.NavigateTo($"playlists/{Id}", replace: true);
         return Task.CompletedTask;
     }
 
@@ -479,7 +479,7 @@ else if (playlist is not null)
             playbackStart.StartPositionSeconds = info.StartPositionSeconds;
         }
 
-        NavigationManager.NavigateTo($"/playlists/{Id}?entryId={info.EntryId}", replace: true);
+        NavigationManager.NavigateTo($"playlists/{Id}?entryId={info.EntryId}", replace: true);
     }
 
     private async Task LoadPlaylistAsync()
@@ -546,7 +546,7 @@ else if (playlist is not null)
         {
             await PlaylistClient.DeletePlaylistAsync(deleteState.Pending.Id);
             deleteState.Cancel();
-            NavigationManager.NavigateTo("/playlists");
+            NavigationManager.NavigateTo("playlists");
         }
         catch (Exception ex)
         {
@@ -559,7 +559,7 @@ else if (playlist is not null)
     private void NavigateToOverview()
     {
         // A viewer of somebody else's public playlist came from the public overview.
-        NavigationManager.NavigateTo(playlist is not null && !playlist.IsOwner ? "/playlists/public" : "/playlists");
+        NavigationManager.NavigateTo(playlist is not null && !playlist.IsOwner ? "playlists/public" : "playlists");
     }
 
     /// <summary>

@@ -161,16 +161,16 @@
 
     private void OpenDetails(long id)
     {
-        Navigation.NavigateTo($"/admin/mediasources/{id}");
+        Navigation.NavigateTo($"admin/mediasources/{id}");
     }
 
     private void CreateNew()
     {
-        Navigation.NavigateTo("/admin/mediasources/new");
+        Navigation.NavigateTo("admin/mediasources/new");
     }
 
     private string GetIconUrl(long iconPictureId)
-        => $"/api/sourceicons/{iconPictureId}?access_token={Client.AuthorizationToken}";
+        => $"api/sourceicons/{iconPictureId}?access_token={Client.AuthorizationToken}";
 
     private async Task DeleteSource(MediaSource source)
     {

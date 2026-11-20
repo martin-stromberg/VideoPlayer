@@ -15,7 +15,7 @@ public sealed class TVShowDetailsBackgroundImageUrlBuilderTests
     {
         var url = TVShowDetails.BuildEpisodeBackgroundImageUrl(42, "token-123");
 
-        Assert.Equal("/api/episodes/42/background-image?access_token=token-123", url);
+        Assert.Equal("api/episodes/42/background-image?access_token=token-123", url);
     }
 
     [Fact]
@@ -23,6 +23,6 @@ public sealed class TVShowDetailsBackgroundImageUrlBuilderTests
     {
         var url = TVShowDetails.BuildEpisodeBackgroundImageUrl(42, null);
 
-        Assert.Equal("/api/episodes/42/background-image?access_token=", url);
+        Assert.Equal("api/episodes/42/background-image?access_token=", url);
     }
 }

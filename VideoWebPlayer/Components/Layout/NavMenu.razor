@@ -55,7 +55,7 @@
                     @foreach (var source in mediaSources)
                     {
                         <div class="nav-item px-3">
-                            <NavLink class="nav-link" href="@($"/mediasource/{source.Id}")">
+                            <NavLink class="nav-link" href="@($"mediasource/{source.Id}")">
                                 @if (source.IconPictureId.HasValue)
                                 {
                                     <img src="@GetIconUrl(source.IconPictureId.Value)" alt="" class="source-icon" />
@@ -201,7 +201,7 @@
     }
 
     private string GetIconUrl(long iconPictureId)
-        => $"/api/sourceicons/{iconPictureId}?access_token={Client.AuthorizationToken}";
+        => $"api/sourceicons/{iconPictureId}?access_token={Client.AuthorizationToken}";
 
     public void Dispose()
     {

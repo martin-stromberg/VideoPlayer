@@ -249,7 +249,7 @@ else
     private string? StreamUrl
         => string.IsNullOrWhiteSpace(Client.AuthorizationToken)
             ? null
-            : $"/api/live-stream/live.m3u8?access_token={Uri.EscapeDataString(Client.AuthorizationToken)}";
+            : $"api/live-stream/live.m3u8?access_token={Uri.EscapeDataString(Client.AuthorizationToken)}";
 
     private string HlsScriptUrl => AssetVersions.Url("js/vendor/hls.min.js");
 

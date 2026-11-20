@@ -140,7 +140,7 @@ public class PlaylistDetailHeaderTests
         Assert.Equal("2018", cut.Find("#playlist-detail-entry-year").TextContent);
         Assert.Equal("Film", cut.Find("#playlist-detail-entry-type").TextContent);
         Assert.Equal("Eine Filmhandlung.", cut.Find("#playlist-detail-entry-plot").TextContent);
-        Assert.Contains("/api/pictures/77", cut.Find("#playlist-detail-entry-poster").GetAttribute("src"));
+        Assert.Contains("api/pictures/77", cut.Find("#playlist-detail-entry-poster").GetAttribute("src"));
         Assert.Empty(cut.FindAll("#playlist-detail-entry-parent"));
         // The playlist information is replaced by the title information.
         Assert.Empty(cut.FindAll("#playlist-detail-name"));
@@ -174,7 +174,7 @@ public class PlaylistDetailHeaderTests
 
         cut.FindAll(".playlist-entry-row").Single(r => r.TextContent.Contains("Die Folge")).Click();
 
-        Assert.Contains("/api/episodes/200/background-image", cut.Find("#playlist-detail-entry-background").GetAttribute("src"));
+        Assert.Contains("api/episodes/200/background-image", cut.Find("#playlist-detail-entry-background").GetAttribute("src"));
         Assert.Empty(cut.FindAll("#playlist-detail-entry-poster"));
 
         // Back to the playlist: the header shows the playlist again, without an entry background.
@@ -234,7 +234,7 @@ public class PlaylistDetailHeaderTests
         Assert.Empty(cut.FindAll("#playlist-detail-entry-year"));
         Assert.Empty(cut.FindAll("#playlist-detail-entry-plot"));
         Assert.Empty(cut.FindAll("#playlist-detail-entry-parent"));
-        Assert.Contains("/images/placeholder.png", cut.Find("#playlist-detail-entry-poster").GetAttribute("src"));
+        Assert.Contains("images/placeholder.png", cut.Find("#playlist-detail-entry-poster").GetAttribute("src"));
     }
 
     [Fact]

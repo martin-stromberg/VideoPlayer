@@ -129,15 +129,15 @@ public sealed class UpdatesController : ControllerBase
         }
     }
 
-    private static RedirectResult RedirectWithResult(UpdateAdminActionResult result)
+    private RedirectResult RedirectWithResult(UpdateAdminActionResult result)
     {
         var key = result.Succeeded ? "updateStatus" : "updateError";
-        return new RedirectResult($"/admin/updates?{key}={Uri.EscapeDataString(result.Message)}");
+        return new RedirectResult($"{Request.PathBase}/admin/updates?{key}={Uri.EscapeDataString(result.Message)}");
     }
 
-    private static RedirectResult RedirectWithCheckResult(UpdateAdminActionResult result)
+    private RedirectResult RedirectWithCheckResult(UpdateAdminActionResult result)
     {
         var key = result.Succeeded ? "checkStatus" : "checkError";
-        return new RedirectResult($"/admin/updates?{key}={Uri.EscapeDataString(result.Message)}");
+        return new RedirectResult($"{Request.PathBase}/admin/updates?{key}={Uri.EscapeDataString(result.Message)}");
     }
 }

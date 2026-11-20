@@ -238,13 +238,13 @@ public class LiveTvTests
         Assert.Single(nowCard.QuerySelectorAll(".progress-fill"));
         Assert.Equal("Krimiserie", nowCard.QuerySelector(".program-title")!.TextContent.Trim());
         Assert.Contains("S1 E2", nowCard.TextContent);
-        Assert.Equal($"/api/pictures/42?access_token={TestToken}",
+        Assert.Equal($"api/pictures/42?access_token={TestToken}",
             nowCard.QuerySelector(".program-poster img")!.GetAttribute("src"));
 
         var rows = cut.FindAll(".livetv-upcoming-row.program-card");
         Assert.Equal(2, rows.Count);
         Assert.Contains("Episodentext.", rows[0].TextContent);
-        Assert.Contains("/api/pictures/42", rows[0].QuerySelector(".program-poster img")!.GetAttribute("src"));
+        Assert.Contains("api/pictures/42", rows[0].QuerySelector(".program-poster img")!.GetAttribute("src"));
 
         // Ohne Bild/Beschreibung: Platzhalter-Bild + sauberer Fallback-Text.
         Assert.Contains("placeholder.png", rows[1].QuerySelector(".program-poster img")!.GetAttribute("src"));

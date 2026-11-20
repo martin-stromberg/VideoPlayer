@@ -88,7 +88,7 @@ public sealed class SeasonalGenresE2ETests : IAsyncLifetime
         await Expect(page.GetByText("Secret Film", new() { Exact = true })).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Inactive", Exact = true })).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Empty", Exact = true })).ToHaveCountAsync(0);
-        var film = page.Locator($"#genre-{genreId}").Locator("..").Locator($"a[href='/movie/{filmId}']");
+        var film = page.Locator($"#genre-{genreId}").Locator("..").Locator($"a[href='movie/{filmId}']");
         await Expect(film).ToBeVisibleAsync();
         await Expect(film.Locator(".watched-indicator")).ToBeVisibleAsync();
     }
@@ -97,10 +97,10 @@ public sealed class SeasonalGenresE2ETests : IAsyncLifetime
     public async Task SeasonalCards_OpenMatchingMovieCollectionShowAndSingletonTargets()
     {
         await LoginAsync();
-        foreach (var target in new[] { $"/movie/{filmId}", $"/moviecollection/{collectionId}", $"/tvshow/{showId}", $"/movie/{singleId}" })
+        foreach (var target in new[] { $"movie/{filmId}", $"moviecollection/{collectionId}", $"tvshow/{showId}", $"movie/{singleId}" })
         {
             await page.Locator($"#genre-{genreId}").Locator("..").Locator($"a[href='{target}']").ClickAsync();
-            await page.WaitForURLAsync(u => new Uri(u).AbsolutePath == target);
+            await page.WaitForURLAsync(u => new Uri(u).AbsolutePath == $"/{target}");
             await Expect(page.Locator("h1,h2").First).ToBeVisibleAsync();
             await page.GotoAsync(url + "/");
             await Expect(page.Locator($"#genre-{genreId}")).ToBeVisibleAsync();

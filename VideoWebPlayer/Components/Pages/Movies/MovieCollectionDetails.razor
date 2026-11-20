@@ -318,13 +318,13 @@ else
     </EditForm>;
 
     private string GetBannerUrl(DtoMovieCollection col)
-        => col.BannerPictureId.HasValue ? $"/api/pictures/{col.BannerPictureId}?access_token={Client.AuthorizationToken}" : col.FanartPictureId.HasValue ? $"/api/pictures/{col.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+        => col.BannerPictureId.HasValue ? $"api/pictures/{col.BannerPictureId}?access_token={Client.AuthorizationToken}" : col.FanartPictureId.HasValue ? $"api/pictures/{col.FanartPictureId}?access_token={Client.AuthorizationToken}" : "images/placeholder.png";
 
     private string GetBannerUrl(DtoMovie movie)
-        => movie.BannerPictureId.HasValue ? $"/api/pictures/{movie.BannerPictureId}?access_token={Client.AuthorizationToken}" : movie.FanartPictureId.HasValue ? $"/api/pictures/{movie.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+        => movie.BannerPictureId.HasValue ? $"api/pictures/{movie.BannerPictureId}?access_token={Client.AuthorizationToken}" : movie.FanartPictureId.HasValue ? $"api/pictures/{movie.FanartPictureId}?access_token={Client.AuthorizationToken}" : "images/placeholder.png";
 
     private string GetPosterUrl(DtoMovie movie)
-        => movie.PosterPictureId.HasValue ? $"/api/pictures/{movie.PosterPictureId}?access_token={Client.AuthorizationToken}" : movie.FanartPictureId.HasValue ? $"/api/pictures/{movie.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+        => movie.PosterPictureId.HasValue ? $"api/pictures/{movie.PosterPictureId}?access_token={Client.AuthorizationToken}" : movie.FanartPictureId.HasValue ? $"api/pictures/{movie.FanartPictureId}?access_token={Client.AuthorizationToken}" : "images/placeholder.png";
 
     private string GetYear(DtoMovieCollection col)
         => col.ReleaseDate?.Year.ToString() ?? col.Movies?.Where(m => m.ReleaseDate != DateTime.MinValue)?.OrderBy(m => m.ReleaseDate)?.FirstOrDefault()?.ReleaseDate?.Year.ToString() ?? "";
@@ -362,7 +362,7 @@ else
     }
 
     private string GetMovieStreamUrl(DtoMovie movie)
-        => $"/api/items/movie/{movie.Id}/stream?access_token={Client.AuthorizationToken}";
+        => $"api/items/movie/{movie.Id}/stream?access_token={Client.AuthorizationToken}";
 
     private async Task SelectMovieAsync(DtoMovie movie)
         => await RunWithDirtyCheckAsync(async () => await SelectMovieCoreAsync(movie, isEditing));
@@ -402,7 +402,7 @@ else
     }
 
     private string GetDownloadUrl(DtoMovie movie)
-        => $"/api/items/movie/{movie.Id}/download?access_token={Client.AuthorizationToken}";
+        => $"api/items/movie/{movie.Id}/download?access_token={Client.AuthorizationToken}";
 
     private async Task ToggleFavorite(DtoMovie? movie)
     {

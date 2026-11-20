@@ -340,7 +340,7 @@ else
         }
     </EditForm>;
 
-    private string CanonicalUrl => nav.ToAbsoluteUri($"/tvshow/{Id}" +
+    private string CanonicalUrl => nav.ToAbsoluteUri($"tvshow/{Id}" +
         (selectedSeason != null ? $"?season={selectedSeason.Id}" : "") +
         (selectedEpisode != null ? $"{(selectedSeason != null ? "&" : "?")}episode={selectedEpisode.Id}" : "")).ToString();
 
@@ -376,7 +376,7 @@ else
                         ?? show?.PosterPictureId
                         ?? selectedEpisode?.FanartPictureId
                         ?? show?.FanartPictureId;
-            return picId is null ? null : nav.ToAbsoluteUri($"/api/pictures/{picId}").ToString();
+            return picId is null ? null : nav.ToAbsoluteUri($"api/pictures/{picId}").ToString();
         }
     }
 
@@ -386,7 +386,7 @@ else
             : GetBannerUrl(showSeasonInfo ? (DtoMediaEntry?)selectedSeason : show);
 
     internal static string BuildEpisodeBackgroundImageUrl(long episodeId, string? accessToken)
-        => $"/api/episodes/{episodeId}/background-image?access_token={accessToken}";
+        => $"api/episodes/{episodeId}/background-image?access_token={accessToken}";
 
     private async Task UpdateFavoriteMark()
     {
@@ -699,10 +699,10 @@ else
         => show?.ReleaseDate ?? show?.PremieredAt;
 
     private string GetBannerUrl(DtoMediaEntry? entry)
-        => entry?.BannerPictureId.HasValue == true ? $"/api/pictures/{entry.BannerPictureId}?access_token={Client.AuthorizationToken}" : entry?.FanartPictureId.HasValue == true ? $"/api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+        => entry?.BannerPictureId.HasValue == true ? $"api/pictures/{entry.BannerPictureId}?access_token={Client.AuthorizationToken}" : entry?.FanartPictureId.HasValue == true ? $"api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "images/placeholder.png";
 
     private string GetPosterUrl(DtoMediaEntry entry)
-        => entry.PosterPictureId.HasValue ? $"/api/pictures/{entry.PosterPictureId}?access_token={Client.AuthorizationToken}" : entry.FanartPictureId.HasValue ? $"/api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+        => entry.PosterPictureId.HasValue ? $"api/pictures/{entry.PosterPictureId}?access_token={Client.AuthorizationToken}" : entry.FanartPictureId.HasValue ? $"api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "images/placeholder.png";
 
     private void ShowPlayer() => showPlayer = true;
 
@@ -728,10 +728,10 @@ else
     }
 
     private string GetEpisodeStreamUrl(DtoTVShowEpisode episode)
-        => $"/api/items/tvshowepisode/{episode.Id}/stream?access_token={Client.AuthorizationToken}";
+        => $"api/items/tvshowepisode/{episode.Id}/stream?access_token={Client.AuthorizationToken}";
 
     private string GetEpisodeDownloadUrl(DtoTVShowEpisode episode)
-        => $"/api/items/tvshowepisode/{episode.Id}/download?access_token={Client.AuthorizationToken}";
+        => $"api/items/tvshowepisode/{episode.Id}/download?access_token={Client.AuthorizationToken}";
 
     private async Task ToggleFavorite()
     {

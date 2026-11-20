@@ -299,7 +299,7 @@ else
             var absPath = Path.Combine(iconsDir, $"{key}{ext}");
             if (System.IO.File.Exists(absPath))
             {
-                var url = $"/images/genres/{key}{ext}";
+                var url = $"images/genres/{key}{ext}";
                 return forceCacheBust ? $"{url}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}" : url;
             }
         }

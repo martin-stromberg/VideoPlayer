@@ -188,7 +188,7 @@ public class SourceGenresController : ApiBaseController
             var absPath = Path.Combine(iconsDir, $"{key}{ext}");
             if (System.IO.File.Exists(absPath))
             {
-                return $"/images/genres/{key}{ext}";
+                return $"images/genres/{key}{ext}";
             }
         }
 

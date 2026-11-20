@@ -49,9 +49,9 @@ public class ContinueWatchingListTests
         Assert.Contains("In Playlist: Playlist B", subtitles);
 
         var links = cut.FindAll(".media-box-link").Select(e => e.GetAttribute("href")).ToList();
-        Assert.Contains("/playlists/1?entryId=201", links);
-        Assert.Contains("/playlists/2?entryId=202", links);
-        Assert.Contains(links, l => l is not null && l.StartsWith("/moviecollection/55"));
+        Assert.Contains("playlists/1?entryId=201", links);
+        Assert.Contains("playlists/2?entryId=202", links);
+        Assert.Contains(links, l => l is not null && l.StartsWith("moviecollection/55"));
     }
 
     [Fact]
@@ -83,9 +83,9 @@ public class ContinueWatchingListTests
         Assert.Equal(2, remainingShells.Count);
 
         var remainingLinks = cut.FindAll(".media-box-link").Select(e => e.GetAttribute("href")).ToList();
-        Assert.Contains("/playlists/1?entryId=201", remainingLinks);
-        Assert.Contains(remainingLinks, l => l is not null && l.StartsWith("/moviecollection/55"));
-        Assert.DoesNotContain("/playlists/2?entryId=202", remainingLinks);
+        Assert.Contains("playlists/1?entryId=201", remainingLinks);
+        Assert.Contains(remainingLinks, l => l is not null && l.StartsWith("moviecollection/55"));
+        Assert.DoesNotContain("playlists/2?entryId=202", remainingLinks);
     }
 
     /// <summary>

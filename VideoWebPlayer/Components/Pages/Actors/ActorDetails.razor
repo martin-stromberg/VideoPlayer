@@ -54,11 +54,11 @@ else
 
     private void BackToList()
     {
-        Navigation.NavigateTo("/actors");
+        Navigation.NavigateTo("actors");
     }
 
     private string GetActorPictureUrl(string? pictureUrl)
         => !string.IsNullOrWhiteSpace(pictureUrl) && !string.IsNullOrWhiteSpace(Client.AuthorizationToken)
             ? $"{pictureUrl}?access_token={Client.AuthorizationToken}"
-            : "/images/placeholder.png";
+            : "images/placeholder.png";
 }

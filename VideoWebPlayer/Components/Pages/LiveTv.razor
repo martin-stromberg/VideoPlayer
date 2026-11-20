@@ -166,7 +166,7 @@ else
                                    Clip-Fuell-Lauf statt einer Karte je Kurz-Clip; der Icon-Button
                                    klappt die Einzelclips in der Karte auf. *@
                                 <li class="livetv-upcoming-row program-card compact livetv-clip-block" data-first-slot-id="@blockFirst.SlotId" data-clip-count="@block.Clips.Count">
-                                    <div class="program-poster"><img src="/images/placeholder.png" alt="" /></div>
+                                    <div class="program-poster"><img src="images/placeholder.png" alt="" /></div>
                                     <div class="program-body">
                                         <span class="program-time">@FormatTime(blockFirst.StartUtc)&nbsp;–&nbsp;@FormatTime(blockLast.EndUtc)</span>
                                         <span class="program-title">Platzhalter-Clips</span>
@@ -249,7 +249,7 @@ else
     private string? StreamUrl
         => string.IsNullOrWhiteSpace(Client.AuthorizationToken)
             ? null
-            : $"/api/live-stream/live.m3u8?access_token={Uri.EscapeDataString(Client.AuthorizationToken)}";
+            : $"api/live-stream/live.m3u8?access_token={Uri.EscapeDataString(Client.AuthorizationToken)}";
 
     private string HlsScriptUrl => AssetVersions.Url("js/vendor/hls.min.js");
 

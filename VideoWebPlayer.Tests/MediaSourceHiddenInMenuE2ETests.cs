@@ -196,7 +196,7 @@ public sealed class MediaSourceHiddenInMenuE2ETests : IAsyncLifetime
 
     private async Task AssertMenuLinkCountAsync(long sourceId, int expected)
     {
-        var link = _page.Locator($"nav a.nav-link[href='/mediasource/{sourceId}']");
+        var link = _page.Locator($"nav a.nav-link[href='mediasource/{sourceId}']");
         await Expect(link).ToHaveCountAsync(expected);
     }
 

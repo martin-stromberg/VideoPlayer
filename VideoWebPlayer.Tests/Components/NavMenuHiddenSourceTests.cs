@@ -26,8 +26,8 @@ public class NavMenuHiddenSourceTests
         var cut = ctx.RenderNavMenu();
 
         var hrefs = SourceHrefs(cut);
-        Assert.Contains("/mediasource/1", hrefs);
-        Assert.DoesNotContain("/mediasource/2", hrefs);
+        Assert.Contains("mediasource/1", hrefs);
+        Assert.DoesNotContain("mediasource/2", hrefs);
         Assert.DoesNotContain("Clip-Quelle", cut.Markup);
     }
 
@@ -42,7 +42,7 @@ public class NavMenuHiddenSourceTests
         var cut = ctx.RenderNavMenu();
 
         var hrefs = SourceHrefs(cut);
-        Assert.Contains("/mediasource/1", hrefs);
+        Assert.Contains("mediasource/1", hrefs);
         Assert.Contains("Quellen", cut.Markup);
     }
 
@@ -74,14 +74,14 @@ public class NavMenuHiddenSourceTests
         var cut = ctx.RenderNavMenu();
 
         var hrefs = SourceHrefs(cut);
-        Assert.Contains("/mediasource/1", hrefs);
-        Assert.DoesNotContain("/mediasource/2", hrefs);
+        Assert.Contains("mediasource/1", hrefs);
+        Assert.DoesNotContain("mediasource/2", hrefs);
     }
 
     private static IReadOnlyList<string> SourceHrefs(IRenderedComponent<NavMenu> cut)
         => cut.FindAll("a.nav-link")
             .Select(a => a.GetAttribute("href"))
-            .Where(h => h?.StartsWith("/mediasource/", StringComparison.OrdinalIgnoreCase) == true)
+            .Where(h => h?.StartsWith("mediasource/", StringComparison.OrdinalIgnoreCase) == true)
             .Select(h => h!)
             .ToList();
 }

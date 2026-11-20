@@ -92,7 +92,7 @@
                             @* draggable="false": Bilder sind von Haus aus nativ ziehbar - ein solcher
                                Browser-Drag wuerde die Zieh-Geste aus playlistDragDrop.js abbrechen
                                (pointercancel), sobald jemand die Kachel am Poster anfasst. *@
-                            <img class="episode-poster episode-poster-left playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" draggable="false" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                            <img class="episode-poster episode-poster-left playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" draggable="false" onerror="this.onerror=null;this.src='images/placeholder.png';" />
                             <div class="episode-info">
                                 <div class="episode-title">@entry.MediaTitle</div>
                                 @if (!string.IsNullOrWhiteSpace(entry.ParentMediaTitle))

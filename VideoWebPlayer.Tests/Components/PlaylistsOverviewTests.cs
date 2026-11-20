@@ -137,8 +137,8 @@ public class PlaylistsOverviewTests
         var cut = ctx.Render<PlaylistsList>();
 
         var tile = cut.Find("a.playlist-row");
-        Assert.Equal("/playlists/7", tile.GetAttribute("href"));
-        Assert.Contains("/api/playlists/7/cover", cut.Find(".playlist-card-cover-image").GetAttribute("src"));
+        Assert.Equal("playlists/7", tile.GetAttribute("href"));
+        Assert.Contains("api/playlists/7/cover", cut.Find(".playlist-card-cover-image").GetAttribute("src"));
         Assert.DoesNotContain("Besitzer", cut.Markup, StringComparison.OrdinalIgnoreCase);
         // Nur lesend: keine Bearbeitungsmöglichkeit in der Übersicht.
         Assert.Empty(cut.FindAll(".playlist-detail-edit-button, .playlist-detail-delete-button"));
@@ -290,7 +290,7 @@ public class PlaylistsOverviewTests
 
         Assert.Empty(cut.FindAll("#public-playlists-link"));
         Assert.Empty(cut.FindAll("#own-playlists-link"));
-        Assert.Empty(cut.FindAll("a[href='/playlists/public']"));
+        Assert.Empty(cut.FindAll("a[href='playlists/public']"));
     }
 
     [Theory]

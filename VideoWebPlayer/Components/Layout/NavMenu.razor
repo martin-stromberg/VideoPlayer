@@ -27,13 +27,13 @@
         <AuthorizeView>
             <Authorized>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="/actors">
+                    <NavLink class="nav-link" href="actors">
                         <span class="bi bi-people" aria-hidden="true"></span> Schauspieler
                     </NavLink>
                 </div>
 
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="/playlists">
+                    <NavLink class="nav-link" href="playlists">
                         <span class="bi bi-playlist-nav-menu" aria-hidden="true"></span> Playlists
                     </NavLink>
                 </div>
@@ -41,7 +41,7 @@
                 @if (tvSenderEnabled)
                 {
                     <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="/live-tv">
+                        <NavLink class="nav-link" href="live-tv">
                             <span class="bi bi-tv" aria-hidden="true"></span> Live-TV
                         </NavLink>
                     </div>
@@ -55,7 +55,7 @@
                     @foreach (var source in mediaSources)
                     {
                         <div class="nav-item px-3">
-                            <NavLink class="nav-link" href="@($"/mediasource/{source.Id}")">
+                            <NavLink class="nav-link" href="@($"mediasource/{source.Id}")">
                                 @if (source.IconPictureId.HasValue)
                                 {
                                     <img src="@GetIconUrl(source.IconPictureId.Value)" alt="" class="source-icon" />
@@ -73,7 +73,7 @@
                 @if (context.User.HasClaim("IsAdmin", "True"))
                 {
                     <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="/admin">
+                        <NavLink class="nav-link" href="admin">
                             <span class="bi bi-gear"></span> Einrichtung
                             @if (newBlockedCount > 0)
                             {
@@ -201,7 +201,7 @@
     }
 
     private string GetIconUrl(long iconPictureId)
-        => $"/api/sourceicons/{iconPictureId}?access_token={Client.AuthorizationToken}";
+        => $"api/sourceicons/{iconPictureId}?access_token={Client.AuthorizationToken}";
 
     public void Dispose()
     {

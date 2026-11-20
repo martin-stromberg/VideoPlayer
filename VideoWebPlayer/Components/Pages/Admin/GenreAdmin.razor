@@ -26,7 +26,7 @@ else
                 <h1>Genres</h1>
                 <p>Genre-Metadaten, saisonale Sichtbarkeit und Bilder pflegen.</p>
             </div>
-            <a class="btn btn-outline-light" href="/admin">Zurück</a>
+            <a class="btn btn-outline-light" href="admin">Zurück</a>
         </header>
 
         <div class="admin-card admin-card-wide">
@@ -299,7 +299,7 @@ else
             var absPath = Path.Combine(iconsDir, $"{key}{ext}");
             if (System.IO.File.Exists(absPath))
             {
-                var url = $"/images/genres/{key}{ext}";
+                var url = $"images/genres/{key}{ext}";
                 return forceCacheBust ? $"{url}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}" : url;
             }
         }

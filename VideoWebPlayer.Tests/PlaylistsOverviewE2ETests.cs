@@ -102,8 +102,8 @@ public sealed class PlaylistsOverviewE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         await OpenOverviewAsync("/playlists");
 
-        await Expect(Page.Locator("a.nav-link[href='/playlists']")).ToHaveCountAsync(1);
-        await Expect(Page.Locator("a.nav-link[href='/playlists/public']")).ToHaveCountAsync(0);
+        await Expect(Page.Locator("a.nav-link[href='playlists']")).ToHaveCountAsync(1);
+        await Expect(Page.Locator("a.nav-link[href='playlists/public']")).ToHaveCountAsync(0);
 
         var create = Page.Locator("#create-playlist-button");
         await Expect(create).ToHaveAttributeAsync("title", "Neue Playlist");

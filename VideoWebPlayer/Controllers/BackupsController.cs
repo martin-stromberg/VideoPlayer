@@ -66,7 +66,7 @@ public sealed class BackupsController : ControllerBase
             ? "Backup wurde im Hintergrund gestartet."
             : "Es läuft bereits ein manuelles Backup.";
 
-        return Redirect($"/admin/backups?backupStatus={Uri.EscapeDataString(message)}");
+        return Redirect($"{Request.PathBase}/admin/backups?backupStatus={Uri.EscapeDataString(message)}");
     }
 
     /// <summary>

@@ -549,7 +549,7 @@ public sealed class TVSenderAdminTests
         Assert.Contains("Geplant", live.TextContent);
         var img = live.QuerySelector(".program-poster img");
         Assert.NotNull(img);
-        Assert.Contains($"/api/pictures/{poster.Id}", img!.GetAttribute("src"));
+        Assert.Contains($"api/pictures/{poster.Id}", img!.GetAttribute("src"));
     }
 
     [Fact]

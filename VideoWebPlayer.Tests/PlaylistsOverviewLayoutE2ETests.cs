@@ -279,7 +279,7 @@ public sealed class PlaylistsOverviewLayoutE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         await OpenOverviewAsync();
 
-        var icon = Page.Locator(".nav-link[href='/playlists'] .bi");
+        var icon = Page.Locator(".nav-link[href='playlists'] .bi");
         await Expect(icon).ToHaveCountAsync(1);
         var maskImage = await icon.EvaluateAsync<string>("e => { const s = getComputedStyle(e); return s.maskImage && s.maskImage !== 'none' ? s.maskImage : s.webkitMaskImage; }");
         Assert.False(string.IsNullOrWhiteSpace(maskImage) || maskImage == "none", "Das Menüsymbol der Playlists hat keine Maske und wird als gefülltes Quadrat gezeichnet");

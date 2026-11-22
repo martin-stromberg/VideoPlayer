@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -16,6 +17,7 @@ namespace VideoWebPlayer.Tests;
 /// internal stream endpoint serves a media item only with a valid issued token and honors
 /// HTTP range requests — the properties the ffprobe HTTP probe path relies on.
 /// </summary>
+[OsInterface]
 public sealed class InternalMediaStreamControllerTests : IDisposable
 {
     private static readonly byte[] VideoBytes = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77 };

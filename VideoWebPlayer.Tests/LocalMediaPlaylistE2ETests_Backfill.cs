@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -11,6 +12,7 @@ namespace VideoWebPlayer.Tests;
 /// anfasst. Die Gegenprobe gehört dazu: ein "Neu erfassen" ohne neue Dateien liefert nichts nach.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 [Collection(MediaSourceClassifierCollection.Name)]
 public sealed class LocalMediaPlaylistE2ETests_Backfill : LocalMediaPlaylistE2ETestBase
 {

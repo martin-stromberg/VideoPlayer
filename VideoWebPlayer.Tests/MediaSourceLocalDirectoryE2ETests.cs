@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -21,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// ungültigen Pfaden und kann den Quelltyp bei bestehenden Quellen nicht ändern.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class MediaSourceLocalDirectoryE2ETests : IAsyncLifetime
 {
     private readonly string _dbPath;

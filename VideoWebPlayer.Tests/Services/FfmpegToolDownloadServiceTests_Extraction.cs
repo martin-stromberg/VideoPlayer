@@ -1,6 +1,7 @@
 using System.Net;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -10,6 +11,7 @@ namespace VideoWebPlayer.Tests.Services;
 /// archives may not write anything outside <c>tools/ffmpeg/</c> — only the two allowlisted
 /// binary names land there, flat under their plain file name.
 /// </summary>
+[OsInterface]
 public sealed class FfmpegToolDownloadServiceTests_Extraction
 {
     [Fact]

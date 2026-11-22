@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -16,6 +17,8 @@ namespace VideoWebPlayer.Tests;
 /// <see cref="TVSenderAdminClipGroupsE2ETests"/>: Slots direkt per
 /// <c>Services.CreateScope()</c> + <see cref="ApplicationDbContext"/> geseedet).
 /// </summary>
+[Trait("Category", "E2E")]
+[OsInterface]
 public sealed class TVSenderAdminClipBlocksE2ETests : TVSenderAdminE2ETestBase
 {
     private Task OpenAdminPageAsAdminAsync()
@@ -27,6 +30,9 @@ public sealed class TVSenderAdminClipBlocksE2ETests : TVSenderAdminE2ETestBase
     /// directly in the database: <paramref name="clipCounts"/> describes consecutive gapless
     /// runs, each separated from the previous one by a regular (non-clip-fill) slot.
     /// Returns the rule id and the clip media-item ids per run.</summary>
+    /// <param name="RuleId">ID der angelegten Programmregel (Element des Rückgabe-Tupels).</param>
+    /// <param name="clipCounts">Anzahl der Clip-Füll-Slots je Lauf.</param>
+    /// <returns>Regel-ID und die Clip-MediaItem-IDs je Lauf.</returns>
     private async Task<(long RuleId, List<long[]> ClipItemIds)> SeedClipRunsAsync(params int[] clipCounts)
     {
         var ct = TestContext.Current.CancellationToken;

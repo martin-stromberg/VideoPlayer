@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
@@ -13,6 +14,8 @@ namespace VideoWebPlayer.Tests;
 /// the protected reserved "Trailer" system group, clip assignment via the candidate picker and
 /// the rule editor fields.
 /// </summary>
+[Trait("Category", "E2E")]
+[OsInterface]
 public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
 {
     private Task OpenAdminPageAsAdminAsync()
@@ -33,6 +36,8 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
     }
 
     /// <summary>Seeds a named (non-system) clip group directly in the database and returns its id.</summary>
+    /// <param name="name">Name der Clip-Gruppe.</param>
+    /// <returns>ID der angelegten Clip-Gruppe.</returns>
     private async Task<long> SeedClipGroupAsync(string name)
     {
         using var scope = Services.CreateScope();
@@ -45,6 +50,8 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
     }
 
     /// <summary>Links a media item to a clip group directly in the database.</summary>
+    /// <param name="groupId">ID der Clip-Gruppe.</param>
+    /// <param name="mediaItemId">ID des zu verknüpfenden MediaItems.</param>
     private async Task SeedClipGroupItemAsync(long groupId, long mediaItemId)
     {
         using var scope = Services.CreateScope();
@@ -54,6 +61,8 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
     }
 
     /// <summary>Assigns a clip group to a program rule directly in the database.</summary>
+    /// <param name="ruleId">ID der Programmregel.</param>
+    /// <param name="groupId">ID der Clip-Gruppe.</param>
     private async Task SeedRuleClipGroupLinkAsync(long ruleId, long groupId)
     {
         using var scope = Services.CreateScope();

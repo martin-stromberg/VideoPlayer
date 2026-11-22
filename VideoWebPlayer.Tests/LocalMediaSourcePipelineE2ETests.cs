@@ -10,6 +10,7 @@ using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -19,6 +20,7 @@ namespace VideoWebPlayer.Tests;
 /// und klassifiziert; die klassifizierte TVShow ist anschließend über die API abrufbar.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 // Wie die uebrigen Klassifizierungs-Tests: MediaSourceClassifier serialisiert Klassifizierungslaeufe ueber
 // ein prozessweites, statisches Flag (_classificationRunning), sodass ein parallel laufender Test einer
 // ANDEREN Hostinstanz seine Klassifizierung stillschweigend ueberspringt.

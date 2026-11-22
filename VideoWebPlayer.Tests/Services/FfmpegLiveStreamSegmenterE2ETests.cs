@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -15,6 +16,7 @@ namespace VideoWebPlayer.Tests.Services;
 /// after the very first segment in production, N15). Skipped when no ffmpeg binary exists.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class FfmpegLiveStreamSegmenterE2ETests
 {
     [Fact]

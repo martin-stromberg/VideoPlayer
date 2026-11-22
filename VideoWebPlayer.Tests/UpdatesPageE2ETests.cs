@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Playwright;
 using msTools.Updater;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Updates;
@@ -17,6 +18,7 @@ using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[OsInterface]
 public sealed class UpdatesPageE2ETests : IAsyncLifetime
 {
     private const string AdminEmail = "updates-admin@test.com";

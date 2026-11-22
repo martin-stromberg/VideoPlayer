@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -15,6 +16,8 @@ namespace VideoWebPlayer.Tests;
 /// aggregated "Platzhalter-Clips" block row — the same grouping the admin "Sendeplan" tab
 /// shows — whose icon button expands the individual clips in air order inside the card.
 /// </summary>
+[Trait("Category", "E2E")]
+[OsInterface]
 public sealed class LiveTvClipBlocksE2ETests : TVSenderAdminE2ETestBase
 {
     [Fact]

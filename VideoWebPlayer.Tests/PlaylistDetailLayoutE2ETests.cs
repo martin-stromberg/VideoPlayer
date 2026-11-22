@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
@@ -16,6 +17,7 @@ namespace VideoWebPlayer.Tests;
 /// panel/dialog of the feature. (These properties are CSS effects that bUnit cannot see.)
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistDetailLayoutE2ETests : PlaylistsE2ETestBase
 {
     private const string HeaderSelector = "#playlist-detail-header";

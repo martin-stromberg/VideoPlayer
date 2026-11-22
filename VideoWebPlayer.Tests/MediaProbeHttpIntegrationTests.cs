@@ -12,6 +12,7 @@ using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -23,6 +24,7 @@ namespace VideoWebPlayer.Tests;
 /// the self-call URL resolution end to end. Skipped when no ffmpeg/ffprobe binaries exist.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class MediaProbeHttpIntegrationTests : IAsyncLifetime
 {
     private readonly string _dbPath;

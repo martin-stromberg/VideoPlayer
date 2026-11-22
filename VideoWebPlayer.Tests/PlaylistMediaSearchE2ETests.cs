@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -13,6 +14,7 @@ namespace VideoWebPlayer.Tests;
 /// <see cref="PlaylistEntriesE2ETests"/>, which already exercises the same search UI.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
 {
     /// <summary>

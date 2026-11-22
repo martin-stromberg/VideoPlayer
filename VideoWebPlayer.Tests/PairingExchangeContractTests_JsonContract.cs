@@ -3,10 +3,12 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[OsInterface]
 public sealed class PairingExchangeContractTests_JsonContract : PairingExchangeContractTestBase
 {
     [Fact]

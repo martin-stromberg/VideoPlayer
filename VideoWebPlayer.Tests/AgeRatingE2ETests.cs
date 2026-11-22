@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -22,6 +23,7 @@ namespace VideoWebPlayer.Tests;
 /// Staffel-/Episoden-Anzeige) und ein Admin pflegt die Freigabe über den Editiermodus.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 [Collection(MediaSourceClassifierCollection.Name)]
 public sealed class AgeRatingE2ETests : IAsyncLifetime
 {

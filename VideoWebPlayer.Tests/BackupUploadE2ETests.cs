@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using msTools.Backup;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
@@ -16,6 +17,7 @@ using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[OsInterface]
 public sealed class BackupUploadE2ETests : IAsyncLifetime
 {
     private const string AdminEmail = "backup-admin@test.com";

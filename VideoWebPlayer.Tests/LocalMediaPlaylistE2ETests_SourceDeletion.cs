@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -13,6 +14,7 @@ namespace VideoWebPlayer.Tests;
 /// steht hier.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 [Collection(MediaSourceClassifierCollection.Name)]
 public sealed class LocalMediaPlaylistE2ETests_SourceDeletion : LocalMediaPlaylistE2ETestBase
 {

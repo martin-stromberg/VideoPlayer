@@ -10,6 +10,7 @@ using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -21,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// playlist, add titles, start playback, fetch the next title) and the session endpoints of the QR
 /// bootstrap. The pure document check lives in <see cref="ApiDocumentationContractTests"/>.
 /// </summary>
+[OsInterface]
 public sealed class ApiDocumentationContractTests_Runtime : IDisposable
 {
     private const string Password = "ApiContract123!";

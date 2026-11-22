@@ -14,6 +14,7 @@ using Microsoft.Playwright;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
 
@@ -21,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 
 /// <summary>Exercises the real seasonal API, authenticated web home, navigation and expiry.</summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class SeasonalGenresE2ETests : IAsyncLifetime
 {
     private const string Email = "seasonal@example.com";

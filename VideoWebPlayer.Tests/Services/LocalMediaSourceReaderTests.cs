@@ -4,10 +4,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
 
+[OsInterface]
 public class LocalMediaSourceReaderTests : IDisposable
 {
     private readonly string _baseDir;

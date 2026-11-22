@@ -11,6 +11,7 @@ using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -20,6 +21,7 @@ namespace VideoWebPlayer.Tests;
 /// (Happy Path, Episoden-Lücken, Staffelwechsel, Serienende).
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class ContinueWatchingE2ETests : IDisposable
 {
     private readonly string _dbPath;

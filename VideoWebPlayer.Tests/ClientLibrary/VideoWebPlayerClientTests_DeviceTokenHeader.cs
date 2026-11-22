@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.ClientLibrary;
@@ -10,6 +11,7 @@ namespace VideoWebPlayer.Tests.ClientLibrary;
 /// The gate key of a paired device (A5): while a device token is set, every call of the library carries
 /// it as <c>X-API-Key</c>; without one no such header is sent.
 /// </summary>
+[OsInterface]
 public sealed class VideoWebPlayerClientTests_DeviceTokenHeader : DeviceClientTestBase
 {
     [Fact]

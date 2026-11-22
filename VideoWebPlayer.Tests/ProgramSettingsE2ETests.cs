@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -15,6 +16,7 @@ using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[OsInterface]
 public sealed class ProgramSettingsE2ETests : IAsyncLifetime
 {
     private const string AdminEmail = "program-settings-admin@test.com";

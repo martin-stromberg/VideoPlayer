@@ -11,6 +11,7 @@ using Microsoft.Playwright;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -21,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// laufende Klassifizierung hin (Akzeptanzszenario 4).
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 [Collection(MediaSourceClassifierCollection.Name)]
 public sealed class MediaSourceExplorerRescanE2ETests : IAsyncLifetime
 {

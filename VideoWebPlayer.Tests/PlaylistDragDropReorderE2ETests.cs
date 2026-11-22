@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -18,6 +19,7 @@ namespace VideoWebPlayer.Tests;
 /// therefore could not notice that the feature was broken for actual users.
 /// </remarks>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
 {
     /// <summary>

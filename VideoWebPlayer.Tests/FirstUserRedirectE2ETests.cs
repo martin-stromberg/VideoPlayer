@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -17,6 +18,7 @@ namespace VideoWebPlayer.Tests;
 /// wenn noch kein Benutzer existiert.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class FirstUserRedirectE2ETests : IDisposable
 {
     private readonly string _dbPath;

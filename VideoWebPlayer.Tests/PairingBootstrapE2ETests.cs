@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
@@ -21,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// <summary>
 /// Browser tests for the profile-page device pairing flow (QR bootstrap ticket).
 /// </summary>
+[OsInterface]
 public sealed class PairingBootstrapE2ETests : IAsyncLifetime
 {
     private const string UserEmail = "bootstrap-user@test.com";

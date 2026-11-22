@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -15,6 +16,7 @@ namespace VideoWebPlayer.Tests;
 /// answer 404.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class LiveStreamE2ETests : DeviceClientTestBase
 {
     private async Task<string> SeedSegmentDirectoryAsync(bool writePlaylist = true)

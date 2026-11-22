@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using Xunit;
@@ -21,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// und Nicht-Admins — der Direktaufruf der Quelle bleibt dagegen erreichbar.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class MediaSourceHiddenInMenuE2ETests : IAsyncLifetime
 {
     private const string AdminEmail = "admin@test.com";

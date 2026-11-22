@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -15,6 +16,8 @@ namespace VideoWebPlayer.Tests;
 /// Sendelücke mit verständlichem Hinweis und Wiederherstellung ohne Neuladen.
 /// Konsolidiert in zwei Testmethoden gegen dieselbe Browser-Instanz.
 /// </summary>
+[Trait("Category", "E2E")]
+[OsInterface]
 public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
 {
     private async Task<string> SeedSegmentDirectoryAsync(IServiceProvider services, ApplicationDbContext db, bool writePlaylist = true)

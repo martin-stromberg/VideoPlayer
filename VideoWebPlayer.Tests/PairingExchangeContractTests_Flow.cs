@@ -6,10 +6,12 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[OsInterface]
 public sealed class PairingExchangeContractTests_Flow : PairingExchangeContractTestBase
 {
     [Fact]

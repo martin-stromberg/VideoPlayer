@@ -10,6 +10,7 @@ using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -17,6 +18,7 @@ namespace VideoWebPlayer.Tests;
 /// <summary>
 /// HTTP-level tests for the public bootstrap endpoint and the refresh/logout endpoints.
 /// </summary>
+[OsInterface]
 public sealed class PairingBootstrapEndpointsTests : IAsyncLifetime
 {
     private const string MauiGateKey = PairingWebApplicationFactory.MauiApiToken;

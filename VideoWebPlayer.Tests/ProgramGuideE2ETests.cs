@@ -6,6 +6,7 @@ using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -18,12 +19,15 @@ namespace VideoWebPlayer.Tests;
 /// the preview stays bounded while the full schedule remains administrative.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class ProgramGuideE2ETests : DeviceClientTestBase
 {
     /// <summary>
     /// Seeds the delivered channel plus one running and one following broadcast slot so the guide
     /// has something to answer — the slots are written directly, no schedule generation needed.
     /// </summary>
+    /// <param name="movieTitle">Titel des für die beiden Sendungen verwendeten Films.</param>
+    /// <returns>IDs des laufenden und des folgenden Sendeplatzes.</returns>
     private async Task<(long RunningSlotId, long NextSlotId)> SeedChannelWithProgramAsync(string movieTitle)
     {
         using var scope = CreateScope();

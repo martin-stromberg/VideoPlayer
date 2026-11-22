@@ -11,6 +11,7 @@ using Microsoft.Playwright;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Backups;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -21,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// korrekt, solange ein Restore läuft (Akzeptanzszenarien 1 und 3).
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 [Collection(MediaSourceClassifierCollection.Name)]
 public sealed class MediaSourceAdminFullScanE2ETests : IAsyncLifetime
 {

@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -10,6 +11,7 @@ namespace VideoWebPlayer.Tests;
 /// MediaBox-Kontextmenüs bei erster/letzter Karte auf Desktop- und mobilem Viewport.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class MediaBoxContextMenuPositionE2ETests : MediaBoxContextMenuE2ETestBase
 {
     [Theory]

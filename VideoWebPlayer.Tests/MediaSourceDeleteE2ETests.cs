@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using Xunit;
@@ -21,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// und die Quelle verschwindet. Die Datenbank enthält dabei alle zugehörigen Entitäten.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class MediaSourceDeleteE2ETests : IAsyncLifetime
 {
     private readonly string _dbPath;

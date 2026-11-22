@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using Xunit;
@@ -20,6 +21,7 @@ namespace VideoWebPlayer.Tests;
 /// speichert die Änderungen und der neue Titel bleibt sichtbar.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class MovieCollectionEditE2ETests : IAsyncLifetime
 {
     private readonly string _dbPath;

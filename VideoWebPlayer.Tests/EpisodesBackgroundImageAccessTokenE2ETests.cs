@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Authentication;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -17,6 +18,7 @@ namespace VideoWebPlayer.Tests;
 /// abrufbar sein; ohne access_token muss der Zugriff verweigert werden.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class EpisodesBackgroundImageAccessTokenE2ETests : IDisposable
 {
     private readonly string _dbPath;

@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
@@ -13,6 +14,7 @@ namespace VideoWebPlayer.Tests;
 /// stays usable and no sign-in is triggered.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistForbiddenEntryE2ETests : PlaylistsE2ETestBase
 {
     [Fact]

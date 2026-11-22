@@ -151,9 +151,11 @@ public sealed class MediaProbeHttpIntegrationTests : IAsyncLifetime
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-            using var process = System.Diagnostics.Process.Start(startInfo)!;
-            // Kill-Sicherheitsnetz: Der Generator wird in DisposeAsync beendet, falls er
-            // einen Abbruchpfad ueberlebt.
+            // Kein using: Das Objekt muss bis DisposeAsync gueltig bleiben, damit das
+            // Kill-Sicherheitsnetz in TempDirectoryCleanup.DeleteBestEffort einen
+            // Abbruchpfad ueberlebenden Generator wirklich beenden kann; entsorgt wird
+            // es dort in der _processesToKill-Schleife.
+            var process = System.Diagnostics.Process.Start(startInfo)!;
             _processesToKill.Add(process);
             // Explizites 60-s-Budget statt unbegrenztem Warten — bei Ueberschreitung wird
             // der Prozess gekillt statt den Job-Timeout zu reissen.

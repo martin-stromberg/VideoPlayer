@@ -8,6 +8,7 @@ using Moq;
 using VideoWebPlayer.Components.Pages.Admin;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Components;
@@ -17,8 +18,13 @@ namespace VideoWebPlayer.Tests.Components;
 /// alle Zeilen der case-insensitiven Namensgruppe anwenden — gleiche Semantik wie die
 /// Anzeigegruppierung in <c>ReloadGenres</c>.
 /// </summary>
-public sealed class GenreAdminTests
+public sealed class GenreAdminTests : IDisposable
 {
+    // GUID-Unterverzeichnis pro Testlauf statt des frueheren Festpfads
+    // „genre-admin-wwwroot": parallele lokale Laeufe kollidierten sonst auf demselben
+    // Verzeichnis, und es wurde nie aufgeraeumt.
+    private readonly string _webRoot = Path.Combine(Path.GetTempPath(), $"genre-admin-wwwroot-{Guid.NewGuid():N}");
+
     [Fact]
     public async Task SaveGenre_AppliesConfigToCaseVariants()
     {
@@ -58,7 +64,7 @@ public sealed class GenreAdminTests
         await db.SaveChangesAsync(ct);
 
         var env = new Mock<IWebHostEnvironment>();
-        env.SetupGet(e => e.WebRootPath).Returns(Path.Combine(Path.GetTempPath(), "genre-admin-wwwroot"));
+        env.SetupGet(e => e.WebRootPath).Returns(_webRoot);
 
         using var ctx = new BunitContext();
         ctx.AddAuthorization()
@@ -82,5 +88,10 @@ public sealed class GenreAdminTests
             var states = db.Genres.Select(g => g.IsHidden).ToList();
             Assert.Equal(new[] { true, true }, states);
         }, TimeSpan.FromSeconds(5));
+    }
+
+    public void Dispose()
+    {
+        TempDirectoryCleanup.DeleteBestEffort(_webRoot);
     }
 }

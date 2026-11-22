@@ -395,11 +395,11 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         // included in the selector to uniquely identify each row.
         var posterImage = Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{moviePosterId}'] .playlist-entry-image");
         await Expect(posterImage).ToHaveCountAsync(1);
-        await Expect(posterImage).ToHaveAttributeAsync("src", new Regex("/api/pictures/"));
+        await Expect(posterImage).ToHaveAttributeAsync("src", new Regex("api/pictures/"));
 
         var placeholderImage = Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.TVShowEpisode}'][data-media-id='{episodeWithoutPosterId}'] .playlist-entry-image");
         await Expect(placeholderImage).ToHaveCountAsync(1);
-        await Expect(placeholderImage).ToHaveAttributeAsync("src", new Regex("/images/placeholder.png"));
+        await Expect(placeholderImage).ToHaveAttributeAsync("src", new Regex("images/placeholder.png"));
 
         Assert.Empty(failedImageResponses);
     }

@@ -88,6 +88,6 @@ public sealed class FirstUserRedirectMiddleware
             .FirstOrDefault();
 
         returnUrl ??= $"{request.PathBase}{request.Path}{request.QueryString}";
-        return QueryHelpers.AddQueryString("/Account/Register", "ReturnUrl", returnUrl);
+        return QueryHelpers.AddQueryString($"{request.PathBase}/Account/Register", "ReturnUrl", returnUrl);
     }
 }

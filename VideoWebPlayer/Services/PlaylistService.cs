@@ -1667,16 +1667,20 @@ public sealed class PlaylistService : IPlaylistService
 
     /// <summary>
     /// Builds the relative stream URL for a playable entry's media, matching the convention already used
-    /// by the movie/TV show detail pages (<c>/api/items/{type}/{id}/stream</c>). Does not include an
+    /// by the movie/TV show detail pages (<c>api/items/{type}/{id}/stream</c>). Does not include an
     /// <c>access_token</c> query parameter: <see cref="PlaylistService"/> has no access to the caller's
     /// bearer token, so the client appends its own (already known) token before using the URL, exactly as
     /// <c>MovieCollectionDetails.razor</c> and <c>TVShowDetails.razor</c> already do for their own players.
+    /// Deliberately without a leading slash: the <c>&lt;video src&gt;</c> this feeds resolves it against
+    /// the page's <c>&lt;base href&gt;</c>, which already includes any reverse-proxy PathBase prefix
+    /// (e.g. "/player/") - a leading slash would instead resolve against the domain root and bypass that
+    /// prefix, 404ing behind a reverse proxy.
     /// </summary>
     /// <param name="mediaType">The playlist entry's media type.</param>
     /// <param name="mediaId">The playlist entry's media id.</param>
     /// <returns>The relative stream URL, without an <c>access_token</c> query parameter.</returns>
     private static string BuildStreamUrl(string mediaType, long mediaId)
-        => $"/api/items/{PlaylistEntryMediaTypeResolver.ResolveItemStreamType(mediaType)}/{mediaId}/stream";
+        => $"api/items/{PlaylistEntryMediaTypeResolver.ResolveItemStreamType(mediaType)}/{mediaId}/stream";
 
     /// <summary>
     /// Regenerates a playlist's cover image as a collage of its current contents' poster pictures (see

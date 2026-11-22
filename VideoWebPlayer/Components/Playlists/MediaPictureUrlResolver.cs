@@ -1,7 +1,7 @@
 namespace VideoWebPlayer.Components.Playlists;
 
 /// <summary>
-/// Builds the "/api/pictures/{id}" thumbnail URL (with the access token as a query parameter, since an
+/// Builds the "api/pictures/{id}" thumbnail URL (with the access token as a query parameter, since an
 /// <c>&lt;img&gt;</c> tag cannot send an Authorization header) for a nullable picture id, or the
 /// placeholder image path when no picture id is set. Shared by <c>MediaSearchSelector</c> and
 /// <c>PlaylistEntriesList</c> so both render their media thumbnails identically instead of each
@@ -18,6 +18,6 @@ public static class MediaPictureUrlResolver
     /// <returns>The resolved image URL.</returns>
     public static string Resolve(long? pictureId, string? authorizationToken)
         => pictureId.HasValue
-            ? $"/api/pictures/{pictureId}?access_token={authorizationToken}"
-            : "/images/placeholder.png";
+            ? $"api/pictures/{pictureId}?access_token={authorizationToken}"
+            : "images/placeholder.png";
 }

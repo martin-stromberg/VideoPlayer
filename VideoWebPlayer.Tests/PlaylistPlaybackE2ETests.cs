@@ -41,7 +41,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
 
         await Expect(Page.Locator("#playlist-playback-badge")).ToBeVisibleAsync();
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("Meine Favoriten: 1/1");
-        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"/api/items/movie/{movieId}/stream"));
+        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"api/items/movie/{movieId}/stream"));
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForTimeoutAsync(500);
 
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("2/2");
-        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"/api/items/movie/{movie2Id}/stream"));
+        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"api/items/movie/{movie2Id}/stream"));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForTimeoutAsync(500);
 
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("1/2");
-        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"/api/items/movie/{movie1Id}/stream"));
+        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"api/items/movie/{movie1Id}/stream"));
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForTimeoutAsync(500);
 
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("2/2");
-        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"/api/items/movie/{movie2Id}/stream"));
+        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"api/items/movie/{movie2Id}/stream"));
     }
 
     [Fact]
@@ -182,7 +182,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForTimeoutAsync(500);
 
         // The locked movie is skipped entirely; navigation lands directly on the third (accessible) movie.
-        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"/api/items/movie/{movie3Id}/stream"));
+        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"api/items/movie/{movie3Id}/stream"));
         // The playlist has 3 entries in total (including the skipped locked movie), so the badge must show
         // the third movie's actual position (3/3), not the previous position incremented by one (2/3).
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("3/3");
@@ -262,7 +262,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.ClickAsync(".playlist-next-button");
         await Page.WaitForTimeoutAsync(500);
 
-        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"/api/items/movie/{movie2Id}/stream"));
+        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"api/items/movie/{movie2Id}/stream"));
         // The playlist has 3 entries in total (including the skipped, non-playable TVShow entry), so the
         // badge must show the second movie's actual position (3/3), not the previous position incremented
         // by one (2/3).
@@ -301,7 +301,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Expect(Page.Locator("#playlist-end-reached")).ToHaveCountAsync(0);
         // The player must still be present, still showing the same (only) title.
         await Expect(Page.Locator("#video-player-element")).ToBeVisibleAsync();
-        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"/api/items/movie/{movieId}/stream"));
+        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"api/items/movie/{movieId}/stream"));
     }
 
     /// <summary>
@@ -397,6 +397,6 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForTimeoutAsync(500);
 
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("2/2");
-        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"/api/items/movie/{movie2Id}/stream"));
+        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"api/items/movie/{movie2Id}/stream"));
     }
 }

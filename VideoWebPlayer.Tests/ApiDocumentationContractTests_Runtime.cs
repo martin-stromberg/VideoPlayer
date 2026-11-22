@@ -127,7 +127,7 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
         Assert.Equal(2, playback.TotalCount);
         Assert.Equal(1, playback.CurrentPosition);
         Assert.Equal(firstEntryId, playback.CurrentEntryId);
-        Assert.Equal($"/api/items/movie/{firstMovieId}/stream", playback.StreamUrl);
+        Assert.Equal($"api/items/movie/{firstMovieId}/stream", playback.StreamUrl);
 
         var nextResponse = await client.PostAsync(
             $"/api/playlists/{playlist.Id}/play/next?currentEntryId={playback.CurrentEntryId}", null, ct);

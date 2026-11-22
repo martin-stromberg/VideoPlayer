@@ -211,7 +211,7 @@
 
     private void OpenCollection(long id)
     {
-        Navigation.NavigateTo(Navigation.GetUriWithQueryParameters($"/admin/mediasources/{SourceId}/explorer", new Dictionary<string, object?>
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameters($"admin/mediasources/{SourceId}/explorer", new Dictionary<string, object?>
         {
             ["collectionId"] = id
         }));
@@ -226,7 +226,7 @@
 
     private void BackToSource()
     {
-        Navigation.NavigateTo($"/admin/mediasources/{SourceId}");
+        Navigation.NavigateTo($"admin/mediasources/{SourceId}");
     }
 
     private async Task RescanCurrent()

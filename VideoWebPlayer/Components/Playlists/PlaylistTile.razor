@@ -17,7 +17,7 @@
 
    Datenschutz: gezeigt wird nur, was zum Ansehen/Abspielen nötig ist (Name, Cover) - niemals Angaben zum
    Besitzer. *@
-<a class="media-box-link playlist-row" href="@($"/playlists/{Playlist.Id}")" data-playlist-name="@Playlist.Name" data-playlist-foreign="@(IsForeign ? "true" : "false")" title="@Playlist.Name" aria-label="Playlist &quot;@(Playlist.Name)&quot; öffnen">
+<a class="media-box-link playlist-row" href="@($"playlists/{Playlist.Id}")" data-playlist-name="@Playlist.Name" data-playlist-foreign="@(IsForeign ? "true" : "false")" title="@Playlist.Name" aria-label="Playlist &quot;@(Playlist.Name)&quot; öffnen">
     <div class="media-box playlist-card">
         @if (IsForeign)
         {
@@ -80,5 +80,5 @@
     /// every upload/regeneration) so the browser fetches the new image instead of a stale cached response.
     /// </summary>
     private string CoverImageUrl
-        => $"/api/playlists/{Playlist.Id}/cover?access_token={Client.AuthorizationToken}&v={Playlist.CoverPictureId}";
+        => $"api/playlists/{Playlist.Id}/cover?access_token={Client.AuthorizationToken}&v={Playlist.CoverPictureId}";
 }

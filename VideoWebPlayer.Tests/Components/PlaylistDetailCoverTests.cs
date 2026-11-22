@@ -33,7 +33,7 @@ public class PlaylistDetailCoverTests
         var cut = RenderDetail(ctx);
 
         var image = Assert.Single(cut.FindAll("#playlist-detail-cover-image"));
-        Assert.Contains("/api/playlists/1/cover", image.GetAttribute("src"));
+        Assert.Contains("api/playlists/1/cover", image.GetAttribute("src"));
     }
 
     [Fact]
@@ -291,7 +291,7 @@ public class PlaylistDetailCoverTests
         cut.Find("#playlist-detail-cover-button").Click();
         var panel = cut.FindComponent<PlaylistCoverPanel>();
 
-        Assert.Contains("/api/playlists/1/cover", panel.Find("#playlist-cover-current").GetAttribute("src"));
+        Assert.Contains("api/playlists/1/cover", panel.Find("#playlist-cover-current").GetAttribute("src"));
         Assert.Single(panel.FindAll("#playlist-cover-remove-button"));
         Assert.Contains("Aktuelles Bild", panel.Find("#playlist-cover-preview-caption").TextContent);
     }

@@ -17,9 +17,9 @@ public class NavMenuPlaylistsTests
 
         var cut = ctx.RenderNavMenu();
 
-        var playlistLinks = cut.FindAll("a.nav-link").Where(a => a.GetAttribute("href")?.StartsWith("/playlists", StringComparison.OrdinalIgnoreCase) == true).ToArray();
+        var playlistLinks = cut.FindAll("a.nav-link").Where(a => a.GetAttribute("href")?.StartsWith("playlists", StringComparison.OrdinalIgnoreCase) == true).ToArray();
         var link = Assert.Single(playlistLinks);
-        Assert.Equal("/playlists", link.GetAttribute("href"));
+        Assert.Equal("playlists", link.GetAttribute("href"));
         Assert.Equal("Playlists", link.TextContent.Trim());
         Assert.DoesNotContain("Öffentliche Playlists", cut.Markup);
         Assert.DoesNotContain("/playlists/public", cut.Markup);

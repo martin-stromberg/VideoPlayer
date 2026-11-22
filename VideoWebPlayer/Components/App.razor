@@ -6,7 +6,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <base href="/" />
+    <base href="@((HttpContext?.Request.PathBase.Value ?? string.Empty) + "/")" />
     <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="@AssetVersions.Url("app.css")" />
     <link rel="stylesheet" href="@AssetVersions.Url("VideoWebPlayer.styles.css")" />
@@ -28,3 +28,8 @@
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+}

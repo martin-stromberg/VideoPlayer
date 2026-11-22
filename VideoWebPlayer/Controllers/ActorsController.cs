@@ -97,7 +97,7 @@ namespace VideoWebPlayer.Controllers
                         {
                             Id = a.Id,
                             Name = a.Name,
-                            PictureUrl = a.PictureId.HasValue ? $"/api/pictures/{a.PictureId}" : null,
+                            PictureUrl = a.PictureId.HasValue ? $"api/pictures/{a.PictureId}" : null,
                             VideoCount = a.Count
                         })
                         .ToList();
@@ -124,7 +124,7 @@ namespace VideoWebPlayer.Controllers
                     {
                         Id = a.Id,
                         Name = a.Name,
-                        PictureUrl = a.PictureId.HasValue ? $"/api/pictures/{a.PictureId}" : null,
+                        PictureUrl = a.PictureId.HasValue ? $"api/pictures/{a.PictureId}" : null,
                         VideoCount = actorVideoCounts.GetValueOrDefault(a.Id)
                     })
                     .ToList();
@@ -169,7 +169,7 @@ namespace VideoWebPlayer.Controllers
                 {
                     Id = actor.Id,
                     Name = actor.Name,
-                    PictureUrl = actor.PictureId.HasValue ? $"/api/pictures/{actor.PictureId}" : null,
+                    PictureUrl = actor.PictureId.HasValue ? $"api/pictures/{actor.PictureId}" : null,
                     Media = media
                 };
 
@@ -232,7 +232,7 @@ namespace VideoWebPlayer.Controllers
                     {
                         Id = a.ActorId,
                         Name = a.Name,
-                        PictureUrl = a.PictureId.HasValue ? $"/api/pictures/{a.PictureId}" : null,
+                        PictureUrl = a.PictureId.HasValue ? $"api/pictures/{a.PictureId}" : null,
                         Role = a.Role,
                         Order = a.Order,
                         ContextVideoCount = contextCounts.GetValueOrDefault(a.ActorId, 1)
@@ -296,7 +296,7 @@ namespace VideoWebPlayer.Controllers
                     {
                         Id = a.ActorId,
                         Name = a.Name,
-                        PictureUrl = a.PictureId.HasValue ? $"/api/pictures/{a.PictureId}" : null,
+                        PictureUrl = a.PictureId.HasValue ? $"api/pictures/{a.PictureId}" : null,
                         Role = a.Role,
                         Order = a.Order,
                         ContextVideoCount = contextCounts.GetValueOrDefault(a.ActorId, 1)
@@ -418,7 +418,7 @@ namespace VideoWebPlayer.Controllers
                     {
                         foreach (var movie in items)
                         {
-                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId), LinkUrl = movie.CollectionId.HasValue ? $"/moviecollection/{movie.CollectionId}?movie={movie.Id}" : "#" });
+                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId), LinkUrl = movie.CollectionId.HasValue ? $"moviecollection/{movie.CollectionId}?movie={movie.Id}" : "#" });
                         }
                         continue;
                     }
@@ -431,25 +431,25 @@ namespace VideoWebPlayer.Controllers
                     if (totalMovies == 1 || actorCount == 1)
                     {
                         foreach (var movie in items)
-                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId), LinkUrl = $"/moviecollection/{collectionId}?movie={movie.Id}" });
+                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId), LinkUrl = $"moviecollection/{collectionId}?movie={movie.Id}" });
                         continue;
                     }
 
                     if (actorCount == totalMovies)
                     {
-                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = $"{actorCount} Filme", PictureUrl = GetPictureUrl(items.First().CollectionPosterPictureId), LinkUrl = $"/moviecollection/{collectionId}" });
+                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = $"{actorCount} Filme", PictureUrl = GetPictureUrl(items.First().CollectionPosterPictureId), LinkUrl = $"moviecollection/{collectionId}" });
                         continue;
                     }
 
                     if (totalMovies > 0 && (double)actorCount / totalMovies >= threshold)
                     {
                         var titles = string.Join(", ", items.OrderBy(m => m.Name).Select(m => m.Name));
-                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = titles, PictureUrl = GetPictureUrl(items.First().CollectionPosterPictureId), LinkUrl = $"/moviecollection/{collectionId}" });
+                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = titles, PictureUrl = GetPictureUrl(items.First().CollectionPosterPictureId), LinkUrl = $"moviecollection/{collectionId}" });
                         continue;
                     }
 
                     foreach (var movie in items)
-                        result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId), LinkUrl = $"/moviecollection/{collectionId}?movie={movie.Id}" });
+                        result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId), LinkUrl = $"moviecollection/{collectionId}?movie={movie.Id}" });
                 }
             }
 
@@ -498,7 +498,7 @@ namespace VideoWebPlayer.Controllers
                     var showTotal = showTotals.GetValueOrDefault(showId);
                     if (showTotal > 0 && (double)showEpisodes.Count / showTotal >= threshold)
                     {
-                        result.Add(new ActorMediaEntryDto { Type = "Serie", Id = showId, Title = showName, Subtitle = $"{showEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(showEpisodes.First().ShowPosterPictureId), LinkUrl = $"/tvshow/{showId}" });
+                        result.Add(new ActorMediaEntryDto { Type = "Serie", Id = showId, Title = showName, Subtitle = $"{showEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(showEpisodes.First().ShowPosterPictureId), LinkUrl = $"tvshow/{showId}" });
                         continue;
                     }
 
@@ -511,12 +511,12 @@ namespace VideoWebPlayer.Controllers
 
                         if (seasonTotal > 0 && (double)seasonEpisodes.Count / seasonTotal >= threshold)
                         {
-                            result.Add(new ActorMediaEntryDto { Type = "Staffel", Id = seasonId, Title = $"{showName} - {seasonName}", Subtitle = $"{seasonEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(seasonEpisodes.First().SeasonPosterPictureId), LinkUrl = $"/tvshow/{showId}?season={seasonId}" });
+                            result.Add(new ActorMediaEntryDto { Type = "Staffel", Id = seasonId, Title = $"{showName} - {seasonName}", Subtitle = $"{seasonEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(seasonEpisodes.First().SeasonPosterPictureId), LinkUrl = $"tvshow/{showId}?season={seasonId}" });
                             continue;
                         }
 
                         foreach (var ep in seasonEpisodes)
-                            result.Add(new ActorMediaEntryDto { Type = "Episode", Id = ep.Id, Title = ep.Name, Subtitle = $"{showName} - {seasonName}", PictureUrl = GetPictureUrl(ep.PosterPictureId ?? ep.SeasonPosterPictureId ?? ep.ShowPosterPictureId), LinkUrl = $"/tvshow/{showId}?season={seasonId}&episode={ep.Id}" });
+                            result.Add(new ActorMediaEntryDto { Type = "Episode", Id = ep.Id, Title = ep.Name, Subtitle = $"{showName} - {seasonName}", PictureUrl = GetPictureUrl(ep.PosterPictureId ?? ep.SeasonPosterPictureId ?? ep.ShowPosterPictureId), LinkUrl = $"tvshow/{showId}?season={seasonId}&episode={ep.Id}" });
                     }
                 }
             }
@@ -667,6 +667,6 @@ namespace VideoWebPlayer.Controllers
         };
 
         private static string? GetPictureUrl(long? pictureId)
-            => pictureId.HasValue ? $"/api/pictures/{pictureId}" : null;
+            => pictureId.HasValue ? $"api/pictures/{pictureId}" : null;
     }
 }

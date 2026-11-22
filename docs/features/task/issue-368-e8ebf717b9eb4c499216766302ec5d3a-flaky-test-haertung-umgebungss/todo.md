@@ -9,8 +9,8 @@ Branch: `task/issue-368-e8ebf717b9eb4c499216766302ec5d3a-flaky-test-haertung-umg
 | [x] | – | Einstiegspunkt ermitteln | – |
 | [x] | 3 | Anforderung übersetzen (Unteragent) | `requirement.md` |
 | [x] | 4 | Bestandsaufnahme (Unteragent) | `inventory.md`, `inventory/` |
-| [ ] | 5 | Umsetzungsplanung (Unteragent) | `plan.md` |
-| [ ] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
+| [x] | 5 | Umsetzungsplanung (Unteragent) | `plan.md` |
+| [x] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
 | [ ] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
 | [ ] | 5c | Planungscommit | – |
 | [ ] | 6 | Implementierung (Unteragent) | Codeänderungen |

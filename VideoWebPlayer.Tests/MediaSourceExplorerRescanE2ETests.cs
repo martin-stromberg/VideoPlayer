@@ -43,7 +43,7 @@ public sealed class MediaSourceExplorerRescanE2ETests : IAsyncLifetime
     public MediaSourceExplorerRescanE2ETests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-explorer-rescan-e2e-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         _rootDir = Path.Combine(Path.GetTempPath(), $"vwp-explorer-rescan-e2e-{Guid.NewGuid():N}");
         _dirA = Path.Combine(_rootDir, "SeriesA");
@@ -113,8 +113,8 @@ public sealed class MediaSourceExplorerRescanE2ETests : IAsyncLifetime
         _playwright?.Dispose();
 
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
-        try { Directory.Delete(_rootDir, recursive: true); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 
     [Fact]

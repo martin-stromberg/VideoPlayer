@@ -7,6 +7,7 @@ using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Controllers;
@@ -25,7 +26,7 @@ public class ItemsControllerLocalSourceTests : IDisposable
     public void Dispose()
     {
         _serviceProvider?.Dispose();
-        try { Directory.Delete(_rootDir, recursive: true); } catch { }
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 
     [Fact]

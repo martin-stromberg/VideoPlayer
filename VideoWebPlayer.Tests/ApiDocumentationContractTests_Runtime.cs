@@ -412,6 +412,6 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
     public void Dispose()
     {
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* temp file may still be locked */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
     }
 }

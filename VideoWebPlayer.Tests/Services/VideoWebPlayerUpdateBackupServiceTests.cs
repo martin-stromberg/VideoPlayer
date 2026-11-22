@@ -6,6 +6,7 @@ using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Backups;
 using VideoWebPlayer.Services.Updates;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -113,8 +114,7 @@ public sealed class VideoWebPlayerUpdateBackupServiceTests
         }
         finally
         {
-            if (Directory.Exists(targetDirectory))
-                Directory.Delete(targetDirectory, recursive: true);
+            TempDirectoryCleanup.DeleteBestEffort(targetDirectory);
         }
     }
 

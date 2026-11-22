@@ -61,7 +61,7 @@ public class MediaDurationProbeWorkerTests : IDisposable
     {
         _serviceProvider.Dispose();
         _connection.Dispose();
-        try { Directory.Delete(_rootDir, recursive: true); } catch { }
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 
     [Fact]

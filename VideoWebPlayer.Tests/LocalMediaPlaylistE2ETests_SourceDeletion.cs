@@ -44,7 +44,7 @@ public sealed class LocalMediaPlaylistE2ETests_SourceDeletion : LocalMediaPlayli
         }
         finally
         {
-            try { Directory.Delete(secondDirectory, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException) { /* best effort */ }
+            TempDirectoryCleanup.DeleteBestEffort(secondDirectory);
         }
     }
 

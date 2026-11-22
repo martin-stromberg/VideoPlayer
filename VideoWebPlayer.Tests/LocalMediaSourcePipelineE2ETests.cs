@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -31,7 +32,7 @@ public sealed class LocalMediaSourcePipelineE2ETests : IDisposable
     public LocalMediaSourcePipelineE2ETests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-local-pipe-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         _rootDir = Path.Combine(Path.GetTempPath(), $"vwp-local-pipe-{Guid.NewGuid():N}");
         var showDir = Path.Combine(_rootDir, "PipelineShow");
@@ -133,7 +134,7 @@ public sealed class LocalMediaSourcePipelineE2ETests : IDisposable
     public void Dispose()
     {
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
-        try { Directory.Delete(_rootDir, recursive: true); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 }

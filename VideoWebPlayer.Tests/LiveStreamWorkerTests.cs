@@ -112,8 +112,7 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         _fixture.Dispose();
-        if (Directory.Exists(_contentRoot))
-            Directory.Delete(_contentRoot, recursive: true);
+        TempDirectoryCleanup.DeleteBestEffort(_contentRoot);
         await Task.CompletedTask;
     }
 

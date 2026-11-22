@@ -31,8 +31,8 @@ public class LocalMediaSourceReaderTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_baseDir, recursive: true); } catch { }
-        try { Directory.Delete(_outsideDir, recursive: true); } catch { }
+        TempDirectoryCleanup.DeleteBestEffort(_baseDir);
+        TempDirectoryCleanup.DeleteBestEffort(_outsideDir);
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class LocalMediaSourceReaderTests : IDisposable
         File.WriteAllText(Path.Combine(outsideDir, "secret.txt"), "secret");
 
         var junctionPath = Path.Combine(_collectionDir, "junction");
-        Assert.True(TryCreateJunction(junctionPath, outsideDir), "Junction konnte nicht erstellt werden.");
+        Assert.True(TryCreateJunction(junctionPath, outsideDir, out var diagnostic), $"Junction konnte nicht erstellt werden. {diagnostic}");
 
         File.WriteAllText(Path.Combine(_collectionDir, "regular.txt"), "data");
 
@@ -227,7 +227,7 @@ public class LocalMediaSourceReaderTests : IDisposable
         File.WriteAllText(Path.Combine(outsideDir, "secret.txt"), "secret");
 
         var junctionPath = Path.Combine(_collectionDir, "junction");
-        Assert.True(TryCreateJunction(junctionPath, outsideDir), "Junction konnte nicht erstellt werden.");
+        Assert.True(TryCreateJunction(junctionPath, outsideDir, out var diagnostic), $"Junction konnte nicht erstellt werden. {diagnostic}");
 
         var collection = CreateCollection();
 
@@ -295,8 +295,9 @@ public class LocalMediaSourceReaderTests : IDisposable
         };
     }
 
-    private static bool TryCreateJunction(string junctionPath, string targetDir)
+    private static bool TryCreateJunction(string junctionPath, string targetDir, out string? diagnostic)
     {
+        diagnostic = null;
         if (!OperatingSystem.IsWindows())
         {
             try
@@ -304,8 +305,9 @@ public class LocalMediaSourceReaderTests : IDisposable
                 Directory.CreateSymbolicLink(junctionPath, targetDir);
                 return Directory.Exists(junctionPath);
             }
-            catch
+            catch (Exception ex)
             {
+                diagnostic = $"CreateSymbolicLink fehlgeschlagen: {ex.Message}";
                 return false;
             }
         }
@@ -320,8 +322,23 @@ public class LocalMediaSourceReaderTests : IDisposable
             RedirectStandardError = true
         });
         if (process is null)
+        {
+            diagnostic = "mklink-Prozess konnte nicht gestartet werden.";
             return false;
-        process.WaitForExit(10_000);
-        return process.ExitCode == 0 && Directory.Exists(junctionPath);
+        }
+        if (!process.WaitForExit(10_000))
+        {
+            // Timeout: den haengenden Kindprozess beenden, damit er keine Handles auf dem
+            // Zielverzeichnis haelt, und den Befund fuer die Assert-Meldung weiterreichen.
+            try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+            diagnostic = "mklink ueberzog das 10-s-Timeout (Prozess beendet).";
+            return false;
+        }
+        if (process.ExitCode != 0)
+        {
+            diagnostic = $"mklink-Exit-Code {process.ExitCode}: {process.StandardError.ReadToEnd()}";
+            return false;
+        }
+        return Directory.Exists(junctionPath);
     }
 }

@@ -83,7 +83,7 @@ public class LocalMediaSourceClassifierTests
         finally
         {
             serviceProvider?.Dispose();
-            try { Directory.Delete(rootDir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(rootDir);
         }
     }
 

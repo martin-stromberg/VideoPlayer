@@ -29,13 +29,14 @@ public sealed class MediaProbeHttpIntegrationTests : IAsyncLifetime
     private readonly string _rootDir;
     private readonly string _videoPath;
     private readonly WebApplicationFactory<global::Program> _factory;
+    private readonly List<System.Diagnostics.Process> _processesToKill = [];
     private string _serverUrl = null!;
     private bool _realVideoCreated;
 
     public MediaProbeHttpIntegrationTests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-http-probe-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         _rootDir = Path.Combine(Path.GetTempPath(), $"vwp-http-probe-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_rootDir);
@@ -73,8 +74,16 @@ public sealed class MediaProbeHttpIntegrationTests : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
-        try { Directory.Delete(_rootDir, recursive: true); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
+        // Registrierte Kindprozesse (ffmpeg-Videogenerator) werden vor dem Verzeichnis-
+        // Cleanup als Kill-Sicherheitsnetz beendet — ein noch laufender Generator wuerde
+        // sonst Dateien im Temp-Baum sperren.
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir, processesToKill: _processesToKill);
+        foreach (var process in _processesToKill)
+        {
+            try { process.Dispose(); } catch { /* best effort */ }
+        }
+        await ValueTask.CompletedTask;
     }
 
     [Fact]
@@ -141,7 +150,21 @@ public sealed class MediaProbeHttpIntegrationTests : IAsyncLifetime
                 CreateNoWindow = true
             };
             using var process = System.Diagnostics.Process.Start(startInfo)!;
-            await process.WaitForExitAsync();
+            // Kill-Sicherheitsnetz: Der Generator wird in DisposeAsync beendet, falls er
+            // einen Abbruchpfad ueberlebt.
+            _processesToKill.Add(process);
+            // Explizites 60-s-Budget statt unbegrenztem Warten — bei Ueberschreitung wird
+            // der Prozess gekillt statt den Job-Timeout zu reissen.
+            try
+            {
+                await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(60));
+            }
+            catch (TimeoutException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                var stderr = await process.StandardError.ReadToEndAsync();
+                Assert.Fail($"ffmpeg-Videogenerator ueberzog das 60-s-Budget — Kill gesendet. stderr: {stderr}");
+            }
             if (process.ExitCode == 0 && File.Exists(_videoPath))
             {
                 _realVideoCreated = true;

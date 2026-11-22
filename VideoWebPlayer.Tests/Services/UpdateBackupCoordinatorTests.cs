@@ -8,6 +8,7 @@ using msTools.Updater;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Updates;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -24,7 +25,7 @@ public class UpdateBackupCoordinatorTests : IDisposable
     {
         if (Directory.Exists(_contentRoot))
         {
-            Directory.Delete(_contentRoot, recursive: true);
+            TempDirectoryCleanup.DeleteBestEffort(_contentRoot);
         }
 
         GC.SuppressFinalize(this);

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using msTools.Updater;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -164,7 +165,7 @@ public sealed class AutoUpdateProtectedFilesTests : IDisposable
     {
         if (Directory.Exists(testRoot))
         {
-            Directory.Delete(testRoot, recursive: true);
+            TempDirectoryCleanup.DeleteBestEffort(testRoot);
         }
     }
 

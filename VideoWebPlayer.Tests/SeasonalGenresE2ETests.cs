@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
 
@@ -75,7 +76,7 @@ public sealed class SeasonalGenresE2ETests : IAsyncLifetime
         if (browser is not null) await browser.DisposeAsync();
         playwright?.Dispose();
         if (factory is not null) await factory.DisposeAsync();
-        try { File.Delete(dbPath); } catch (IOException) { }
+        TempDirectoryCleanup.DeleteFileBestEffort(dbPath);
     }
 
     [Fact]

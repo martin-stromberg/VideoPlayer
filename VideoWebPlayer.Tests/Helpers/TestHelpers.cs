@@ -262,7 +262,8 @@ public static class TestHelpers
     {
         if (OperatingSystem.IsWindows())
         {
-            Assert.Equal(0, RunIcacls(directory, "/deny", $"{Environment.UserName}:(OI)(CI)(RD)"));
+            var (exitCode, diagnostic) = RunIcacls(directory, "/deny", $"{Environment.UserName}:(OI)(CI)(RD)");
+            Assert.True(exitCode == 0, $"icacls /deny fehlgeschlagen (Code {exitCode}). {diagnostic}");
         }
         else
         {
@@ -285,7 +286,7 @@ public static class TestHelpers
         }
     }
 
-    private static int RunIcacls(string directory, params string[] args)
+    private static (int ExitCode, string? Diagnostic) RunIcacls(string directory, params string[] args)
     {
         var process = Process.Start(new ProcessStartInfo
         {
@@ -297,9 +298,15 @@ public static class TestHelpers
             RedirectStandardError = true
         });
         if (process is null)
-            return -1;
-        process.WaitForExit(10_000);
-        return process.ExitCode;
+            return (-1, "icacls-Prozess konnte nicht gestartet werden.");
+        if (!process.WaitForExit(10_000))
+        {
+            // Timeout: den haengenden Kindprozess beenden, damit er keine Handles auf dem
+            // Verzeichnis haelt, und den Befund fuer die Assert-Meldung weiterreichen.
+            try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+            return (-1, "icacls ueberzog das 10-s-Timeout (Prozess beendet).");
+        }
+        return (process.ExitCode, null);
     }
 
     public static async Task WaitForMessageCountAsync(

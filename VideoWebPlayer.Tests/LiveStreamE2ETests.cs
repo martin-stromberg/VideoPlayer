@@ -217,10 +217,11 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
         var tempDir = Path.Combine(Path.GetTempPath(), $"vwp-standby-e2e-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
         var video = Path.Combine(tempDir, "standby-input.mp4");
+        System.Diagnostics.Process? gen = null;
         try
         {
             // Testvideo via lavfi (~6 s, Muster FfmpegLiveStreamSegmenterE2ETests).
-            var gen = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            gen = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
                 FileName = ffmpeg,
                 Arguments = "-y -v error -f lavfi -i testsrc=size=320x240:rate=10 "
@@ -230,7 +231,20 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
                 UseShellExecute = false,
                 CreateNoWindow = true
             })!;
-            await gen.WaitForExitAsync(ct);
+            // Explizites Budget statt unbegrenztem Warten: Der Generator sollte Sekunden
+            // brauchen; haengt er unter CI-Last, wird er nach 120 s abgebrochen statt den
+            // Job-Timeout zu reissen. Der Prozess ist zusaetzlich im finally als Kill-
+            // Sicherheitsnetz registriert.
+            try
+            {
+                await gen.WaitForExitAsync(ct).WaitAsync(TimeSpan.FromSeconds(120), ct);
+            }
+            catch (TimeoutException)
+            {
+                try { gen.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                var stderr = await gen.StandardError.ReadToEndAsync(ct);
+                Assert.Fail($"ffmpeg-Videogenerator (standby-input) ueberzog das 120-s-Budget — Kill gesendet. stderr: {stderr}");
+            }
             if (!File.Exists(video))
                 return;
 
@@ -257,7 +271,10 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
             using var http = CreateHttpClient();
 
             var playlist = string.Empty;
-            for (var i = 0; i < 120 && !playlist.Contains("standby_1_"); i++)
+            // 300 x 500 ms = 150 s Host-Poll-Budget — bewusst oberhalb des Kind-Budgets
+            // (TranscodeTimeout 120 s) plus Headroom, damit ein echter Segmenter-Timeout
+            // zuerst im Kind-Log und nicht als stummer Poll-Ablauf sichtbar wird.
+            for (var i = 0; i < 300 && !playlist.Contains("standby_1_"); i++)
             {
                 var response = await http.GetAsync($"/api/live-stream/live.m3u8?access_token={payload.Token!}", ct);
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -274,7 +291,10 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
         }
         finally
         {
-            try { Directory.Delete(tempDir, recursive: true); } catch { }
+            // Kill-Sicherheitsnetz fuer den Videogenerator (z. B. nach Assert- oder
+            // Abbruch-Pfaden), bevor das Temp-Verzeichnis best-effort geloescht wird.
+            TempDirectoryCleanup.DeleteBestEffort(tempDir, processesToKill: gen is null ? null : new[] { gen });
+            gen?.Dispose();
         }
     }
 }

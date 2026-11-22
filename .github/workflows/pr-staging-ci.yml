@@ -132,19 +132,16 @@ jobs:
       - name: Build test project
         run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-restore -c Release -p:NoWarn=NU1903
 
-      - name: Install Playwright browsers
-        run: pwsh VideoWebPlayer.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
-
-      - name: Run unit tests
+      - name: Run regular tests
         # Gate 4a (blocking): collects coverage, since this is the primary blocking test run
         # that feeds the coverage threshold below (ci-target-schema.md section 4.5).
-        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category!=E2E" --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx" --logger "console;verbosity=normal"
-
-      - name: Run integration tests
-        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=Integration" --logger "trx;LogFileName=integration-test-results.trx" --logger "console;verbosity=normal"
-
-      - name: Run E2E tests
-        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=E2E" --logger "trx;LogFileName=e2e-test-results.trx" --logger "console;verbosity=normal"
+        # Deterministic lane only: OsInterface tests (browser E2E, real processes, ports,
+        # file databases) run in the separate best-effort os-interface-tests job instead.
+        # E2E ⊆ OsInterface is enforced by FlakyConventionTests, so no browser test can land
+        # in this lane and the Playwright installation moved to the OS job. The former
+        # "Run integration tests" step (Category=Integration) matched zero tests and was
+        # removed - see docs/help/stabilitaet/os-interface-tests.md.
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category!=E2E&Category!=OsInterface" --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx" --logger "console;verbosity=normal"
 
       - name: Install ReportGenerator
         run: dotnet tool install -g dotnet-reportgenerator-globaltool --version 5.5.11
@@ -185,6 +182,65 @@ jobs:
         with:
           name: test-results-pr
           path: VideoWebPlayer.Tests/TestResults/*.trx
+          retention-days: 14
+
+  os-interface-tests:
+    name: os-interface tests
+    needs: detect-backmerge
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
+    # Best-effort lane for environment-sensitive tests (OsInterface category: browser E2E
+    # via Playwright, real processes/ports/file databases): the failures stay visible as
+    # job result, annotations and TRX artifacts, but must not block the merge - this job
+    # is deliberately in no needs: list of the blocking jobs. Job-level continue-on-error
+    # keeps the overall run green; conventions are documented in
+    # docs/help/stabilitaet/os-interface-tests.md.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoPlayer.sln
+
+      - name: Build test project
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-restore -c Release -p:NoWarn=NU1903
+
+      - name: Install Playwright browsers
+        run: pwsh VideoWebPlayer.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Run OS interface tests
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=OsInterface" --logger "trx;LogFileName=test-results-os-interface.trx" --logger "console;verbosity=normal"
+
+      - name: Retry flaky tests once
+        # if: failure() is deliberately broad: on a build failure or missing TRX the script
+        # reports "keine Flaky-Fehlschlaege" and exits 0, so the original failing step stays
+        # the leading signal. Persistent flaky failures make this step fail - the job still
+        # stays non-blocking via job-level continue-on-error.
+        if: failure()
+        shell: pwsh
+        run: scripts/Retry-FlakyTests.ps1 -TestProject VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj -PrimaryTrx VideoWebPlayer.Tests/TestResults/test-results-os-interface.trx -Configuration Release
+
+      - name: Analyze flaky test results
+        # Pure visibility report over this run's TestResults directory (always exit 0):
+        # ::warning:: for quarantine candidates, ::notice:: for re-entry candidates.
+        if: always()
+        shell: pwsh
+        run: scripts/Analyze-FlakyTestResults.ps1 -Path VideoWebPlayer.Tests/TestResults
+
+      - name: Upload OS interface test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-os-interface-pr
+          # Glob also picks up the retry TRX (test-results-os-interface-flaky-retry.trx).
+          path: VideoWebPlayer.Tests/TestResults/test-results-os-interface*.trx
           retention-days: 14
 
   no-pending-backmerge:

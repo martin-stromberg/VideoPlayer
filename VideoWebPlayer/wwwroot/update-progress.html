@@ -93,14 +93,17 @@
     <h1>Update wird installiert</h1>
     <p id="status" role="status">Update wird gestartet …</p>
     <p class="hint">Diese Seite prüft den Server selbstständig und leitet dich nach dem Neustart weiter. Du musst nichts tun — bitte lass den Tab einfach geöffnet.</p>
-    <a id="manual" href="/" hidden>Zur Startseite</a>
+    <a id="manual" href="./" hidden>Zur Startseite</a>
 </main>
 <script>
     'use strict';
 
-    var INSTALL_URL = '/api/updates/install';
-    var HOME_URL = '/';
-    var ADMIN_URL = '/admin/updates';
+    // Relativ (kein fuehrender Slash) aufgeloest gegen die URL dieser Seite selbst, damit das
+    // auch hinter einem Reverse-Proxy mit Pfad-Praefix (PathBase) funktioniert - ein
+    // fuehrender Slash wuerde das Praefix verwerfen und immer auf die Domain-Wurzel zeigen.
+    var INSTALL_URL = 'api/updates/install';
+    var HOME_URL = './';
+    var ADMIN_URL = 'admin/updates';
     var POLL_INTERVAL_MS = 2000;
     // Download, Backup und Shutdown können je nach Datenlage dauern.
     var SHUTDOWN_TIMEOUT_MS = 30 * 60 * 1000;

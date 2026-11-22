@@ -35,7 +35,8 @@ Kombinationen:
 - `[Flaky]` **nur in Kombination mit `OsInterface`** — nie in der regulären Lane.
 
 Das Testprojekt `VideoWebPlayer.Tests` stellt zentrale Attribute bereit
-(`Infrastructure/Testing/`):
+(`Infrastructure/Testing/`); die Kategorie-Namen stehen als Konstanten in
+`TestCategories` (`E2E`, `OsInterface`, `Flaky`):
 
 ```csharp
 // Klassenebene (erbt auf alle Methoden)
@@ -149,7 +150,14 @@ Klassifikation pro Test (Fenster: letzte `-MaxRuns 20` Primär-Läufe):
 
 Die Schwellwerte sind Startwerte und kalibrierbar (`-MaxRuns`,
 `-QuarantineMinFlakeEvents`, `-QuarantineMinFailureRate`,
-`-QuarantineMinExecutions`, `-WatchMinFailureRate`). Der Analyzer legt **keine
+`-QuarantineMinExecutions`, `-WatchMinFailureRate`,
+`-ReEntryMinConsecutivePasses`). Für die Re-Entry-Auswertung ermittelt der
+Analyzer die `Flaky`-markierten Tests per `--list-tests` über das Testprojekt
+(`-TestProject`, Standard `VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj`
+relativ zum Repository-Stamm; `-Configuration`, Standard `Release`) — ist das
+Projekt nicht erreichbar (z. B. Auswertung heruntergeladener Artefakte außerhalb
+des Klon-Verzeichnisses), wird die Re-Entry-Auswertung übersprungen, der Rest
+bleibt unverändert. Der Analyzer legt **keine
 Issues automatisch an** — er meldet Kandidaten mit Empfehlung und endet immer mit
 Exit 0. In der CI läuft er als `if: always()`-Schritt `Analyze flaky test
 results` über dem TestResults-Verzeichnis des Laufs.

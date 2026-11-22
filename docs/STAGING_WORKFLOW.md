@@ -40,7 +40,7 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 - ✅ Lint checks (compiler warnings as errors)
 - ✅ Kein offener Back-Merge-PR `main` → `staging` (`no pending backmerge`; entfaellt bei Back-Merge-PRs selbst)
 
-**Blocking**: All checks must pass before PR can be merged — except the best-effort `os-interface tests` job, whose failures stay visible (job result, annotations, `test-results-os-interface-pr` artifact) without blocking. Conventions: `docs/help/stabilitaet/os-interface-tests.md`
+**Blocking**: All checks must pass before PR can be merged — except the best-effort `os-interface tests` job, whose failures stay visible (job result, annotations, `test-results-os-interface-pr` artifact) without blocking. Reruns are limited to exactly one `gh run rerun --job <job-id>` for the `os-interface tests` job — never `gh run rerun --failed` and never a rerun of the blocking lane. Conventions: `docs/help/stabilitaet/os-interface-tests.md`
 
 ### Stage 2: Staging Validation
 

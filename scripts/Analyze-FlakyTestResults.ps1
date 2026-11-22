@@ -14,11 +14,14 @@
         naechsten Laufs, der den Test enthaelt (sortiert nach dem Lauf-Zeitstempel
         aus dem TRX <Times start>-Attribut, LastWriteTimeUtc als Fallback).
 
-    Primaer-Outcomes ausserhalb Passed/Failed (z. B. NotExecuted durch CI-Skip-Flags
-    wie SOFTWARESCHMIEDE_SKIP_*) gelten als fehlende Beobachtung: Sie erhoehen weder
-    den Ausfuehrungszaehler noch die Fehlrate und unterbrechen die Lauf-Sequenz
-    nicht (kein Phantom-"gruen im Folgelauf" nach einem Skip, kein verlorenes
-    fail->pass ueber einen Skip hinweg).
+    Primaer-Outcomes ausserhalb Passed/Failed (z. B. NotExecuted durch
+    [Fact(Skip = "...")] oder Assert.SkipWhen(...) sowie Discovery-Ausfaelle)
+    gelten als fehlende Beobachtung: Sie erhoehen weder den Ausfuehrungszaehler
+    noch die Fehlrate und unterbrechen die Lauf-Sequenz nicht (kein
+    Phantom-"gruen im Folgelauf" nach einem Skip, kein verlorenes fail->pass
+    ueber einen Skip hinweg). Die SkipBrowser-/E2EBinaryLocator-return-Pfade
+    melden nicht ausgefuehrte Tests dagegen als Passed und zaehlen damit als
+    Ausfuehrung (bekannte Einschraenkung, siehe Hilfe-Doku).
 
     Klassifikation pro Testname (Fenster: letzte -MaxRuns Primaer-Laeufe):
       - Quarantaene-Kandidat: >= QuarantineMinFlakeEvents Flake-Ereignisse ODER
@@ -95,17 +98,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$inGitHubActions = $env:GITHUB_ACTIONS -eq "true"
 
 . (Join-Path $PSScriptRoot "lib/Trx.ps1")
 . (Join-Path $PSScriptRoot "lib/TestDiscovery.ps1")
-
-function ConvertTo-MethodName {
-    # Theory-Datenzeilen ("Ns.Class.Method(arg: 1)") auf den Methoden-FQN normalisieren.
-    param([string]$TestName)
-    if ($TestName -match '^([A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+)\(.*\)$') { return $matches[1] }
-    return $TestName
-}
+. (Join-Path $PSScriptRoot "lib/Annotations.ps1")
 
 # 1. TRX-Dateien einsammeln und in Primaer/Retry aufteilen
 $trxFiles = @()
@@ -165,12 +161,13 @@ $passStreaks = @{}
 foreach ($run in $runs) {
     foreach ($entry in $run.Primary.GetEnumerator()) {
         $name = $entry.Key
-        # Nicht-Passed/Failed-Primaer-Outcomes (z. B. NotExecuted durch CI-Skip-Flags
-        # wie SOFTWARESCHMIEDE_SKIP_* oder Discovery-Ausfaelle) zaehlen als fehlende
-        # Beobachtung: keine Ausfuehrung, keine Sequenz-Transition, kein
-        # LastOutcome-Update. Sonst erzeugt fail->skip ein Phantom-"gruen im
-        # Folgelauf", verwaessert Executions/Fehlrate und loescht ein gemerktes
-        # LastOutcome=Failed (echte fail->skip->pass-Sequenz ginge verloren).
+        # Nicht-Passed/Failed-Primaer-Outcomes (z. B. NotExecuted durch
+        # [Fact(Skip = "...")]/Assert.SkipWhen(...) oder Discovery-Ausfaelle)
+        # zaehlen als fehlende Beobachtung: keine Ausfuehrung, keine
+        # Sequenz-Transition, kein LastOutcome-Update. Sonst erzeugt fail->skip
+        # ein Phantom-"gruen im Folgelauf", verwaessert Executions/Fehlrate und
+        # loescht ein gemerktes LastOutcome=Failed (echte fail->skip->pass-
+        # Sequenz ginge verloren).
         if ($entry.Value -ne "Passed" -and $entry.Value -ne "Failed") { continue }
         $failed = $entry.Value -eq "Failed"
         if (-not $stats.ContainsKey($name)) {
@@ -187,10 +184,10 @@ foreach ($run in $runs) {
         if ($failed) { $stat.Failures++ }
         $retried = $null -ne $run.Retry -and $run.Retry.Contains($name)
         $retryOutcome = if ($retried) { $run.Retry[$name] } else { $null }
-        # Nur "Passed" gilt als gruen — andere Retry-Outcomes (z. B. NotExecuted durch ein
-        # SOFTWARESCHMIEDE_SKIP_*-Flag oder einen Discovery-Ausfall im gefilterten Re-Run)
-        # sind kein Bestandsnachweis und duerfen kein Flake-Ereignis erzeugen (analog
-        # Retry-FlakyTests.ps1).
+        # Nur "Passed" gilt als gruen — andere Retry-Outcomes (z. B. NotExecuted durch
+        # [Fact(Skip = "...")]/Assert.SkipWhen(...) oder einen Discovery-Ausfall im
+        # gefilterten Re-Run) sind kein Bestandsnachweis und duerfen kein
+        # Flake-Ereignis erzeugen (analog Retry-FlakyTests.ps1).
         $recovered = $failed -and $retried -and $retryOutcome -eq "Passed"
         if ($recovered) {
             # Fehlschlag im Primaer + gruen im Retry desselben Laufs.
@@ -261,8 +258,7 @@ Write-Host "==> $($report.Count) Tests ausgewertet: $($candidates.Count) Quarant
 
 foreach ($candidate in $candidates) {
     $message = "Quarantaene-Kandidat: $($candidate.Test) ($($candidate.FlakeEvents) Flake-Ereignisse, Fehlrate $($candidate.FailureRate)) — Empfehlung: Quarantaene-Issue anlegen + Fehlerbild in docs/help/stabilitaet/os-interface-tests.md dokumentieren."
-    if ($inGitHubActions) { Write-Host "::warning::$message" }
-    else { Write-Host "[warning] $message" -ForegroundColor Yellow }
+    Write-Annotation -Kind "warning" -Message $message -ForegroundColor Yellow
 }
 
 # 5. Re-Entry-Kandidaten: Flaky-markierte Tests mit >= ReEntryMinConsecutivePasses
@@ -282,8 +278,7 @@ if (Test-Path $TestProject) {
     }
     foreach ($candidate in $reEntryCandidates) {
         $message = "Re-Entry-Kandidat: $($candidate.Test) ($($candidate.Passes) aufeinanderfolgende fehlerfreie Primaer-Durchlaeufe) — Empfehlung: bei dokumentiertem Fix [Flaky]-Trait per PR entfernen und Quarantaene-Issue schliessen (Konvention: docs/help/stabilitaet/os-interface-tests.md)."
-        if ($inGitHubActions) { Write-Host "::notice::$message" }
-        else { Write-Host "[notice] $message" -ForegroundColor Cyan }
+        Write-Annotation -Kind "notice" -Message $message -ForegroundColor Cyan
     }
     if ($flakyMethods.Count -gt 0) {
         Write-Host "==> $($flakyMethods.Count) Flaky-markierte(r) Test(s), davon $($reEntryCandidates.Count) Re-Entry-Kandidat(en) (Kriterium: >= $ReEntryMinConsecutivePasses aufeinanderfolgende fehlerfreie Primaer-Durchlaeufe)."

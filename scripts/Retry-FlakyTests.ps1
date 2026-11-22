@@ -47,23 +47,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$inGitHubActions = $env:GITHUB_ACTIONS -eq "true"
 
 . (Join-Path $PSScriptRoot "lib/Trx.ps1")
 . (Join-Path $PSScriptRoot "lib/TestDiscovery.ps1")
-
-function Write-Annotation {
-    param([string]$Kind, [string]$Message)
-    if ($inGitHubActions) { Write-Host "::$Kind`::$Message" }
-    else { Write-Host "[$Kind] $Message" }
-}
-
-function ConvertTo-MethodName {
-    # Theory-Datenzeilen ("Ns.Class.Method(arg: 1)") auf den Methoden-FQN normalisieren.
-    param([string]$TestName)
-    if ($TestName -match '^([A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+)\(.*\)$') { return $matches[1] }
-    return $TestName
-}
+. (Join-Path $PSScriptRoot "lib/Annotations.ps1")
 
 # 1. Primaer-TRX auswerten
 $primaryResults = Get-TrxTestResults -TrxPath $PrimaryTrx

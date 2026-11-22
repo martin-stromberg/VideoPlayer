@@ -30,3 +30,12 @@ function Get-FlakyTestNames {
     }
     return ,$names
 }
+
+function ConvertTo-MethodName {
+    # Theory-Datenzeilen ("Ns.Class.Method(arg: 1)") auf den Methoden-FQN normalisieren,
+    # damit TRX-Ergebnisnamen gegen die Methoden-FQNs aus Get-FlakyTestNames bzw.
+    # --filter-Ausdruecke vergleichbar sind. Facts ohne Klammer-Argumente bleiben unveraendert.
+    param([string]$TestName)
+    if ($TestName -match '^([A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+)\(.*\)$') { return $matches[1] }
+    return $TestName
+}

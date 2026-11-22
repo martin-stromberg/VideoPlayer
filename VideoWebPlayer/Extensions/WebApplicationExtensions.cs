@@ -93,16 +93,20 @@ public static class WebApplicationExtensions
         // Fr�h einschr�nken
         app.UseWhitelistIp();
 
-        // CSS und JavaScript werden ohne Fingerprint im Dateinamen eingebunden; ohne Cache-Control wuerden Browser
-        // sie heuristisch cachen und nach einem Update veraltete Styles zeigen. "no-cache" erzwingt eine
-        // Revalidierung (ETag, 304), spart also weiterhin die Uebertragung.
+        // CSS, JavaScript und statische HTML-Seiten (z. B. update-progress.html) werden ohne
+        // Fingerprint im Dateinamen eingebunden; ohne Cache-Control wuerden Browser sie heuristisch
+        // cachen und nach einem Update veraltete Inhalte zeigen - bei update-progress.html sogar
+        // dauerhaft, weil die interne Navigation dorthin (NavigateTo(forceLoad: true)) ein normaler
+        // Request ist und anders als ein manueller Hard-Refresh keine Cache-Umgehung erzwingt.
+        // "no-cache" erzwingt eine Revalidierung (ETag, 304), spart also weiterhin die Uebertragung.
         app.UseStaticFiles(new StaticFileOptions
         {
             OnPrepareResponse = ctx =>
             {
                 var extension = Path.GetExtension(ctx.File.Name);
                 if (string.Equals(extension, ".css", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(extension, ".js", StringComparison.OrdinalIgnoreCase))
+                    || string.Equals(extension, ".js", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(extension, ".html", StringComparison.OrdinalIgnoreCase))
                 {
                     ctx.Context.Response.Headers.CacheControl = "no-cache";
                 }

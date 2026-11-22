@@ -14,14 +14,14 @@ Branch: `task/issue-368-e8ebf717b9eb4c499216766302ec5d3a-flaky-test-haertung-umg
 | [x] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
 | [x] | 5c | Planungscommit | – |
 | [x] | 6 | Implementierung (Unteragent) | Codeänderungen |
-| [ ] | 7 | Plan-Review (Unteragent, bedingt) | `review.md` |
-| [ ] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |
-| [ ] | 9 | Code-Review (Unteragent) | `review-code.md` |
-| [ ] | 10 | Tests ausführen inkl. Sichtprüfung der Abnahme-Screenshots (Unteragent) | `test-results.md` |
-| [ ] | – | Iteration oder Abschluss entscheiden | – |
+| [x] | 7 | Plan-Review (Unteragent, bedingt) | `review.md` |
+| [x] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |
+| [x] | 9 | Code-Review (Unteragent) | `review-code.md` |
+| [x] | 10 | Tests ausführen inkl. Sichtprüfung der Abnahme-Screenshots (Unteragent) | `test-results.md` |
+| [x] | – | Iteration oder Abschluss entscheiden | – |
 | [ ] | 11 | Folgeaufgaben dokumentieren (bei Schleifenabbruch) | `continue.md` |
-| [ ] | 12 | Dokumentation erstellen (Unteragent) | `docs/help/` |
-| [ ] | 12b | README aktualisieren (Unteragent) | `README.md` |
-| [ ] | 12c | Release Notes aktualisieren (Unteragent) | `docs/RELEASE_NOTES.md` |
-| [ ] | – | Feature-Verzeichnis löschen | – |
-| [ ] | – | Commit durchführen | – |
+| [x] | 12 | Dokumentation erstellen (Unteragent) | `docs/help/` |
+| [x] | 12b | README aktualisieren (Unteragent) | `README.md` |
+| [x] | 12c | Release Notes aktualisieren (Unteragent) | `docs/RELEASE_NOTES.md` |
+| [x] | – | Feature-Verzeichnis löschen | – |
+| [x] | – | Commit durchführen | – |

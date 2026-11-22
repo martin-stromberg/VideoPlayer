@@ -13,7 +13,7 @@ Branch: `task/issue-368-e8ebf717b9eb4c499216766302ec5d3a-flaky-test-haertung-umg
 | [x] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
 | [x] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
 | [x] | 5c | Planungscommit | – |
-| [ ] | 6 | Implementierung (Unteragent) | Codeänderungen |
+| [x] | 6 | Implementierung (Unteragent) | Codeänderungen |
 | [ ] | 7 | Plan-Review (Unteragent, bedingt) | `review.md` |
 | [ ] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |
 | [ ] | 9 | Code-Review (Unteragent) | `review-code.md` |

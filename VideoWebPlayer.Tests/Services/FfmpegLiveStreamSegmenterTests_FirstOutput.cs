@@ -61,6 +61,7 @@ public sealed class FfmpegLiveStreamSegmenterTests_FirstOutput : IDisposable
         public Stream StandardError => Stderr;
 
         /// <summary>Simuliert das eigenständige Prozessende: Exit-Status plus stderr-EOF.</summary>
+        /// <param name="exitCode">Zu meldender Exit-Code des simulierten Prozesses.</param>
         public void SimulateExit(int exitCode = 1)
         {
             ExitCode = exitCode;
@@ -105,7 +106,9 @@ public sealed class FfmpegLiveStreamSegmenterTests_FirstOutput : IDisposable
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         var ct = TestContext.Current.CancellationToken;
-        for (var i = 0; i < 200 && !condition(); i++)
+        // 1000 x 10 ms = 10 s Host-Poll-Budget (vorher 2 s): Das Kind pollt im 500-ms-
+        // Raster, unter CI-Last waren ~4 Polls zu knapp fuer ein echtes Segmenter-Signal.
+        for (var i = 0; i < 1000 && !condition(); i++)
             await Task.Delay(10, ct);
         Assert.True(condition(), "Bedingung wurde innerhalb des Timeouts nicht erfüllt.");
     }
@@ -114,8 +117,7 @@ public sealed class FfmpegLiveStreamSegmenterTests_FirstOutput : IDisposable
     {
         foreach (var dir in _tempDirs)
         {
-            try { Directory.Delete(dir, recursive: true); }
-            catch (Exception) { }
+            TempDirectoryCleanup.DeleteBestEffort(dir);
         }
     }
 

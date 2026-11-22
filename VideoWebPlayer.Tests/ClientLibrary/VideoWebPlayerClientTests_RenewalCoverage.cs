@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.ClientLibrary;
@@ -13,6 +14,7 @@ namespace VideoWebPlayer.Tests.ClientLibrary;
 /// to go past it: the two picture calls, deleting a media source and reporting playback progress. Only
 /// the health check is exempt, because it needs no sign-in at all.
 /// </summary>
+[OsInterface]
 public sealed class VideoWebPlayerClientTests_RenewalCoverage : DeviceClientTestBase
 {
     private const string RefreshRoute = "/api/auth/refresh";

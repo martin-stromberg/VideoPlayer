@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -15,6 +17,7 @@ namespace VideoWebPlayer.Tests;
 /// internal stream endpoint serves a media item only with a valid issued token and honors
 /// HTTP range requests — the properties the ffprobe HTTP probe path relies on.
 /// </summary>
+[OsInterface]
 public sealed class InternalMediaStreamControllerTests : IDisposable
 {
     private static readonly byte[] VideoBytes = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77 };
@@ -26,7 +29,7 @@ public sealed class InternalMediaStreamControllerTests : IDisposable
     public InternalMediaStreamControllerTests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-internal-stream-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         _rootDir = Path.Combine(Path.GetTempPath(), $"vwp-internal-stream-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_rootDir);
@@ -127,6 +130,7 @@ public sealed class InternalMediaStreamControllerTests : IDisposable
     /// database so the endpoint tests run against a defined flag state — the internal
     /// stream endpoint answers 404 while the feature is unreleased.
     /// </summary>
+    /// <param name="enabled">Zielzustand des Release-Schalters.</param>
     private async Task SetTvSenderEnabledAsync(bool enabled)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -139,6 +143,7 @@ public sealed class InternalMediaStreamControllerTests : IDisposable
     /// Seeds a local media source with one media item backed by the temp file and issues a
     /// probe URI for it. Returns the request path and the media item id.
     /// </summary>
+    /// <returns>Request-Pfad des Probe-URIs und die Id des Media-Items.</returns>
     private async Task<(string RequestUri, long MediaItemId)> IssueProbeUriAsync()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -185,7 +190,7 @@ public sealed class InternalMediaStreamControllerTests : IDisposable
     public void Dispose()
     {
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
-        try { Directory.Delete(_rootDir, recursive: true); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 }

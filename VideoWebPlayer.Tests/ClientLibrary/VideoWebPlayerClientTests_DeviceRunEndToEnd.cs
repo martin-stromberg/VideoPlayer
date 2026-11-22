@@ -1,5 +1,6 @@
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.ClientLibrary;
@@ -9,6 +10,7 @@ namespace VideoWebPlayer.Tests.ClientLibrary;
 /// bootstrap, list playlists, start playback, report progress and move on — and, after the device was
 /// revoked, fail with one unmistakable message instead of retrying forever.
 /// </summary>
+[OsInterface]
 public sealed class VideoWebPlayerClientTests_DeviceRunEndToEnd : DeviceClientTestBase
 {
     [Fact]

@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using msTools.Updater;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -110,7 +111,7 @@ public sealed class MsToolsUpdaterIntegrationTests : IDisposable
     {
         if (Directory.Exists(testRoot))
         {
-            Directory.Delete(testRoot, recursive: true);
+            TempDirectoryCleanup.DeleteBestEffort(testRoot);
         }
     }
 

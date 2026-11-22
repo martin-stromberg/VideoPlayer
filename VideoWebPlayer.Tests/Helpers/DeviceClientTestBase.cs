@@ -76,7 +76,7 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
             scope.Dispose();
         _scopes.Clear();
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* temp file may still be locked */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
         return ValueTask.CompletedTask;
     }
 

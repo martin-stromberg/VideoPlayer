@@ -10,6 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Backups;
+using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -20,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// korrekt, solange ein Restore läuft (Akzeptanzszenarien 1 und 3).
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 [Collection(MediaSourceClassifierCollection.Name)]
 public sealed class MediaSourceAdminFullScanE2ETests : IAsyncLifetime
 {
@@ -36,7 +39,7 @@ public sealed class MediaSourceAdminFullScanE2ETests : IAsyncLifetime
     public MediaSourceAdminFullScanE2ETests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-admin-fullscan-e2e-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         _rootDir = Path.Combine(Path.GetTempPath(), $"vwp-admin-fullscan-e2e-{Guid.NewGuid():N}");
         var showDir = Path.Combine(_rootDir, "AdminScanShow");
@@ -101,8 +104,8 @@ public sealed class MediaSourceAdminFullScanE2ETests : IAsyncLifetime
         _playwright?.Dispose();
 
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
-        try { Directory.Delete(_rootDir, recursive: true); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 
     [Fact]

@@ -10,6 +10,7 @@ using msTools.Backup;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Backups;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services.Backups;
@@ -134,26 +135,12 @@ public sealed class VideoWebPlayerBackupFacadeTests : IAsyncDisposable
     {
         foreach (var file in _tempFiles)
         {
-            try
-            {
-                if (File.Exists(file))
-                    File.Delete(file);
-            }
-            catch
-            {
-            }
+            TempDirectoryCleanup.DeleteFileBestEffort(file);
         }
 
         foreach (var dir in _tempDirs)
         {
-            try
-            {
-                if (Directory.Exists(dir))
-                    Directory.Delete(dir, recursive: true);
-            }
-            catch
-            {
-            }
+            TempDirectoryCleanup.DeleteBestEffort(dir);
         }
 
         await ValueTask.CompletedTask;

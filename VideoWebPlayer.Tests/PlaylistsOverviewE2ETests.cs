@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -11,6 +12,7 @@ namespace VideoWebPlayer.Tests;
 /// playlists listed only once, a three-button icon filter bar and an icon-only "Neue Playlist" button.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistsOverviewE2ETests : PlaylistsE2ETestBase
 {
     private const string ForeignBadgeText = "Von einem anderen Benutzer freigegeben";

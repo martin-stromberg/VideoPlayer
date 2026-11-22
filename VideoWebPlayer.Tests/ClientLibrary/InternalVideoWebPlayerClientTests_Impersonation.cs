@@ -8,6 +8,7 @@ using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Authentication;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.ClientLibrary;
@@ -17,6 +18,7 @@ namespace VideoWebPlayer.Tests.ClientLibrary;
 /// bearer token of the signed-in user for every HTTP verb, not only for GET and POST. Each test uses a
 /// fresh client without a token, so the call can only succeed if that client impersonated beforehand.
 /// </summary>
+[OsInterface]
 public sealed class InternalVideoWebPlayerClientTests_Impersonation : DeviceClientTestBase
 {
     [Fact]

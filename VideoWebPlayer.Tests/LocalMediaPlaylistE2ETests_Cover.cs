@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -12,6 +13,7 @@ namespace VideoWebPlayer.Tests;
 /// Erzeugung ehrlich "keine Bilder verfügbar", statt ein leeres Titelbild zu speichern.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 [Collection(MediaSourceClassifierCollection.Name)]
 public sealed class LocalMediaPlaylistE2ETests_Cover : LocalMediaPlaylistE2ETestBase
 {

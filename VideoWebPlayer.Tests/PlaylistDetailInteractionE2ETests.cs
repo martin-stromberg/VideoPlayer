@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
@@ -14,6 +15,7 @@ namespace VideoWebPlayer.Tests;
 /// and the strictly read-only view of a foreign public playlist.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistDetailInteractionE2ETests : PlaylistsE2ETestBase
 {
     private async Task<long> OpenNewPlaylistAsync(string name, string? description = null)

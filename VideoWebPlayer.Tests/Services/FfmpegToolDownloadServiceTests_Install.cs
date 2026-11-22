@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -13,6 +14,7 @@ namespace VideoWebPlayer.Tests.Services;
 /// tar.xz packages land flat under <c>tools/ffmpeg/</c>, progress is reported, Unix
 /// binaries get the executable bit and the locators find the binaries afterwards.
 /// </summary>
+[OsInterface]
 public sealed class FfmpegToolDownloadServiceTests_Install
 {
     [Fact]

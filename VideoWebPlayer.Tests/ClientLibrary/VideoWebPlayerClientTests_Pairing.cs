@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.ClientLibrary;
@@ -13,6 +14,7 @@ namespace VideoWebPlayer.Tests.ClientLibrary;
 /// The pairing calls of the client library (A5): redeeming a pairing code and redeeming a QR bootstrap
 /// ticket, each in the accepted and in the refused case.
 /// </summary>
+[OsInterface]
 public sealed class VideoWebPlayerClientTests_Pairing : DeviceClientTestBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);

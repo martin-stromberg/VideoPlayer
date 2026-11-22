@@ -37,7 +37,7 @@ public abstract class MediaBoxContextMenuE2ETestBase : IAsyncLifetime
     protected MediaBoxContextMenuE2ETestBase()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-context-menu-e2e-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         var jwtKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 
@@ -94,7 +94,7 @@ public abstract class MediaBoxContextMenuE2ETestBase : IAsyncLifetime
         _playwright?.Dispose();
 
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
     }
 
     protected async Task LoginAndNavigateToHomeAsync()

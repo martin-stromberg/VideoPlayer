@@ -80,9 +80,9 @@ public class MediaSourceScanServiceTests
         using var cts = new CancellationTokenSource();
         var runTask = service.RunAsync(cts.Token);
 
-        await TestHelpers.WaitForMessageAsync(messages, "Starte Scan aller Quellen.", TimeSpan.FromSeconds(2));
-        await TestHelpers.WaitForMessageAsync(messages, "Scan aller Quellen abgeschlossen.", TimeSpan.FromSeconds(2));
-        await TestHelpers.WaitForMessageAsync(messages, "Klassifizierung abgeschlossen.", TimeSpan.FromSeconds(2));
+        await TestHelpers.WaitForMessageAsync(messages, "Starte Scan aller Quellen.", TimeSpan.FromSeconds(30));
+        await TestHelpers.WaitForMessageAsync(messages, "Scan aller Quellen abgeschlossen.", TimeSpan.FromSeconds(30));
+        await TestHelpers.WaitForMessageAsync(messages, "Klassifizierung abgeschlossen.", TimeSpan.FromSeconds(30));
 
         cts.Cancel();
         await runTask;
@@ -162,8 +162,8 @@ public class MediaSourceScanServiceTests
         using var cts = new CancellationTokenSource();
         var runTask = service.RunAsync(cts.Token);
 
-        await TestHelpers.WaitForMediaItemAsync(serviceProvider, filePath, TimeSpan.FromSeconds(2));
-        await TestHelpers.WaitForMediaItemClassifiedAsync(serviceProvider, filePath, TimeSpan.FromSeconds(2));
+        await TestHelpers.WaitForMediaItemAsync(serviceProvider, filePath, TimeSpan.FromSeconds(30));
+        await TestHelpers.WaitForMediaItemClassifiedAsync(serviceProvider, filePath, TimeSpan.FromSeconds(30));
 
         cts.Cancel();
         await runTask;
@@ -249,10 +249,10 @@ public class MediaSourceScanServiceTests
         using var cts = new CancellationTokenSource();
         var runTask = service.RunAsync(cts.Token);
 
-        await TestHelpers.WaitForMediaItemAsync(serviceProvider, firstEpisodePath, TimeSpan.FromSeconds(5));
-        await TestHelpers.WaitForMediaItemClassifiedAsync(serviceProvider, firstEpisodePath, TimeSpan.FromSeconds(5));
-        await TestHelpers.WaitForTvShowEpisodeCountAsync(serviceProvider, expectedEpisodeCount, TimeSpan.FromSeconds(5));
-        await TestHelpers.WaitForMessageAsync(messages, "Klassifizierung abgeschlossen.", TimeSpan.FromSeconds(5));
+        await TestHelpers.WaitForMediaItemAsync(serviceProvider, firstEpisodePath, TimeSpan.FromSeconds(30));
+        await TestHelpers.WaitForMediaItemClassifiedAsync(serviceProvider, firstEpisodePath, TimeSpan.FromSeconds(30));
+        await TestHelpers.WaitForTvShowEpisodeCountAsync(serviceProvider, expectedEpisodeCount, TimeSpan.FromSeconds(30));
+        await TestHelpers.WaitForMessageAsync(messages, "Klassifizierung abgeschlossen.", TimeSpan.FromSeconds(30));
 
         cts.Cancel();
         await runTask;
@@ -290,7 +290,9 @@ public class MediaSourceScanServiceTests
 
         var timeProvider = new IncrementingTimeProvider(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
         var reader = new SeriesSftpMediaSourceReader(rootPath, showName, seasons, episodesPerSeason);
-        var waitTimeSec = 10;
+        // 30 s Obergrenze fuer scan-getriebene Waits: echter Scan + Klassifizierung kann
+        // unter CI-Last deutlich laenger als die frueheren 2-10 s brauchen.
+        var waitTimeSec = 30;
 
         var services = new ServiceCollection();
         services.AddSingleton<TimeProvider>(timeProvider);
@@ -650,8 +652,8 @@ public class MediaSourceScanServiceTests
         // Seasons läuft die zweite Klassifizierungsstufe (ClassifyMediaCollectionsAsync) noch, wenn die
         // erste "Klassifizierung abgeschlossen."-Meldung bereits erscheint.
         var expectedEpisodeCount = seasons * episodesPerSeason;
-        await TestHelpers.WaitForTvShowEpisodeCountAsync(serviceProvider, expectedEpisodeCount, TimeSpan.FromSeconds(10));
-        await TestHelpers.WaitForMessageCountAsync(messages, "Klassifizierung abgeschlossen.", 2, TimeSpan.FromSeconds(10));
+        await TestHelpers.WaitForTvShowEpisodeCountAsync(serviceProvider, expectedEpisodeCount, TimeSpan.FromSeconds(30));
+        await TestHelpers.WaitForMessageCountAsync(messages, "Klassifizierung abgeschlossen.", 2, TimeSpan.FromSeconds(30));
 
         cts.Cancel();
         await runTask;

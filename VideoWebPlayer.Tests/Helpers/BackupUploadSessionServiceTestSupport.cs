@@ -30,8 +30,7 @@ internal static class BackupUploadSessionServiceTestSupport
             return;
 
         await session.DisposeAsync();
-        if (File.Exists(session.TempPath))
-            File.Delete(session.TempPath);
+        TempDirectoryCleanup.DeleteFileBestEffort(session.TempPath);
     }
 
     /// <summary>
@@ -58,15 +57,7 @@ internal static class BackupUploadSessionServiceTestSupport
 
         public void Dispose()
         {
-            try
-            {
-                if (Directory.Exists(Path))
-                    Directory.Delete(Path, recursive: true);
-            }
-            catch
-            {
-                // Temp directory cleanup is best-effort.
-            }
+            TempDirectoryCleanup.DeleteBestEffort(Path);
         }
     }
 

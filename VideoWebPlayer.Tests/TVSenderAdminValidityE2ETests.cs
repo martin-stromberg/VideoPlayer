@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -15,6 +16,8 @@ namespace VideoWebPlayer.Tests;
 /// inputs per mode, the meta label and the "Derzeit ungültig" chip in the rule list, the
 /// end-sorting of currently invalid rules and the automatic purge via "Sendeplan jetzt erzeugen".
 /// </summary>
+[Trait("Category", "E2E")]
+[OsInterface]
 public sealed class TVSenderAdminValidityE2ETests : TVSenderAdminE2ETestBase
 {
     private async Task OpenRuleEditorAsync()

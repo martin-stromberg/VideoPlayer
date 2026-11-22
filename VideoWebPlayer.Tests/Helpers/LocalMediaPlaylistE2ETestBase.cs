@@ -86,8 +86,8 @@ public abstract class LocalMediaPlaylistE2ETestBase : IAsyncLifetime
     public ValueTask DisposeAsync()
     {
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* temp file may still be locked */ }
-        try { Directory.Delete(RootDirectory, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException) { /* best effort */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
+        TempDirectoryCleanup.DeleteBestEffort(RootDirectory);
         return ValueTask.CompletedTask;
     }
 

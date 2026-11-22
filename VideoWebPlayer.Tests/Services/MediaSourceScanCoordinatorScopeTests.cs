@@ -25,7 +25,7 @@ public sealed class MediaSourceScanCoordinatorScopeTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_rootDir, recursive: true); } catch { }
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 
     [Fact]
@@ -86,7 +86,9 @@ public sealed class MediaSourceScanCoordinatorScopeTests : IDisposable
             gatedWriteCoordinator.Release();
             await runTask;
 
-            var deadline = DateTime.UtcNow.AddSeconds(10);
+            // 30-s-Deadline (vorher 10 s): scan-getriebener Wait — der Thread-Pool-Dispatch
+            // des gebuendelten Wake-Signals nach Scan-Ende ist unter CI-Last anfaellig.
+            var deadline = DateTime.UtcNow.AddSeconds(30);
             while (Volatile.Read(ref wakes) == 0 && DateTime.UtcNow < deadline)
                 await Task.Delay(50, ct);
             await Task.Delay(400, ct);

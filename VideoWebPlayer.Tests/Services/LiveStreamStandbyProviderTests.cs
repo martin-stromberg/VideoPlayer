@@ -33,8 +33,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
 
     public ValueTask DisposeAsync()
     {
-        if (Directory.Exists(_contentRoot))
-            Directory.Delete(_contentRoot, recursive: true);
+        TempDirectoryCleanup.DeleteBestEffort(_contentRoot);
         return ValueTask.CompletedTask;
     }
 
@@ -492,6 +491,7 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
 
     /// <summary>Legt eine echte Quelldatei an, damit Pfad + Aenderungsstempel im
     /// Cache-Marker geprueft werden koennen.</summary>
+    /// <returns>Pfad der angelegten Quelldatei.</returns>
     private async Task<string> SeedSourceClipAsync()
     {
         var clipPath = Path.Combine(_contentRoot, "standby-src.mkv");
@@ -501,6 +501,8 @@ public sealed class LiveStreamStandbyProviderTests : IAsyncLifetime
     }
 
     /// <summary>Schreibt Cache-Segment + Marker fuer MediaItem 7 mit gegebenem Stempel.</summary>
+    /// <param name="clipPath">Pfad der zuvor per <see cref="SeedSourceClipAsync"/> angelegten Quelldatei.</param>
+    /// <param name="sourceWriteTimeUtc">In den Marker zu uebernehmender Quell-Aenderungsstempel.</param>
     private async Task WriteCacheAsync(string clipPath, DateTime sourceWriteTimeUtc)
     {
         var ct = TestContext.Current.CancellationToken;

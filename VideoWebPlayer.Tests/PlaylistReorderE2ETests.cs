@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -14,6 +15,7 @@ namespace VideoWebPlayer.Tests;
 /// existing <c>PlaylistsE2ETests</c>/<c>PlaylistEntriesE2ETests</c> naming convention.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
 {
     /// <summary>

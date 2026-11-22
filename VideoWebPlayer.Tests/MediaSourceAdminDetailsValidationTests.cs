@@ -1,9 +1,11 @@
 using VideoWebPlayer.Components.Pages.Admin.MediaSources;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[OsInterface]
 public class MediaSourceAdminDetailsValidationTests : IDisposable
 {
     private readonly string _rootDir;
@@ -16,7 +18,7 @@ public class MediaSourceAdminDetailsValidationTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_rootDir, recursive: true); } catch { }
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir, normalizeAttributes: true);
     }
 
     [Fact]

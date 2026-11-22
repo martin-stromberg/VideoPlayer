@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -23,8 +24,8 @@ public class FfprobeLocatorTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_baseDir, recursive: true); } catch { }
-        try { Directory.Delete(_pathDir, recursive: true); } catch { }
+        TempDirectoryCleanup.DeleteBestEffort(_baseDir);
+        TempDirectoryCleanup.DeleteBestEffort(_pathDir);
     }
 
     [Fact]

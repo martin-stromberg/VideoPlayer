@@ -11,6 +11,7 @@ using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -20,6 +21,7 @@ namespace VideoWebPlayer.Tests;
 /// (Happy Path, Episoden-Lücken, Staffelwechsel, Serienende).
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class ContinueWatchingE2ETests : IDisposable
 {
     private readonly string _dbPath;
@@ -30,7 +32,7 @@ public sealed class ContinueWatchingE2ETests : IDisposable
     public ContinueWatchingE2ETests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-e2e-cw-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         var jwtKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 
@@ -561,6 +563,6 @@ public sealed class ContinueWatchingE2ETests : IDisposable
     public void Dispose()
     {
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
     }
 }

@@ -32,7 +32,7 @@ public sealed class ItemsControllerMediaFileTypeTests : IDisposable
     public void Dispose()
     {
         _serviceProvider?.Dispose();
-        try { Directory.Delete(_rootDir, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* temp dir may still be locked */ }
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 
     [Fact]

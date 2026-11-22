@@ -1,6 +1,7 @@
 using System.Net;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -9,6 +10,7 @@ namespace VideoWebPlayer.Tests.Services;
 /// Start-time behaviour of <see cref="FfmpegToolDownloadService"/>: the server-side admin
 /// check and the parallel-start lock.
 /// </summary>
+[OsInterface]
 public sealed class FfmpegToolDownloadServiceTests_Start
 {
     [Fact]

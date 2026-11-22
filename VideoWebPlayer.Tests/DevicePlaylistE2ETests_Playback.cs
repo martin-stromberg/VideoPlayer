@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -16,6 +17,7 @@ namespace VideoWebPlayer.Tests;
 /// <c>ReportPlaybackProgressAsync</c>, kann dort aber keine <c>playlistId</c> mitgeben (siehe Bericht).
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class DevicePlaylistE2ETests_Playback : DeviceClientTestBase
 {
     [Fact]

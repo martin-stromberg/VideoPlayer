@@ -118,6 +118,8 @@ dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 dotnet test tools/MarkdownLinkCheck.Tests/MarkdownLinkCheck.Tests.csproj
 ```
 
+Die `VideoWebPlayer.Tests`-Suite ist in zwei Lanes getrennt: die deterministische reguläre Lane (`--filter "Category!=E2E&Category!=OsInterface"`, blockierend, Coverage-Gate) und die best-effort-OS-Lane (`--filter "Category=OsInterface"`: Browser-E2E via Playwright, echte Prozesse/Ports/Dateibanken). Tagging-Konvention, Flaky-Einmal-Retry und Flake-Statistik: [docs/help/stabilitaet/os-interface-tests.md](./docs/help/stabilitaet/os-interface-tests.md).
+
 Der versionierte Pre-Commit-Hook unter `.githooks/pre-commit` blockiert direkte Commits auf `main`/`staging` und führt Übersetzungsprüfung, Secret-Scan und Markdown-Linkcheck aus. Details zur Aktivierung stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
 
 ## Lizenz

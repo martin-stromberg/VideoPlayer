@@ -33,14 +33,14 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 
 **Checks performed**:
 - ✅ Build validation (ensures code compiles)
-- ✅ Unit tests (all test projects)
-- ✅ Integration tests (basic integration scenarios)
+- ✅ Regular test lane `build & test`: deterministic tests only (`--filter "Category!=E2E&Category!=OsInterface"`, feeds the 70% coverage gate)
+- ✅ OS interface lane `os-interface tests`: environment-sensitive tests (`--filter "Category=OsInterface"` — browser E2E via Playwright, real processes/ports/file databases), `continue-on-error`, one filtered re-run of `Flaky`-marked failures plus TRX flake statistics — best effort, does not block the merge
 - ✅ Security scans (dependency vulnerabilities, CodeQL analysis)
 - ✅ Code quality checks (formatting, static analysis)
 - ✅ Lint checks (compiler warnings as errors)
 - ✅ Kein offener Back-Merge-PR `main` → `staging` (`no pending backmerge`; entfaellt bei Back-Merge-PRs selbst)
 
-**Blocking**: All checks must pass before PR can be merged
+**Blocking**: All checks must pass before PR can be merged — except the best-effort `os-interface tests` job, whose failures stay visible (job result, annotations, `test-results-os-interface-pr` artifact) without blocking. Conventions: `docs/help/stabilitaet/os-interface-tests.md`
 
 ### Stage 2: Staging Validation
 
@@ -49,8 +49,9 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 **Workflow**: `.github/workflows/staging-ci.yml` (display name "Pre-Release")
 
 **Checks performed**:
-- ✅ Full integration test suite
-- ✅ Code coverage analysis (minimum 70% threshold)
+- ✅ Regular test lane `build & test` (`Category!=E2E&Category!=OsInterface`, blocking)
+- ✅ Code coverage analysis (minimum 70% threshold, measured on the regular lane)
+- ✅ OS interface lane `os-interface tests` (`Category=OsInterface`, `continue-on-error`, `Flaky` retry + flake statistics; not in the `needs:` chain of `version`/`prerelease`)
 - ✅ Comprehensive security analysis
 - ✅ Code quality gates
 - ✅ Version bumping (semantisch, Conventional Commits)
@@ -75,7 +76,7 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 - ✅ Classify the ref: branch push to `main` → automatic version via `semantic-release --dry-run`; tag push `vX.Y.Z` → manual, version taken directly from the tag name
 - ✅ `scripts/resolve-release-version.mjs` checks whether a GitHub Release for the target version already exists: fully present → no-op, partially uploaded → repair only the missing assets, absent → create it
 - ✅ Build final release artifacts
-- ✅ Run final test suite
+- ✅ Run the deterministic test suite as release gate (`--filter "Category!=OsInterface"`; the OS lane already ran best-effort on `staging` for the same tree)
 - ✅ Create/repair the GitHub release
 - ✅ Verify release tag
 - ✅ `sync-staging-with-main.yml` creates the back-merge PR `main` → `staging` (see below — unconditional, not gated on this release job's success)

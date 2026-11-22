@@ -29,3 +29,4 @@
 - [API: Saisonale Startseitenlisten](../api/seasonal-genres.md) — Authentifizierter Endpunkt, Medienantwort und Saisonablauf
 
 - [Aktuelle Projektstruktur](projektstruktur.md) — Verbleibende Solution-Projekte und Hinweise zur Webanwendung
+- [OS-Schnittstellen-Tests](stabilitaet/os-interface-tests.md) — Test-Lane-Trennung (`OsInterface`/`Flaky`), Einmal-Retry, Flake-Statistik mit Quarantäne-/Re-Entry-Regel und Cleanup-Konvention

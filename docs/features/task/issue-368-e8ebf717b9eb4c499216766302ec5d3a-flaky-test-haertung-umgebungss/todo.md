@@ -11,8 +11,8 @@ Branch: `task/issue-368-e8ebf717b9eb4c499216766302ec5d3a-flaky-test-haertung-umg
 | [x] | 4 | Bestandsaufnahme (Unteragent) | `inventory.md`, `inventory/` |
 | [x] | 5 | Umsetzungsplanung (Unteragent) | `plan.md` |
 | [x] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
-| [ ] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
-| [ ] | 5c | Planungscommit | – |
+| [x] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
+| [x] | 5c | Planungscommit | – |
 | [ ] | 6 | Implementierung (Unteragent) | Codeänderungen |
 | [ ] | 7 | Plan-Review (Unteragent, bedingt) | `review.md` |
 | [ ] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |

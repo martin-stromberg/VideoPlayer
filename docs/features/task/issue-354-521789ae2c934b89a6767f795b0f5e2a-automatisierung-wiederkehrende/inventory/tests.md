@@ -25,12 +25,16 @@
 
 | Lauf | Befehl inkl. Filter | Arbeitsverzeichnis | Exit-Code | Erfolgreich | Fehlgeschlagen | Übersprungen | Nachweis |
 |------|--------------------|--------------------|-----------|-------------|----------------|--------------|----------|
-| 1a Restore+Build | `dotnet restore VideoPlayer.sln` + `dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-restore -c Release -p:NoWarn=NU1903` | Repo-Root | 0 (139 Warnungen, 0 Fehler) | – | – | – | [baseline-run.log](test-results/baseline-run.log) |
-| 1b Volle Suite | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --logger "trx;LogFileName=baseline-test-results.trx" --logger "console;verbosity=normal"` | Repo-Root | 1 | 2960 | 2 | 2 | [baseline-test-results.trx](test-results/baseline-test-results.trx), [baseline-run.log](test-results/baseline-run.log) |
-| 2 Wiederholung | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "FullyQualifiedName~TvSenderOnAirE2ETests" --logger "trx;LogFileName=retry-test-results.trx"` | Repo-Root | 0 | 2 | 0 | 0 | [retry-test-results.trx](test-results/retry-test-results.trx), [retry-run.log](test-results/retry-run.log) |
-| 3 Zweite Suite | `dotnet test tools/MarkdownLinkCheck.Tests/MarkdownLinkCheck.Tests.csproj -c Release` | Repo-Root | 0 | 6 | 0 | 0 | [baseline-tools-run.log](test-results/baseline-tools-run.log) |
-| 4 Link-Check | `dotnet run --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -c Release -- --root .` | Repo-Root | 0 (425 Dateien, 277 lokale Links geprüft) | – | – | – | [baseline-tools-run.log](test-results/baseline-tools-run.log) |
-| 5 SecretScan | `dotnet run --project tools/SecretScan/SecretScan.csproj -c Release -- --root . --solution VideoPlayer.sln` | Repo-Root | 0 („Secret scan passed.") | – | – | – | [baseline-tools-run.log](test-results/baseline-tools-run.log) |
+| 1a Restore+Build | `dotnet restore VideoPlayer.sln` + `dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-restore -c Release -p:NoWarn=NU1903` | Repo-Root | 0 (139 Warnungen, 0 Fehler) | – | – | – | `test-results/baseline-run.log` (nicht versioniert) |
+| 1b Volle Suite | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --logger "trx;LogFileName=baseline-test-results.trx" --logger "console;verbosity=normal"` | Repo-Root | 1 | 2960 | 2 | 2 | [baseline-test-results.trx](test-results/baseline-test-results.trx), `test-results/baseline-run.log` (nicht versioniert) |
+| 2 Wiederholung | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "FullyQualifiedName~TvSenderOnAirE2ETests" --logger "trx;LogFileName=retry-test-results.trx"` | Repo-Root | 0 | 2 | 0 | 0 | [retry-test-results.trx](test-results/retry-test-results.trx), `test-results/retry-run.log` (nicht versioniert) |
+| 3 Zweite Suite | `dotnet test tools/MarkdownLinkCheck.Tests/MarkdownLinkCheck.Tests.csproj -c Release` | Repo-Root | 0 | 6 | 0 | 0 | `test-results/baseline-tools-run.log` (nicht versioniert) |
+| 4 Link-Check | `dotnet run --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -c Release -- --root .` | Repo-Root | 0 (425 Dateien, 277 lokale Links geprüft) | – | – | – | `test-results/baseline-tools-run.log` (nicht versioniert) |
+| 5 SecretScan | `dotnet run --project tools/SecretScan/SecretScan.csproj -c Release -- --root . --solution VideoPlayer.sln` | Repo-Root | 0 („Secret scan passed.") | – | – | – | `test-results/baseline-tools-run.log` (nicht versioniert) |
+
+> Die Konsolenausgaben (`baseline-run.log`, `retry-run.log`, `baseline-tools-run.log`) wurden
+> damals lokal erzeugt, aber nie versioniert — `*.log` steht in `.gitignore`. Die Angabe
+> „(nicht versioniert)" ersetzt die zuvor toten Links; die TRX-Reports sind weiterhin beigefügt.
 
 ### Nachgewiesene bestehende Testfehler
 

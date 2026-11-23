@@ -69,6 +69,8 @@ Ohne diese Bestätigung wird die Einstellung nicht aktiviert.
 
 `Dienstname für Neustart` enthält den Namen des Dienstes, der im Installations- oder Neustartablauf verwendet wird. Der Wert muss zur tatsächlichen Serverinstallation passen. Läuft die Anwendung unter IIS, ist das Feld gesperrt und ein eingetragener Wert wirkungslos — ein Dienstname gilt nur für Windows-Dienste oder systemd (siehe nächster Abschnitt).
 
+Welche Voraussetzungen die Update-Installation unter systemd braucht (Unit-Name inklusive `.service`-Suffix, polkit-Regel für die transiente Update-Unit, `python3` für den Konfigurations-Merge), beschreibt [INSTALL_Server.md](../INSTALL_Server.md) im Abschnitt „Updates der Installation".
+
 ### Update-Installation unter IIS
 
 Läuft die Anwendung als IIS-Site, erkennt der Updater das Hosting-Modell selbstständig (Out-of-Process oder In-Process) und benötigt **keine** Konfiguration: Die Installation legt die Site per `app_offline.htm` kontrolliert still, tauscht die Dateien und überlässt den Neustart IIS — ein Dienstname ist dafür nicht nötig und das entsprechende Feld ist unter IIS gesperrt. Voraussetzung beim In-Process-Hosting: ein dedizierter Anwendungspool je Anwendung, weil das Update den Pool-Prozess (`w3wp`) beendet und damit alle Sites desselben Pools betroffen wären. Der Ablauf wird in `Updates/update.log` protokolliert; nach einem Fehlschlag liegt dort zusätzlich eine Kopie des ausgeführten Skripts (`update-failed.ps1`).

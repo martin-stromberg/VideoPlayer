@@ -21,6 +21,7 @@
 - [Geräte](geraete/index.md) — Pairing-Codes erzeugen und gekoppelte Client-Geräte verwalten
 - [Medienquellen](medienquellen/index.md) — Medienquellen vom Typ SFTP-Server oder lokales Verzeichnis verwalten
 - [Netzwerk-Erkennung](netzwerk-erkennung/index.md) — Server-Erkennung im lokalen Netzwerk per mDNS-Ankündigung und UDP-Broadcast mit auflösbarer öffentlicher Basis-URL
+- [Produktionsinstallation unter Linux](../INSTALL_Server.md) — Schritt-für-Schritt-Anleitung für Betreiber: Release-Artefakt, Service-Account, gehärtete systemd-Unit, Firewall, wahlweise eigenständig oder hinter TLS-terminierendem Reverse-Proxy inklusive AutoUpdate-Einrichtung
 - [Updates](updates.md) — Prüfen, installieren und konfigurieren von Programmupdates inklusive Schutz deployment-seitiger Dateianpassungen
 - [Videolaufzeit](videolaufzeit.md) — Automatische Laufzeitermittlung per ffprobe: Fortschritt im TV-Sender-Tab „Laufzeitermittlung" beobachten, fehlgeschlagene Ermittlungen zurücksetzen, ffprobe-Einrichtung und Konfiguration
 

@@ -19,7 +19,7 @@ Der Admin-Wert „Öffentliche Basis-URL" (`Setups.DiscoveryPublicBaseUrl`, sieh
 
 ## Netzwerk-Voraussetzungen
 
-- Die Firewall auf dem Server muss **UDP-Port 5001 eingehend** erlauben (für die mDNS-Ankündigung zusätzlich UDP 5353, siehe `docs/INSTALL_AVAHI.md` bzw. `docs/GUIDE_Installation.md`).
+- Die Firewall auf dem Server muss **UDP-Port 5001 eingehend** erlauben (für die mDNS-Ankündigung zusätzlich UDP 5353, siehe `docs/INSTALL_AVAHI.md` bzw. `docs/GUIDE_Installation.md`). Die vollständige Server-Installation unter Linux inklusive dieser Firewall-Freigaben beschreibt [INSTALL_Server.md](../../INSTALL_Server.md).
 - Broadcasts erreichen nur Clients im selben Netzwerksegment.
 
 ## IIS `OutOfProcess` / Reverse-Proxy / TLS-Terminierung
@@ -33,6 +33,8 @@ Die automatische Ableitung sieht nur das interne Backend (`http`, interner Port,
 ```
 
 Der Wert muss eine absolute `http`-/`https`-URI sein; andere Werte lassen den Start mit einer Validierungsfehlermeldung fehlschlagen.
+
+Für den Linux-Betrieb hinter einem TLS-terminierenden Reverse-Proxy (nginx — Loopback-Bindung, `PathBase` bei Unterpfad-Routing sowie der dokumentierte Umgang mit mDNS) enthält [INSTALL_Server.md](../../INSTALL_Server.md) die vollständige Betreiber-Anleitung.
 
 ## Migration
 

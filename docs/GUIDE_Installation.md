@@ -12,8 +12,7 @@ Diese Anleitung beschreibt die Einrichtung des Web-Repositorys unter Linux und W
 - .NET 10 SDK.
 - Git.
 - Zugriff auf NuGet.org.
-- Lokale Paketquelle `lib/packages/` aus `NuGet.config`.
-- Lokale DLL `lib/msTools.Updater/msTools.Updater.dll`.
+- Lokale Paketquelle `lib/packages/` aus `NuGet.config` — darüber werden `msTools.Backup` und `msTools.Updater` als `PackageReference` bezogen (keine separaten DLLs nötig).
 - Schreibrechte im Arbeitsverzeichnis für SQLite-Datenbank, Logs, Backups, Updates und generierte Bilddateien.
 - Optional: Visual Studio 2022 oder neuer mit ASP.NET-/Web-Workload.
 
@@ -227,9 +226,9 @@ Prüfe, ob `lib/packages/` vorhanden ist und `NuGet.config` die Quelle enthält:
 dotnet nuget list source
 ```
 
-### `msTools.Updater.dll` fehlt
+### Paket `msTools.Updater` wird nicht gefunden
 
-Die Webprojektdatei referenziert `lib/msTools.Updater/msTools.Updater.dll`. Lege die DLL aus dem vorgesehenen Release-Paket an diesem Pfad ab.
+`msTools.Updater` wird als `PackageReference` aus der lokalen Paketquelle `lib/packages` (`NuGet.config`) bezogen. Schlägt der Restore fehl, prüfe, ob das Paket `lib/packages/msTools.Updater.*.nupkg` vorhanden ist und die Quelle `local` aktiv ist (`dotnet nuget list source`).
 
 ### Port ist belegt
 

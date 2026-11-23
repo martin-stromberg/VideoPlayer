@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
@@ -13,6 +14,7 @@ namespace VideoWebPlayer.Tests;
 /// handling for unauthenticated, foreign and nonexistent playlists.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 {
     [Fact]

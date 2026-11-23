@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Net;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -11,6 +12,7 @@ namespace VideoWebPlayer.Tests.Services;
 /// incomplete archives, unsupported platforms and an unwritable target directory end in a
 /// <c>Failed</c> snapshot with a comprehensible message and cleaned-up temp files.
 /// </summary>
+[OsInterface]
 public sealed class FfmpegToolDownloadServiceTests_Failures
 {
     [Fact]

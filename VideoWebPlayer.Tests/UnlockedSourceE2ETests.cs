@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using Xunit;
@@ -22,6 +24,7 @@ namespace VideoWebPlayer.Tests;
 /// URL erreichbar.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class UnlockedSourceE2ETests : IAsyncLifetime
 {
     private readonly string _dbPath;
@@ -37,7 +40,7 @@ public sealed class UnlockedSourceE2ETests : IAsyncLifetime
     public UnlockedSourceE2ETests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-unlock-source-e2e-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         var jwtKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 
@@ -105,7 +108,7 @@ public sealed class UnlockedSourceE2ETests : IAsyncLifetime
         _playwright?.Dispose();
 
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
     }
 
     [Fact]

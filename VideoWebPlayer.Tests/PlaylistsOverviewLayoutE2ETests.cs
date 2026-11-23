@@ -1,4 +1,5 @@
 ﻿using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -13,6 +14,7 @@ namespace VideoWebPlayer.Tests;
 /// corner. (These are CSS effects that bUnit cannot see.)
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistsOverviewLayoutE2ETests : PlaylistsE2ETestBase
 {
     private async Task OpenOverviewAsync(int width = 1440, int height = 900)

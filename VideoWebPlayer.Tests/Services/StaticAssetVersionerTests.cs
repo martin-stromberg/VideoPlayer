@@ -1,5 +1,6 @@
 using Microsoft.Extensions.FileProviders;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -14,7 +15,7 @@ public class StaticAssetVersionerTests : IDisposable
 
     public StaticAssetVersionerTests() => Directory.CreateDirectory(_root);
 
-    public void Dispose() => Directory.Delete(_root, recursive: true);
+    public void Dispose() => TempDirectoryCleanup.DeleteBestEffort(_root);
 
     private StaticAssetVersioner Create() => new(new PhysicalFileProvider(_root));
 

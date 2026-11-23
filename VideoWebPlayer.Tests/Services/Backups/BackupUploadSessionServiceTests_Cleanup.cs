@@ -51,8 +51,7 @@ public sealed class BackupUploadSessionServiceTests_Cleanup
         finally
         {
             await DisposeSessionAsync(fresh);
-            if (File.Exists(orphanPath))
-                File.Delete(orphanPath);
+            TempDirectoryCleanup.DeleteFileBestEffort(orphanPath);
         }
     }
 
@@ -78,8 +77,7 @@ public sealed class BackupUploadSessionServiceTests_Cleanup
         finally
         {
             await DisposeSessionAsync(fresh);
-            if (File.Exists(foreignOrphanPath))
-                File.Delete(foreignOrphanPath);
+            TempDirectoryCleanup.DeleteFileBestEffort(foreignOrphanPath);
         }
     }
 
@@ -108,8 +106,7 @@ public sealed class BackupUploadSessionServiceTests_Cleanup
         finally
         {
             await DisposeSessionAsync(session);
-            if (File.Exists(orphanPath))
-                File.Delete(orphanPath);
+            TempDirectoryCleanup.DeleteFileBestEffort(orphanPath);
         }
     }
 }

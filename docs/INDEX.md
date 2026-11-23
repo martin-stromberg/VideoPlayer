@@ -7,6 +7,7 @@
 | Dokument | Beschreibung | Status |
 |----------|--------------|--------|
 | [Installation und Setup](./GUIDE_Installation.md) | Linux-/Windows-Einrichtung, Start, Tests und Fehlerbehebung | Vollständig |
+| [Produktionsinstallation (Linux/systemd)](./INSTALL_Server.md) | Server-Installation: Release-Artefakt, Service-Account, gehärtete systemd-Unit, Firewall, Reverse-Proxy/TLS, AutoUpdate | Vollständig |
 | [API-Vertrag](./API.md) | REST- und SignalR-Vertrag des Web-Repositorys | Vollständig |
 | [Secrets Management](./SECRETS_MANAGEMENT.md) | Umgang mit Backend-Secrets, JWTs und Client-Gate-Werten | Vollständig |
 | [Veröffentlichungscheckliste](./PUBLICATION_CHECKLIST.md) | Technische Prüfliste vor öffentlicher Bereitstellung | Vollständig |
@@ -20,6 +21,7 @@
 | [Automatisierte Programmupdates](./TECH_Auto_Update.md) | Update-Admin-UI, Sicherung und Installation |
 | [Avahi-Integration](./INSTALL_AVAHI.md) | Alternativer mDNS-Weg über den Avahi-Daemon (Standard: eingebautes mDNS-Advertisement des Servers) |
 | [Review-Automatisierung](./REVIEW_AUTOMATION.md) | Zeitgesteuerte Review-Issues für @softwarewerkstatt (Architektur/Sicherheit, NuGet, Compliance) |
+| [GitHub Page](./GITHUB_PAGE.md) | Öffentliche Präsentationsseite unter `pages/`: Inhaltspflege, Screenshot-Aufnahme aus der Demoinstallation, Pages-Deployment und Aktivierung |
 
 ## Benutzer- und Admin-Hilfen
 

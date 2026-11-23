@@ -1,5 +1,6 @@
 using Microsoft.Playwright;
 using System.Text.RegularExpressions;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -18,6 +19,7 @@ namespace VideoWebPlayer.Tests;
 /// to do nothing at all, which is indistinguishable from a broken feature. All tests drive a real mouse.
 /// </remarks>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistDragDropFeedbackE2ETests : PlaylistsE2ETestBase
 {
     /// <summary>

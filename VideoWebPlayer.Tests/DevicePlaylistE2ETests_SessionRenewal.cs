@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -15,6 +16,7 @@ namespace VideoWebPlayer.Tests;
 /// ihrem Ablauf (12 Stunden) weiterarbeiten.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class DevicePlaylistE2ETests_SessionRenewal : DeviceClientTestBase
 {
     [Fact]

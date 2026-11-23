@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.ClientLibrary;
@@ -12,6 +13,7 @@ namespace VideoWebPlayer.Tests.ClientLibrary;
 /// call repeated, parallel 401 answers share a single renewal, and the final answers 403 and 404 (A4)
 /// trigger no renewal at all.
 /// </summary>
+[OsInterface]
 public sealed class VideoWebPlayerClientTests_Reauthorization : DeviceClientTestBase
 {
     private const string RefreshRoute = "/api/auth/refresh";

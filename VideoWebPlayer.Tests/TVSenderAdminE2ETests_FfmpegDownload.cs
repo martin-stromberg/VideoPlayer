@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
@@ -22,6 +23,7 @@ namespace VideoWebPlayer.Tests;
 /// <c>Resolve()</c> finds the binaries afterwards.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class TVSenderAdminE2ETests_FfmpegDownload : TVSenderAdminE2ETestBase
 {
     private FfmpegPackageServer _packageServer = null!;

@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -12,6 +13,7 @@ namespace VideoWebPlayer.Tests;
 /// browser-reload context recovery.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
 {
     /// <summary>

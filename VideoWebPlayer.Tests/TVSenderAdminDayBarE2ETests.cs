@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -15,11 +16,14 @@ namespace VideoWebPlayer.Tests;
 /// bar offers every day present in the schedule, preselects the next relevant day and a day
 /// switch exchanges the visible slot cards without reloading the schedule.
 /// </summary>
+[Trait("Category", "E2E")]
+[OsInterface]
 public sealed class TVSenderAdminDayBarE2ETests : TVSenderAdminE2ETestBase
 {
     /// <summary>Seeds one movie slot on each of two consecutive local days (local noon → UTC,
     /// so the rendered <c>data-day</c> matches the local calendar date) — returns the two
     /// local dates.</summary>
+    /// <returns>Die beiden lokalen Kalenderdaten der angelegten Sendeplätze.</returns>
     private async Task<(DateTime Day1, DateTime Day2)> SeedTwoDayScheduleAsync()
     {
         var movieDay1 = await SeedMovieWithItemAsync("E2E Tag-Eins-Film", TimeSpan.FromMinutes(60));

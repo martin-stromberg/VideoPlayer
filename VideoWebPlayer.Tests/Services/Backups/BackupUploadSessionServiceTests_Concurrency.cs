@@ -44,8 +44,7 @@ public sealed class BackupUploadSessionServiceTests_Concurrency
         }
         finally
         {
-            if (File.Exists(session.TempPath))
-                File.Delete(session.TempPath);
+            TempDirectoryCleanup.DeleteFileBestEffort(session.TempPath);
         }
     }
 

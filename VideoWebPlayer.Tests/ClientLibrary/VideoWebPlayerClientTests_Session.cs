@@ -1,4 +1,5 @@
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.ClientLibrary;
@@ -7,6 +8,7 @@ namespace VideoWebPlayer.Tests.ClientLibrary;
 /// Session handling of the client library (A5): renewing a device session, the unmistakable error after
 /// the device was revoked, and ending the session with logout.
 /// </summary>
+[OsInterface]
 public sealed class VideoWebPlayerClientTests_Session : DeviceClientTestBase
 {
     [Fact]

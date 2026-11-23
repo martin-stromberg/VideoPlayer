@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
@@ -14,6 +15,8 @@ namespace VideoWebPlayer.Tests;
 /// consolidated rule lifecycle (create via search dialog, edit, deactivate, delete) and the
 /// admin-only access gate.
 /// </summary>
+[Trait("Category", "E2E")]
+[OsInterface]
 public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
 {
     // Attempt count that marks a permanently failed item — taken from the options so the
@@ -638,6 +641,9 @@ public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
     /// <summary>Polls the database until a scheduled slot for the seeded scope movie exists —
     /// the observable end state of the worker run that "Jetzt generieren"/the save signal
     /// triggers, robust against the scan-suppressed signal coalescing.</summary>
+    /// <param name="movieId">ID des geseedeten Scope-Films.</param>
+    /// <param name="timeout">Maximale Wartezeit auf den Sendeplatz.</param>
+    /// <returns><c>true</c>, wenn der Sendeplatz innerhalb der Frist gefunden wurde.</returns>
     private async Task<bool> WaitForScheduledMovieSlotAsync(long movieId, TimeSpan timeout)
     {
         var ct = TestContext.Current.CancellationToken;

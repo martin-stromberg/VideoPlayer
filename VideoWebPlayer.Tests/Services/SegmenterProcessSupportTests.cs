@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -81,6 +82,7 @@ public sealed class SegmenterProcessSupportTests
     }
 
     [Fact]
+    [OsInterface]
     public void StartRealProcess_UnstartableBinary_LogsCauseAndReturnsNull()
     {
         var logger = new ListLogger<object>(new ConcurrentQueue<string>());

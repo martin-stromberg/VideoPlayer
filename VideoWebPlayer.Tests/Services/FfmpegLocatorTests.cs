@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -15,8 +16,7 @@ public sealed class FfmpegLocatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
+        TempDirectoryCleanup.DeleteBestEffort(_tempDir);
     }
 
     private string Touch(params string[] segments)

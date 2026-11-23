@@ -1,5 +1,6 @@
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.ClientLibrary;
@@ -9,6 +10,7 @@ namespace VideoWebPlayer.Tests.ClientLibrary;
 /// in between — the three playback navigation calls, the paged read with a cancellation token, and the
 /// changing calls with PUT, PATCH and DELETE.
 /// </summary>
+[OsInterface]
 public sealed class VideoWebPlayerClientTests_PlaylistSessionRenewal : DeviceClientTestBase
 {
     private const string RefreshRoute = "/api/auth/refresh";

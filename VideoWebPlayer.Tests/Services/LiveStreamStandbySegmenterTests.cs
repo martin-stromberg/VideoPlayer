@@ -127,8 +127,7 @@ public sealed class LiveStreamStandbySegmenterTests : IAsyncLifetime
 
     public ValueTask DisposeAsync()
     {
-        if (Directory.Exists(_cacheDir))
-            Directory.Delete(_cacheDir, recursive: true);
+        TempDirectoryCleanup.DeleteBestEffort(_cacheDir);
         return ValueTask.CompletedTask;
     }
 

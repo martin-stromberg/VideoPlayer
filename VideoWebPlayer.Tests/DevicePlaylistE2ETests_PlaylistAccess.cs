@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -16,6 +17,7 @@ namespace VideoWebPlayer.Tests;
 /// <c>Authorization</c>-Kopfzeile, weil genau das geprüft werden soll.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class DevicePlaylistE2ETests_PlaylistAccess : DeviceClientTestBase
 {
     [Fact]

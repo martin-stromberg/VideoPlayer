@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
@@ -21,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// <summary>
 /// Browser tests for the profile-page device pairing flow (QR bootstrap ticket).
 /// </summary>
+[OsInterface]
 public sealed class PairingBootstrapE2ETests : IAsyncLifetime
 {
     private const string UserEmail = "bootstrap-user@test.com";
@@ -86,7 +88,7 @@ public sealed class PairingBootstrapE2ETests : IAsyncLifetime
         _playwright?.Dispose();
 
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* temp file may still be locked */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
         await Task.CompletedTask;
     }
 

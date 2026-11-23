@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration.CommandLine;
 using Microsoft.Extensions.Configuration.EnvironmentVariables;
 using Microsoft.Extensions.Configuration.Json;
 using VideoWebPlayer.Extensions;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Extensions;
@@ -125,7 +126,7 @@ public sealed class LocalConfigurationTests : IDisposable
     {
         if (Directory.Exists(testRoot))
         {
-            Directory.Delete(testRoot, recursive: true);
+            TempDirectoryCleanup.DeleteBestEffort(testRoot);
         }
     }
 

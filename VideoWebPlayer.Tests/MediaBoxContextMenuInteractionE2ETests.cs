@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -10,6 +11,7 @@ namespace VideoWebPlayer.Tests;
 /// MediaBox-Kontextmenüs (echte gerenderte Blazor-Ereignisse statt Zustandsobjekte).
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class MediaBoxContextMenuInteractionE2ETests : MediaBoxContextMenuE2ETestBase
 {
     [Fact]

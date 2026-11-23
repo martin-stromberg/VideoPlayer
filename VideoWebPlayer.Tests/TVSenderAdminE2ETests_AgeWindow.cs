@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
@@ -14,6 +15,8 @@ namespace VideoWebPlayer.Tests;
 /// schemas show an error, the rule diagnosis names the window reason and window-rated content
 /// only lands in the night window.
 /// </summary>
+[Trait("Category", "E2E")]
+[OsInterface]
 public sealed class TVSenderAdminE2ETests_AgeWindow : TVSenderAdminE2ETestBase
 {
     private Task SetUnknownModeAsync(ProgramScheduleUnknownRatingMode mode)

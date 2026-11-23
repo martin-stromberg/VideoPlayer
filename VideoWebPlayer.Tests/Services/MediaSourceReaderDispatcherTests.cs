@@ -18,7 +18,7 @@ public class MediaSourceReaderDispatcherTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_rootDir, recursive: true); } catch { }
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 
     [Fact]

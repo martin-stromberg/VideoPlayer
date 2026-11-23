@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using Xunit;
@@ -20,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// und Nicht-Admins — der Direktaufruf der Quelle bleibt dagegen erreichbar.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class MediaSourceHiddenInMenuE2ETests : IAsyncLifetime
 {
     private const string AdminEmail = "admin@test.com";
@@ -44,7 +47,7 @@ public sealed class MediaSourceHiddenInMenuE2ETests : IAsyncLifetime
     public MediaSourceHiddenInMenuE2ETests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-hiddeninmenu-e2e-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         var jwtKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 
@@ -110,7 +113,7 @@ public sealed class MediaSourceHiddenInMenuE2ETests : IAsyncLifetime
         _playwright?.Dispose();
 
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
     }
 
     [Fact]

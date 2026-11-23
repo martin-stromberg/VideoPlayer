@@ -1,6 +1,7 @@
 using System.Net;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -12,6 +13,7 @@ namespace VideoWebPlayer.Tests;
 /// die öffentliche des anderen.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class DevicePlaylistE2ETests_MultiUser : DeviceClientTestBase
 {
     [Fact]

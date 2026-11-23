@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -21,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 /// ungültigen Pfaden und kann den Quelltyp bei bestehenden Quellen nicht ändern.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class MediaSourceLocalDirectoryE2ETests : IAsyncLifetime
 {
     private readonly string _dbPath;
@@ -36,7 +38,7 @@ public sealed class MediaSourceLocalDirectoryE2ETests : IAsyncLifetime
     public MediaSourceLocalDirectoryE2ETests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-local-e2e-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         var jwtKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 
@@ -101,7 +103,7 @@ public sealed class MediaSourceLocalDirectoryE2ETests : IAsyncLifetime
         _playwright?.Dispose();
 
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
     }
 
     [Fact]
@@ -141,7 +143,7 @@ public sealed class MediaSourceLocalDirectoryE2ETests : IAsyncLifetime
         }
         finally
         {
-            try { Directory.Delete(localDir, recursive: true); } catch { /* ignore */ }
+            TempDirectoryCleanup.DeleteBestEffort(localDir);
         }
     }
 
@@ -213,7 +215,7 @@ public sealed class MediaSourceLocalDirectoryE2ETests : IAsyncLifetime
         finally
         {
             TestHelpers.ResetAccessControl(deniedDir);
-            try { Directory.Delete(deniedDir, recursive: true); } catch { /* ignore */ }
+            TempDirectoryCleanup.DeleteBestEffort(deniedDir, normalizeAttributes: true);
         }
     }
 
@@ -262,7 +264,7 @@ public sealed class MediaSourceLocalDirectoryE2ETests : IAsyncLifetime
         }
         finally
         {
-            try { Directory.Delete(localDir, recursive: true); } catch { /* ignore */ }
+            TempDirectoryCleanup.DeleteBestEffort(localDir);
         }
     }
 

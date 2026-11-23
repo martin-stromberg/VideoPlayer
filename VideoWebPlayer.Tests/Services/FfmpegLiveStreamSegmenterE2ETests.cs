@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -15,6 +16,7 @@ namespace VideoWebPlayer.Tests.Services;
 /// after the very first segment in production, N15). Skipped when no ffmpeg binary exists.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class FfmpegLiveStreamSegmenterE2ETests
 {
     [Fact]
@@ -60,7 +62,7 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
         }
         finally
         {
-            try { Directory.Delete(dir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(dir);
         }
     }
 
@@ -128,7 +130,7 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
         }
         finally
         {
-            try { Directory.Delete(dir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(dir);
         }
 
         LiveStreamJob Job(long slotId, string input) => new(
@@ -200,7 +202,7 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
         }
         finally
         {
-            try { Directory.Delete(dir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(dir);
         }
     }
 
@@ -252,7 +254,7 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
         }
         finally
         {
-            try { Directory.Delete(dir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(dir);
         }
     }
 
@@ -302,7 +304,7 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
         }
         finally
         {
-            try { Directory.Delete(dir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(dir);
         }
     }
 
@@ -347,7 +349,7 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
         }
         finally
         {
-            try { Directory.Delete(segDir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(segDir);
         }
     }
 
@@ -392,6 +394,10 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
     }
 
     /// <summary>Waits until the playlist lists a media URI containing <paramref name="marker"/>.</summary>
+    /// <param name="playlist">Pfad zur zu beobachtenden M3U8-Playlist.</param>
+    /// <param name="marker">Zu erwartender URI-Bestandteil.</param>
+    /// <param name="description">Bezeichnung des erwarteten Eintrags fuer die Fehlermeldung.</param>
+    /// <param name="segmenter">Optionaler Segmenter fuer Diagnose im Timeout-Fall.</param>
     private static async Task WaitForPlaylistEntryAsync(
         string playlist, string marker, string description, FfmpegLiveStreamSegmenter? segmenter = null)
     {
@@ -414,6 +420,8 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
     /// share, so neither side blocks the other (a FileShare.Read handle would make
     /// ffmpeg's playlist write fail and kill the muxer).
     /// </summary>
+    /// <param name="playlist">Pfad zur Playlist-Datei.</param>
+    /// <returns>Playlist-Inhalt oder <see langword="null"/>, wenn die Datei gerade nicht lesbar ist.</returns>
     private static string? ReadPlaylistShared(string playlist)
     {
         try
@@ -434,6 +442,10 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
     }
 
     /// <summary>Generates a ~6s h264+aac test video via ffmpeg lavfi test sources.</summary>
+    /// <param name="ffmpeg">Pfad zur ffmpeg-Binaerdatei.</param>
+    /// <param name="output">Zieldatei des erzeugten Videos.</param>
+    /// <param name="ct">Abbruch-Token des Tests.</param>
+    /// <param name="frequency">Frequenz des Sine-Testtons.</param>
     private static async Task GenerateVideoAsync(string ffmpeg, string output, CancellationToken ct, int frequency = 440)
     {
         var startInfo = new System.Diagnostics.ProcessStartInfo
@@ -447,6 +459,18 @@ public sealed class FfmpegLiveStreamSegmenterE2ETests
             CreateNoWindow = true
         };
         using var process = System.Diagnostics.Process.Start(startInfo)!;
-        await process.WaitForExitAsync(ct);
+        // Explizites 120-s-Budget statt nur implizitem Test-CT: haengt der Generator unter
+        // CI-Last, wird er gekillt und der Timeout mit Diagnose gemeldet, statt bis zum
+        // Testabbruch unbemerkt zu warten.
+        try
+        {
+            await process.WaitForExitAsync(ct).WaitAsync(TimeSpan.FromSeconds(120), ct);
+        }
+        catch (TimeoutException)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+            var stderr = await process.StandardError.ReadToEndAsync(ct);
+            Assert.Fail($"ffmpeg-Videogenerator fuer '{output}' ueberzog das 120-s-Budget — Kill gesendet. stderr: {stderr}");
+        }
     }
 }

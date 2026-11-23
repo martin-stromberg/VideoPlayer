@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -13,6 +14,7 @@ namespace VideoWebPlayer.Tests;
 /// (<c>.player-stream-error</c> in <c>app.css</c>); this test fails if that rule is taken away.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistPlaybackViewportE2ETests : PlaylistsE2ETestBase
 {
     [Fact]

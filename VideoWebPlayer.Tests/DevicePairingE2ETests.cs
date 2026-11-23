@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
@@ -18,6 +19,7 @@ using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[OsInterface]
 public sealed class DevicePairingE2ETests : IAsyncLifetime
 {
     private const string AdminEmail = "pairing-admin@test.com";
@@ -86,7 +88,7 @@ public sealed class DevicePairingE2ETests : IAsyncLifetime
         _playwright?.Dispose();
 
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* temp file may still be locked */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
     }
 
     [Fact]

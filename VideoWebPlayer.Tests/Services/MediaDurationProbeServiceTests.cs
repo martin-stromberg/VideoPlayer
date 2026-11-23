@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -62,7 +63,7 @@ public class MediaDurationProbeServiceTests : IDisposable
     {
         _serviceProvider.Dispose();
         _connection.Dispose();
-        try { Directory.Delete(_rootDir, recursive: true); } catch { }
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 
     [Fact]

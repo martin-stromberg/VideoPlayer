@@ -9,12 +9,15 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using msTools.Backup;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[OsInterface]
 public sealed class BackupUploadE2ETests : IAsyncLifetime
 {
     private const string AdminEmail = "backup-admin@test.com";
@@ -43,7 +46,7 @@ public sealed class BackupUploadE2ETests : IAsyncLifetime
         _uploadDir = Path.Combine(Path.GetTempPath(), $"vwp-backup-upload-e2e-upload-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_backupDir);
         Directory.CreateDirectory(_uploadDir);
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         var jwtKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 
@@ -113,9 +116,9 @@ public sealed class BackupUploadE2ETests : IAsyncLifetime
         _playwright?.Dispose();
 
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
-        try { Directory.Delete(_backupDir, recursive: true); } catch { /* ignore */ }
-        try { Directory.Delete(_uploadDir, recursive: true); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
+        TempDirectoryCleanup.DeleteBestEffort(_backupDir);
+        TempDirectoryCleanup.DeleteBestEffort(_uploadDir);
     }
 
     [Fact]

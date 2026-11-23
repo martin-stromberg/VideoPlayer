@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
@@ -15,6 +16,7 @@ namespace VideoWebPlayer.Tests;
 /// Toggling back resumes delivery and the player re-attaches.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class TvSenderOnAirE2ETests : TVSenderAdminE2ETestBase
 {
     /// <summary>Seeds a channel with a running broadcast slot (movie + media item) — the
@@ -53,6 +55,7 @@ public sealed class TvSenderOnAirE2ETests : TVSenderAdminE2ETestBase
     }
 
     [Fact]
+    [Flaky]
     public async Task Admin_TogglesOffAir_Stream404_LiveTvShowsOffAirImage()
     {
         if (SkipBrowser) return;

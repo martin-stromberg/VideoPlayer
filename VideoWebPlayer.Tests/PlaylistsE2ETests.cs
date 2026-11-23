@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -11,6 +12,7 @@ namespace VideoWebPlayer.Tests;
 /// access and ownership isolation between users.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class PlaylistsE2ETests : PlaylistsE2ETestBase
 {
     /// <summary>

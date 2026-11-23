@@ -4,6 +4,7 @@ using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.ClientLibrary;
@@ -12,6 +13,7 @@ namespace VideoWebPlayer.Tests.ClientLibrary;
 /// <see cref="IProgramGuideApiClient"/>-Methoden des <see cref="global::VideoWebPlayer.Client.VideoWebPlayerClient"/>
 /// gegen die gehostete Anwendung: ein gekoppeltes Gerät liest Jetzt/Gleich und die begrenzte Vorschau.
 /// </summary>
+[OsInterface]
 public sealed class VideoWebPlayerClientTests_ProgramGuide : DeviceClientTestBase
 {
     private async Task<(long RunningSlotId, long NextSlotId)> SeedChannelWithProgramAsync()

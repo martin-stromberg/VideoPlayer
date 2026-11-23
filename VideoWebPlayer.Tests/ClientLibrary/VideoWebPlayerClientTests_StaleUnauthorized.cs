@@ -1,5 +1,6 @@
 using System.Net;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.ClientLibrary;
@@ -10,6 +11,7 @@ namespace VideoWebPlayer.Tests.ClientLibrary;
 /// any waiting time: a message handler holds the second 401 back until the renewal of the first request
 /// is provably through, so the order is fixed instead of depending on timing.
 /// </summary>
+[OsInterface]
 public sealed class VideoWebPlayerClientTests_StaleUnauthorized : DeviceClientTestBase
 {
     private readonly DeferSecondUnauthorizedHandler _handler = new("/api/playlists");

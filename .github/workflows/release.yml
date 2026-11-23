@@ -80,19 +80,22 @@ jobs:
         if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'
         run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-restore -c Release -p:NoWarn=NU1903
 
-      - name: Install Playwright browsers
-        if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'
-        run: pwsh VideoWebPlayer.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
-
-      - name: Release gate - full test suite
+      - name: Release gate - deterministic test suite
         # Safety net now that there is no dedicated PR-gate workflow against main anymore
         # (see ci-target-schema.md section 11, item 2): PRs against main can only come from
         # staging, which was already fully validated by pr-staging-ci.yml/staging-ci.yml, so
         # this re-run mainly guards against a race between that validation and the actual
         # merge or tag push. Runs for both automatic and manual-tag releases, but not for the
         # asset-repair path, which only needs to rebuild an already-validated release.
+        # The filter restricts the gate to the deterministic subset: OsInterface tests
+        # (browser E2E, real processes, ports, file databases) already ran on staging for
+        # the same tree in the best-effort os-interface-tests job (continue-on-error,
+        # test-results-os-interface-* artifacts) - an unfiltered suite would make their
+        # flakes release-blocking, the very reason for the lane split. E2E ⊆ OsInterface is
+        # enforced by FlakyConventionTests, so "Category!=OsInterface" also excludes all
+        # browser tests and no Playwright installation is needed here.
         if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'
-        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --logger "trx;LogFileName=final-test-results.trx" --logger "console;verbosity=normal"
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category!=OsInterface" --logger "trx;LogFileName=final-test-results.trx" --logger "console;verbosity=normal"
 
       - name: Upload release-gate test results
         if: always() && steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'

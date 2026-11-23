@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Authentication;
+using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -16,6 +18,7 @@ namespace VideoWebPlayer.Tests;
 /// abrufbar sein; ohne access_token muss der Zugriff verweigert werden.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class EpisodesBackgroundImageAccessTokenE2ETests : IDisposable
 {
     private readonly string _dbPath;
@@ -24,7 +27,7 @@ public sealed class EpisodesBackgroundImageAccessTokenE2ETests : IDisposable
     public EpisodesBackgroundImageAccessTokenE2ETests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-e2e-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         var jwtKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 
@@ -138,6 +141,6 @@ public sealed class EpisodesBackgroundImageAccessTokenE2ETests : IDisposable
     public void Dispose()
     {
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
     }
 }

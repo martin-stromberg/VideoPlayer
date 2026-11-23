@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Authentication;
+using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -15,6 +17,7 @@ namespace VideoWebPlayer.Tests;
 /// Medienquelle über den echten Items-Endpunkt inklusive Zugriffskontrolle.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class LocalMediaSourceStreamingE2ETests : IDisposable
 {
     private static readonly byte[] VideoBytes = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 };
@@ -27,7 +30,7 @@ public sealed class LocalMediaSourceStreamingE2ETests : IDisposable
     public LocalMediaSourceStreamingE2ETests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-local-stream-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         _rootDir = Path.Combine(Path.GetTempPath(), $"vwp-local-stream-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_rootDir);
@@ -161,7 +164,7 @@ public sealed class LocalMediaSourceStreamingE2ETests : IDisposable
     public void Dispose()
     {
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
-        try { Directory.Delete(_rootDir, recursive: true); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 }

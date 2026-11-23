@@ -8,11 +8,14 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class IdentityRedirectManagerE2ETests : IDisposable
 {
     private readonly string _dbPath;
@@ -132,6 +135,6 @@ public sealed class IdentityRedirectManagerE2ETests : IDisposable
     public void Dispose()
     {
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
     }
 }

@@ -13,6 +13,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
 
@@ -20,6 +22,7 @@ namespace VideoWebPlayer.Tests;
 
 /// <summary>Exercises the real seasonal API, authenticated web home, navigation and expiry.</summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 public sealed class SeasonalGenresE2ETests : IAsyncLifetime
 {
     private const string Email = "seasonal@example.com";
@@ -75,7 +78,7 @@ public sealed class SeasonalGenresE2ETests : IAsyncLifetime
         if (browser is not null) await browser.DisposeAsync();
         playwright?.Dispose();
         if (factory is not null) await factory.DisposeAsync();
-        try { File.Delete(dbPath); } catch (IOException) { }
+        TempDirectoryCleanup.DeleteFileBestEffort(dbPath);
     }
 
     [Fact]

@@ -1,0 +1,13 @@
+{
+  "name": "Demobibliothek",
+  "description": "Fiktive Filme und Serien zum Ausprobieren und für Screenshots — lokale Medienquelle ohne echte Mediendaten.",
+  "mediaSources": [
+    {
+      "name": "Demo-Medienbibliothek",
+      "sourceType": "LocalDirectory",
+      "contentDirectory": "Demobibliothek/Medien",
+      "videoFile": "Demobibliothek/demo-video.mp4",
+      "path": "Data/DemoMedia/Demobibliothek"
+    }
+  ]
+}

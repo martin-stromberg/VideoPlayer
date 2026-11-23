@@ -5,6 +5,7 @@ using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Authentication;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -16,6 +17,7 @@ namespace VideoWebPlayer.Tests;
 /// Platte. Der Fehlerfall gehört dazu: ohne Zugriff auf die Quelle wird derselbe Playlist-Titel abgelehnt.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 [Collection(MediaSourceClassifierCollection.Name)]
 public sealed class LocalMediaPlaylistE2ETests_Playback : LocalMediaPlaylistE2ETestBase
 {

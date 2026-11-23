@@ -61,8 +61,7 @@ public sealed class LiveStreamMediaResolverTests : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         _fixture.Dispose();
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
+        TempDirectoryCleanup.DeleteBestEffort(_root);
         await Task.CompletedTask;
     }
 

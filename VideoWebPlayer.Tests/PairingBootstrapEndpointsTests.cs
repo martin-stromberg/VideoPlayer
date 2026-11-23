@@ -10,6 +10,7 @@ using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -17,6 +18,7 @@ namespace VideoWebPlayer.Tests;
 /// <summary>
 /// HTTP-level tests for the public bootstrap endpoint and the refresh/logout endpoints.
 /// </summary>
+[OsInterface]
 public sealed class PairingBootstrapEndpointsTests : IAsyncLifetime
 {
     private const string MauiGateKey = PairingWebApplicationFactory.MauiApiToken;
@@ -43,7 +45,7 @@ public sealed class PairingBootstrapEndpointsTests : IAsyncLifetime
     {
         _client.Dispose();
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* temp file may still be locked */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
         await Task.CompletedTask;
     }
 

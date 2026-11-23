@@ -12,8 +12,7 @@ Diese Anleitung beschreibt die Einrichtung des Web-Repositorys unter Linux und W
 - .NET 10 SDK.
 - Git.
 - Zugriff auf NuGet.org.
-- Lokale Paketquelle `lib/packages/` aus `NuGet.config`.
-- Lokale DLL `lib/msTools.Updater/msTools.Updater.dll`.
+- Lokale Paketquelle `lib/packages/` aus `NuGet.config` — darüber werden `msTools.Backup` und `msTools.Updater` als `PackageReference` bezogen (keine separaten DLLs nötig).
 - Schreibrechte im Arbeitsverzeichnis für SQLite-Datenbank, Logs, Backups, Updates und generierte Bilddateien.
 - Optional: Visual Studio 2022 oder neuer mit ASP.NET-/Web-Workload.
 
@@ -106,6 +105,10 @@ $env:Jwt__Issuer = "VideoWebPlayer"
 `Jwt:ApiToken:Maui` ist in Produktion Pflicht und dient als Fallback-Gate-Token für ältere App-Versionen. Neuere Apps koppeln sich über das Geräte-Pairing (siehe nächster Abschnitt) und erhalten ein individuelles, widerrufbares Geräte-Token.
 
 **Hinweis für IIS-Bereitstellungen:** Alternativ lassen sich die Werte als `<environmentVariables>` im `aspNetCore`-Element der `web.config` der Site pflegen. Die mitgelieferte `AutoUpdate:ProtectedFiles`-Schutzliste übernimmt dieses Element bei Update-Installationen per `Merge` aus der Bestandsdatei — ebenso `security/ipSecurity`, `system.webServer/httpProtocol` und deployment-eigene `aspNetCore`-Attribute sowie aufgezählte deployment-eigene Schlüssel in `appsettings*.json` (`JsonKeys`). **Migrationslücke beachten:** Der Schutz greift erst ab dem ersten Update **nach** dieser Version — das Update auf diese Version selbst läuft noch mit dem Skript der alten Version; Bestandsinstallationen tragen ihre `web.config`-/`appsettings`-Anpassungen daher einmalig nach dem Update auf diese Version nach. Unter Linux benötigt der `Merge` zusätzlich `python3` auf dem Zielsystem (sonst wird er mit Logeintrag übersprungen; die Dateisicherungen bleiben unter `Updates/backup/`). Für beliebige deployment-seitige Konfigurationswerte außerhalb der `JsonKeys`-Liste steht zusätzlich die optionale `appsettings.Local.json` im Anwendungsverzeichnis (Content-Root) bereit: Sie wird nie paketiert, übersteht Updates vollständig und überlagert die Paket-`appsettings*.json`-Werte (nicht aber User Secrets, Umgebungsvariablen oder die Kommandozeile). Als robusteste Ablage für Secrets gelten weiterhin **maschinenweite Umgebungsvariablen** (`Jwt__*`, z. B. per `setx /M` oder über die Systemumgebung des Servers), weil sie außerhalb des Anwendungsverzeichnisses liegen und unabhängig vom Merge-Mechanismus Updates überstehen.
+
+## Produktionsinstallation (Linux-Server)
+
+Dieser Guide beschreibt die Entwicklungseinrichtung. Für den Produktivbetrieb auf einem Linux-Server — Release-Artefakt, dedizierter Service-Account, gehärtete systemd-Unit, Firewall, wahlweise eigenständig oder hinter TLS-terminierendem Reverse-Proxy (nginx/certbot, eigene (Sub-)Domain oder Unterpfad via `PathBase`) inklusive AutoUpdate-Rechten — steht eine eigene Schritt-für-Schritt-Anleitung für Betreiber bereit: [INSTALL_Server.md](./INSTALL_Server.md).
 
 ## Geräte-Pairing
 
@@ -227,9 +230,9 @@ Prüfe, ob `lib/packages/` vorhanden ist und `NuGet.config` die Quelle enthält:
 dotnet nuget list source
 ```
 
-### `msTools.Updater.dll` fehlt
+### Paket `msTools.Updater` wird nicht gefunden
 
-Die Webprojektdatei referenziert `lib/msTools.Updater/msTools.Updater.dll`. Lege die DLL aus dem vorgesehenen Release-Paket an diesem Pfad ab.
+`msTools.Updater` wird als `PackageReference` aus der lokalen Paketquelle `lib/packages` (`NuGet.config`) bezogen. Schlägt der Restore fehl, prüfe, ob das Paket `lib/packages/msTools.Updater.*.nupkg` vorhanden ist und die Quelle `local` aktiv ist (`dotnet nuget list source`).
 
 ### Port ist belegt
 

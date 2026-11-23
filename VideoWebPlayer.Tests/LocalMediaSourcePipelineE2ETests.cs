@@ -9,6 +9,8 @@ using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
+using VideoWebPlayer.Tests.Helpers;
+using VideoWebPlayer.Tests.Infrastructure.Testing;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -18,6 +20,7 @@ namespace VideoWebPlayer.Tests;
 /// und klassifiziert; die klassifizierte TVShow ist anschließend über die API abrufbar.
 /// </summary>
 [Trait("Category", "E2E")]
+[OsInterface]
 // Wie die uebrigen Klassifizierungs-Tests: MediaSourceClassifier serialisiert Klassifizierungslaeufe ueber
 // ein prozessweites, statisches Flag (_classificationRunning), sodass ein parallel laufender Test einer
 // ANDEREN Hostinstanz seine Klassifizierung stillschweigend ueberspringt.
@@ -31,7 +34,7 @@ public sealed class LocalMediaSourcePipelineE2ETests : IDisposable
     public LocalMediaSourcePipelineE2ETests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-local-pipe-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
 
         _rootDir = Path.Combine(Path.GetTempPath(), $"vwp-local-pipe-{Guid.NewGuid():N}");
         var showDir = Path.Combine(_rootDir, "PipelineShow");
@@ -133,7 +136,7 @@ public sealed class LocalMediaSourcePipelineE2ETests : IDisposable
     public void Dispose()
     {
         _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { /* ignore */ }
-        try { Directory.Delete(_rootDir, recursive: true); } catch { /* ignore */ }
+        TempDirectoryCleanup.DeleteFileBestEffort(_dbPath);
+        TempDirectoryCleanup.DeleteBestEffort(_rootDir);
     }
 }

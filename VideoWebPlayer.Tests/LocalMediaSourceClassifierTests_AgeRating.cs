@@ -46,7 +46,7 @@ public class LocalMediaSourceClassifierTests_AgeRating
         finally
         {
             serviceProvider?.Dispose();
-            try { Directory.Delete(rootDir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(rootDir);
         }
     }
 
@@ -82,7 +82,7 @@ public class LocalMediaSourceClassifierTests_AgeRating
         finally
         {
             serviceProvider?.Dispose();
-            try { Directory.Delete(rootDir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(rootDir);
         }
     }
 
@@ -131,7 +131,7 @@ public class LocalMediaSourceClassifierTests_AgeRating
         finally
         {
             serviceProvider?.Dispose();
-            try { Directory.Delete(rootDir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(rootDir);
         }
     }
 
@@ -168,7 +168,7 @@ public class LocalMediaSourceClassifierTests_AgeRating
         finally
         {
             serviceProvider?.Dispose();
-            try { Directory.Delete(rootDir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(rootDir);
         }
     }
 
@@ -202,7 +202,7 @@ public class LocalMediaSourceClassifierTests_AgeRating
         finally
         {
             serviceProvider?.Dispose();
-            try { Directory.Delete(rootDir, recursive: true); } catch { }
+            TempDirectoryCleanup.DeleteBestEffort(rootDir);
         }
     }
 

@@ -46,6 +46,16 @@ Details stehen in der Hilfe zur [Netzwerk-Erkennung](netzwerk-erkennung/index.md
 
 Unter `Quellen` werden die Medienquellen der Anwendung verwaltet. Beim Anlegen über `Neu` wählt der Administrator im Feld `Quelltyp` zwischen `SFTP-Server` (entfernte Quelle mit Host, Port, Pfad und Zugangsdaten) und `Lokales Verzeichnis` (Verzeichnis auf dem Server, auch UNC-Pfad). Die Übersicht zeigt in der Spalte `Typ` die Kennzeichnung `SFTP` oder `Lokal`. Details stehen in der Hilfe zu den [Medienquellen](medienquellen/index.md).
 
+## Demodatenbestand bei der Erstregistrierung
+
+Bei der Registrierung des ersten Benutzers bietet das Registrierungsformular optional den Demodatenbestand `Demobibliothek` an. Wird er ausgewählt, legt die Anwendung beim Absenden eine Medienquelle vom Typ `Lokales Verzeichnis` an, materialisiert einen mitgelieferten Medienbaum unter `Data/DemoMedia/` im Anwendungsverzeichnis und füllt die Bibliothek über den normalen Scan sofort mit fiktiven Inhalten:
+
+- drei fiktive Filme („Der Sternenfalz", „Nachtzug nach Marienfluss", „Bienen über Berlin"),
+- zwei fiktive Serien („Nebelwerk", „Stadtfunk") mit je einer Staffel und drei Episoden,
+- dazu Metadaten (Titel, Plots, Genres, FSK), Anzeigebilder und ein kurzes, abspielbares Platzhalter-Video.
+
+Der erste Benutzer erhält automatisch Zugriff auf die Quelle. Die Demoinhalte sind gewöhnliche Bibliothekseinträge: Sie lassen sich abspielen und — wie jede andere Quelle — über `Quellen` wieder löschen; das Verzeichnis unter `Data/DemoMedia/` kann anschließend manuell entfernt werden. Schlägt das Anlegen fehl, bleibt der Benutzer angelegt und der Fehler wird im Registrierungsformular angezeigt.
+
 ## Quellen löschen
 
 Über `Quellen` kann eine Medienquelle dauerhaft entfernt werden. Der Löschvorgang läuft asynchron ab, damit die Seite nicht blockiert:

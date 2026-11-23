@@ -8,6 +8,7 @@ Issue: martin-stromberg/VideoPlayer#356
 | Schritt | Bearbeiter | Branch | Status | Seit |
 |---------|------------|--------|--------|------|
 | 1 | Devin | `task/issue-356-7edcb903624e49349a46a0e05e41b45f-github-page-anwendung-mit-mode-schritt-1-demoinstallation` | pausiert | 2026-11-23 |
+| 2 | Devin | `task/issue-356-7edcb903624e49349a46a0e05e41b45f-github-page-anwendung-mit-mode-schritt-2-github-page` | aktiv | 2026-11-23 |
 
 ## Übergabestand je Schritt
 
@@ -48,7 +49,7 @@ Issue: martin-stromberg/VideoPlayer#356
 
 ### Schritt 2: Öffentliche GitHub-Page — statische Präsentationsseite mit Deployment
 
-- **Stand vom:** 2026-11-23, Schritt-Branch noch nicht erzeugt
+- **Stand vom:** 2026-11-23, Bearbeitung aufgenommen (Lifecycle läuft)
 - **Bearbeiter / Übernehmer:** Devin / offen
 
 **Erledigt**

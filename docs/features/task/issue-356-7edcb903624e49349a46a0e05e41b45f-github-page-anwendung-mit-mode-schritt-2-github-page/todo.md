@@ -15,16 +15,16 @@ Basisbranch (Diff-Basis): `task/issue-356-7edcb903624e49349a46a0e05e41b45f-githu
 | [x] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
 | [x] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
 | [x] | 5c | Planungscommit | – |
-| [ ] | 6 | Implementierung (Unteragent) | Codeänderungen |
-| [ ] | 7 | Plan-Review (Unteragent, bedingt) | `review.md` |
-| [ ] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |
-| [ ] | 9 | Code-Review (Unteragent) | `review-code.md` |
-| [ ] | 10 | Tests ausführen inkl. Sichtprüfung der Abnahme-Screenshots (Unteragent) | `test-results.md` |
-| [ ] | – | Iteration oder Abschluss entscheiden | – |
-| [ ] | 11 | Folgeaufgaben dokumentieren (bei Schleifenabbruch) | `continue.md` |
-| [ ] | 12 | Dokumentation erstellen (Unteragent) | `docs/help/` |
-| [ ] | 12b | README aktualisieren (Unteragent) | `README.md` |
-| [ ] | 12c | Release Notes aktualisieren (Unteragent) | `docs/RELEASE_NOTES.md` |
+| [x] | 6 | Implementierung (Unteragent) | `pages/`, `.github/workflows/pages.yml`, Doku |
+| [x] | 7 | Plan-Review (Unteragent, bedingt) | `review.md` |
+| [x] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |
+| [x] | 9 | Code-Review (Unteragent) | `review-code.md` |
+| [x] | 10 | Tests ausführen inkl. Sichtprüfung der Abnahme-Screenshots (Unteragent) | `test-results.md` |
+| [x] | – | Iteration oder Abschluss entscheiden | Abschluss — keine Nachbesserung nötig |
+| [x] | 11 | Folgeaufgaben dokumentieren (bei Schleifenabbruch) | n/a — kein Schleifenabbruch |
+| [x] | 12 | Dokumentation erstellen (Unteragent) | `docs/GITHUB_PAGE.md` |
+| [x] | 12b | README aktualisieren (Unteragent) | `README.md` |
+| [x] | 12c | Release Notes aktualisieren (Unteragent) | `docs/RELEASE_NOTES.md` |
 | [ ] | – | Feature-Verzeichnis löschen | – |
 | [ ] | – | Commit durchführen | – |
 

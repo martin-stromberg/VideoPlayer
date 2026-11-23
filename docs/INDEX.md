@@ -7,6 +7,7 @@
 | Dokument | Beschreibung | Status |
 |----------|--------------|--------|
 | [Installation und Setup](./GUIDE_Installation.md) | Linux-/Windows-Einrichtung, Start, Tests und Fehlerbehebung | Vollständig |
+| [Produktionsinstallation (Linux/systemd)](./INSTALL_Server.md) | Server-Installation: Release-Artefakt, Service-Account, gehärtete systemd-Unit, Firewall, Reverse-Proxy/TLS, AutoUpdate | Vollständig |
 | [API-Vertrag](./API.md) | REST- und SignalR-Vertrag des Web-Repositorys | Vollständig |
 | [Secrets Management](./SECRETS_MANAGEMENT.md) | Umgang mit Backend-Secrets, JWTs und Client-Gate-Werten | Vollständig |
 | [Veröffentlichungscheckliste](./PUBLICATION_CHECKLIST.md) | Technische Prüfliste vor öffentlicher Bereitstellung | Vollständig |

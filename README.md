@@ -95,6 +95,7 @@ Für den HLS-Live-Stream werden Medien aus entfernten Quellen (SFTP) `ffmpeg` be
 ## Dokumentation
 
 - [Installationsanleitung](./docs/GUIDE_Installation.md)
+- [Produktionsinstallation unter Linux (systemd)](./docs/INSTALL_Server.md)
 - [API-Vertrag](./docs/API.md)
 - [Secrets Management](./docs/SECRETS_MANAGEMENT.md)
 - [Dokumentationsindex](./docs/INDEX.md)

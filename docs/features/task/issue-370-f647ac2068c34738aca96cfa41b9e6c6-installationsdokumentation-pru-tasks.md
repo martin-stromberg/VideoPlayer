@@ -1,0 +1,27 @@
+# Tasks: Produktions-/Server-Installationsdokumentation für Linux/systemd
+
+| # | Bereich | Aufgabe | Status | Testnachweis |
+|---|---------|---------|--------|--------------|
+| 1 | Dokument `INSTALL_Server.md` | Datei `docs/INSTALL_Server.md` mit Metadaten-Blockquote, Geltungsbereich (nur Linux/systemd, Windows-Ausschluss benannt) und Überblick über die zwei Betriebsarten anlegen | Offen | — |
+| 2 | Dokument `INSTALL_Server.md` | Abschnitt „Voraussetzungen": systemd, root-/sudo-Zugang (`sudo` für Paket-/User-/Unit-/Firewall-Schritte), Paketliste je Beispiel-Distribution: `curl`, `unzip` (Alternative `busybox unzip`/`python3 -m zipfile` als Fußnote), native Bibliotheken `libicu`, `libssl`/OpenSSL, `ca-certificates` sowie `python3` (ProtectedFiles-Merge); kein .NET SDK/Runtime nötig (self-contained) | Offen | — |
+| 3 | Dokument `INSTALL_Server.md` | Abschnitt „Anwendung bereitstellen": `release-linux-x64.zip` → `/opt/videowebplayer` (Beispielpfad), Ausführbarbit, alternativer `dotnet publish`-Weg | Offen | — |
+| 4 | Dokument `INSTALL_Server.md` | Abschnitt „Service-Account": System-User `videowebplayer`, `chown`, Verzeichnisrechte-Tabelle (`Data/`, `Logs/`, `Updates/`, `Backups/`, `tools/ffmpeg/`, `wwwroot/images/genres/`) | Offen | — |
+| 5 | Dokument `INSTALL_Server.md` | Abschnitt „Betreiber-Konfiguration": `appsettings.Local.json` (update-sicher, keine Kommentare) vs. `EnvironmentFile`/Umgebungsvariablen für `Jwt:*`-Secrets, Vorrangkette | Offen | — |
+| 6 | Dokument `INSTALL_Server.md` | Abschnitt „systemd-Unit": vollständiges Unit-Beispiel mit `After=`/`Wants=network-online.target`, `[Install] WantedBy=multi-user.target` (sonst schlägt `systemctl enable` fehl), Härtung (`ProtectSystem=strict` + `ReadWritePaths`, `PrivateTmp`, `NoNewPrivileges`, `ProtectHome`), `ASPNETCORE_ENVIRONMENT=Production`, `daemon-reload`/`enable --now`, Health-Check `curl http://127.0.0.1:5002/api/health` | Offen | — |
+| 7 | Dokument `INSTALL_Server.md` | Abschnitt „Firewall": `ufw`-Beispiele je Betriebsart (TCP 5002, UDP 5001, UDP 5353 bzw. 80/443) + firewalld-Hinweis | Offen | — |
+| 8 | Dokument `INSTALL_Server.md` | Variante A (ohne Proxy): Bindung `http://*:5002`, Discovery-Ableitung, mDNS aktiv, `UseHttpsRedirection`-Warnung benannt, HTTP-only-Hinweis | Offen | — |
+| 9 | Dokument `INSTALL_Server.md` | Variante B (Proxy): Loopback-Vertrauen (`KnownProxies` fest Loopback → Proxy muss auf demselben Host) + Loopback-Bindung `http://127.0.0.1:5002` via `appsettings.Local.json` | Offen | — |
+| 10 | Dokument `INSTALL_Server.md` | Variante B (Proxy): vollständiger nginx-Serverblock (`proxy_pass`, `Host`, `X-Forwarded-Proto`/`For`, WebSocket-`Upgrade`/`Connection`-Header serverweit bzw. in allen `location`-Blöcken für beide Endpunkte `/_blazor` (Blazor-Server) und `/hubs/mediaupdate` (SignalR), `client_max_body_size`) | Offen | — |
+| 11 | Dokument `INSTALL_Server.md` | Variante B (Proxy): certbot-Abschnitt (`certbot --nginx -d`, systemd-Timer-Erneuerung), Caddy als einzeilige Alternative | Offen | — |
+| 12 | Dokument `INSTALL_Server.md` | Variante B1 (eigene (Sub-)Domain): `location /`, Pflicht-`Discovery:PublicBaseUrl` (Admin-Feld oder Konfiguration), Verweis `docs/help/netzwerk-erkennung/` | Offen | — |
+| 13 | Dokument `INSTALL_Server.md` | Variante B2 (Unterpfad): `PathBase` ausschließlich via `appsettings.Local.json`/Umgebungsvariable (nicht in `JsonKeys`, Einschränkung + Folge-Issue-Hinweis), `location /videoplayer/`, `Discovery:PublicBaseUrl` inkl. Pfad | Offen | — |
+| 14 | Dokument `INSTALL_Server.md` | mDNS-Umgang im Proxy-Betrieb: `Mdns:Enabled=false` + UDP-Broadcast mit `PublicBaseUrl`, Begründung (festes `path=/`, kein Schema), `Mdns:Port`-Override als Randnotiz | Offen | — |
+| 15 | Dokument `INSTALL_Server.md` | AutoUpdate-Unterstützung: `AutoUpdate:ServiceName=videowebplayer.service` (Admin-Feld „Dienstname für Neustart"), `WorkspaceUser`/`WorkspaceGroup`, `python3`, polkit-Regel `org.freedesktop.systemd1.manage-units` für `systemd-run` (Tragweite benannt), transiente Unit `VideoWebPlayer-AutoUpdate` | Offen | — |
+| 16 | Dokument `INSTALL_Server.md` | AutoUpdate-Alternative: `AutoUpdate:Enabled=false` + manueller Update-Pfad (ZIP, `systemctl stop/start`, `chown`), Diagnose `Updates/update.log` | Offen | — |
+| 17 | Dokument `INSTALL_Server.md` | Abschnitte „Erstlauf/Verifikation" und „Troubleshooting" (inkl. Host-Header-400, `update.failed`, Verweise auf `troubleshooting.md`/`INSTALL_AVAHI.md`) sowie „Siehe auch"-Linkblock | Offen | — |
+| 18 | `GUIDE_Installation.md` | Abschnitt „Produktionsinstallation (Linux-Server)" mit Link `./INSTALL_Server.md` ergänzen; Entwicklungsinhalt unverändert | Offen | — |
+| 19 | `GUIDE_Installation.md` | DLL-Drift korrigieren: `lib/msTools.Updater/msTools.Updater.dll`-Referenzen → `PackageReference` aus `lib/packages` (**eigener Commit**, außerhalb Kernauftrag) | Offen | — |
+| 20 | `INDEX.md` | Eintrag `INSTALL_Server.md` in Tabelle „Einstieg" | Offen | — |
+| 21 | `README.md` | Link auf `docs/INSTALL_Server.md` in Dokumentations-Linkliste ergänzen | Offen | — |
+| 22 | `RELEASE_NOTES.md` | Zweisprachiger Eintrag (EN „What's New" + DE „Neuerungen", oben) zur neuen Anleitung (Issue #370) | Offen | — |
+| 23 | Qualitätsprüfung | `dotnet run --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -- --root .` grün; SecretScan ohne Befund (nur synthetische Platzhalter); gedankliches Durchspielen beider Pfade gegen frischen Server | Offen | — |

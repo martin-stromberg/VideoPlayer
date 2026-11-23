@@ -74,12 +74,13 @@ public sealed class DemoMediaImageGenerator
             var stripeWidth = width / 8f;
             for (var x = (float)-height; x < width; x += stripeWidth * 2)
             {
-                using var path = new SKPath();
-                path.MoveTo(x, 0);
-                path.LineTo(x + stripeWidth, 0);
-                path.LineTo(x + stripeWidth + height, height);
-                path.LineTo(x + height, height);
-                path.Close();
+                using var builder = new SKPathBuilder();
+                builder.MoveTo(x, 0);
+                builder.LineTo(x + stripeWidth, 0);
+                builder.LineTo(x + stripeWidth + height, height);
+                builder.LineTo(x + height, height);
+                builder.Close();
+                using var path = builder.Detach();
                 canvas.DrawPath(path, stripePaint);
             }
         }
@@ -135,6 +136,6 @@ public sealed class DemoMediaImageGenerator
         var textWidth = font.MeasureText(text, paint);
         var x = (width - textWidth) / 2f;
         var y = height - Math.Max(14f, height * 0.07f);
-        canvas.DrawText(text, x, y, font, paint);
+        canvas.DrawText(text, x, y, SKTextAlign.Left, font, paint);
     }
 }

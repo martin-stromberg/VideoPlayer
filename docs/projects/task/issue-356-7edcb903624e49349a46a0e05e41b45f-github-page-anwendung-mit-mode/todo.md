@@ -13,7 +13,7 @@ Issue: #356
 | [x] | Projektplan | Grobe Planung in Entwicklungsschritte (Unteragent) | `project-plan.md` |
 | [x] | Offene Punkte | Klären / Anwender einbeziehen | `project-plan.md` |
 | [x] | Planprüfung | Plan gegen Anforderung prüfen (Unteragent) | `project-plan-check.md` |
-| [ ] | Planungscommit | `plan:`-Commit | – |
+| [x] | Planungscommit | `plan:`-Commit | – |
 | [x] | Entwicklungsschritte-Tracking | `steps.md`, `handover.md`, `status.html` | `steps.md` |
 | [ ] | Entwicklungsschleife | Schritte via Lifecycle bearbeiten + abnehmen + mergen | `acceptance-schritt-*.md` |
 | [ ] | Aufräumen | Projektverzeichnis löschen | – |

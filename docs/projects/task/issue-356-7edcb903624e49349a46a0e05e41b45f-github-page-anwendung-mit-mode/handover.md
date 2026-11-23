@@ -45,3 +45,27 @@ Issue: martin-stromberg/VideoPlayer#356
 **Achtung**
 - `DemoDataSets/` und `StandardSources.json` existieren noch nicht; csproj-Regel kopiert bisher nur `DemoDataSets\*.json` — Medien-Assets in Unterordnern gehen beim Publish sonst verloren. → Erledigt: csproj kopiert jetzt `DemoDataSets\**` (JSON + Inhalte) nach Build und Publish; im Output verifiziert.
 - EF-Migrationen kollidieren im Model-Snapshot: bei späterem Merge nach Rebase neu erzeugen (siehe AGENTS.md). Dieser Schritt enthält keine Migration.
+
+### Schritt 2: Öffentliche GitHub-Page — statische Präsentationsseite mit Deployment
+
+- **Stand vom:** 2026-11-23, Schritt-Branch noch nicht erzeugt
+- **Bearbeiter / Übernehmer:** Devin / offen
+
+**Erledigt**
+- Schritt 1 gemergt (Merge `cc016ab`): Demoinstallation komplett inkl. Tests, Doku, Abnahme (`acceptance-schritt-1.md`: Erfüllt). Demobibliothek steht für Screenshots bereit.
+
+**Offen**
+- Schritt-Branch anlegen, Lifecycle komplett durchlaufen (Seite `pages/`, Workflow `pages.yml`, Screenshots aus Demoinstallation, Pflege-Doku), unabhängige Abnahme, Merge.
+
+**Entscheidungen**
+- Alle Page-Entscheidungen vom Anwender bestätigt: `pages/`-Ordner, Deploy nur `main`, Deutsch, Landing-Page, statischer Release-Link, Theme-Toggle mit localStorage.
+- `configure-pages` aktiviert Pages beim ersten `main`-Lauf; manueller Fallback wird dokumentiert.
+
+**Außerhalb des Auftrags**
+- Keine.
+
+**Tests**
+- Schritt 1: Release-Suite 2983 grün / 2 begründete Skips; 12 neue Demo-Tests; Abnahme-Fokuslauf ~75 Tests grün.
+
+**Achtung**
+- Screenshots müssen aus der Demoinstallation stammen (Anwender-Vorgabe); Basis-Pfad `/VideoPlayer/` bei allen internen Links beachten.

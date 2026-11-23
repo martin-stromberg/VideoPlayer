@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<movie>
+  <title>Der Sternenfalz</title>
+  <originaltitle>The Starfold</originaltitle>
+  <year>2024</year>
+  <releasedate>2024-03-14</releasedate>
+  <premiered>2024-03-14</premiered>
+  <language>Deutsch</language>
+  <country>Deutschland</country>
+  <genre>Science-Fiction</genre>
+  <genre>Abenteuer</genre>
+  <studio>Fiktive Filmwerk</studio>
+  <director>A. Beispiel</director>
+  <credits>M. Muster</credits>
+  <mpaa>FSK 12</mpaa>
+  <plot>Die Navigatorin Juna Vess entdeckt einen alten Sternenfalz, der Reisen zwischen entfernten Sektoren ermöglicht — doch jede Faltung kostet die Mannschaft ein Stück Erinnerung. Ein erfundener Film des Demodatenbestands.</plot>
+</movie>

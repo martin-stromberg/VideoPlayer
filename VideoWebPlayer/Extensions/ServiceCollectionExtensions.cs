@@ -341,6 +341,8 @@ public static class ServiceCollectionExtensions
             // Kein fester UDP-Port 5353 in Tests (WebApplicationFactory/E2E belegen dynamische Ports).
             services.AddHostedService<MdnsAdvertiserWorker>();
         }
+        services.AddSingleton<VideoWebPlayer.Services.DemoData.DemoMediaImageGenerator>();
+        services.AddSingleton<VideoWebPlayer.Services.DemoData.DemoMediaContentMaterializer>();
         services.AddScoped<IDemoDataSetService, FileSystemDemoDataSetService>();
 
         services.AddScoped<MediaSourceDetailsViewModel>();

@@ -110,6 +110,7 @@ Für den HLS-Live-Stream werden Medien aus entfernten Quellen (SFTP) `ffmpeg` be
 - [Hilfe zur Netzwerk-Erkennung](./docs/help/netzwerk-erkennung/index.md)
 - [Hilfe zum TV-Sender](./docs/help/tv-sender.md)
 - [Review-Automatisierung](./docs/REVIEW_AUTOMATION.md) (zeitgesteuerte Review-Issues für @softwarewerkstatt)
+- [GitHub Page](./docs/GITHUB_PAGE.md) — öffentliche Präsentationsseite unter [martin-stromberg.github.io/VideoPlayer](https://martin-stromberg.github.io/VideoPlayer/) (Quellen in `pages/`, Deployment-Workflow, Pflegeanleitung)
 
 ## Entwicklung
 

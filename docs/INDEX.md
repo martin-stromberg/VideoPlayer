@@ -21,6 +21,7 @@
 | [Automatisierte Programmupdates](./TECH_Auto_Update.md) | Update-Admin-UI, Sicherung und Installation |
 | [Avahi-Integration](./INSTALL_AVAHI.md) | Alternativer mDNS-Weg über den Avahi-Daemon (Standard: eingebautes mDNS-Advertisement des Servers) |
 | [Review-Automatisierung](./REVIEW_AUTOMATION.md) | Zeitgesteuerte Review-Issues für @softwarewerkstatt (Architektur/Sicherheit, NuGet, Compliance) |
+| [GitHub Page](./GITHUB_PAGE.md) | Öffentliche Präsentationsseite unter `pages/`: Inhaltspflege, Screenshot-Aufnahme aus der Demoinstallation, Pages-Deployment und Aktivierung |
 
 ## Benutzer- und Admin-Hilfen
 

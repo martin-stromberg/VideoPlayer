@@ -8,6 +8,7 @@ Issue: martin-stromberg/VideoPlayer#356
 | Schritt | Bearbeiter | Branch | Status | Seit |
 |---------|------------|--------|--------|------|
 | 1 | Devin | `task/issue-356-7edcb903624e49349a46a0e05e41b45f-github-page-anwendung-mit-mode-schritt-1-demoinstallation` | pausiert | 2026-11-23 |
+| 2 | Devin | `task/issue-356-7edcb903624e49349a46a0e05e41b45f-github-page-anwendung-mit-mode-schritt-2-github-page` | aktiv | 2026-11-23 |
 
 ## Übergabestand je Schritt
 
@@ -48,24 +49,35 @@ Issue: martin-stromberg/VideoPlayer#356
 
 ### Schritt 2: Öffentliche GitHub-Page — statische Präsentationsseite mit Deployment
 
-- **Stand vom:** 2026-11-23, Schritt-Branch noch nicht erzeugt
-- **Bearbeiter / Übernehmer:** Devin / offen
+- **Stand vom:** 2026-11-23, Umsetzung abgeschlossen — wartet auf unabhängige Abnahme und Merge
+- **Bearbeiter / Übernehmer:** Devin / offen (Abnahme)
 
 **Erledigt**
 - Schritt 1 gemergt (Merge `cc016ab`): Demoinstallation komplett inkl. Tests, Doku, Abnahme (`acceptance-schritt-1.md`: Erfüllt). Demobibliothek steht für Screenshots bereit.
+- Lifecycle komplett: Anforderung, Bestandsaufnahme, Plan + Gegenprüfung (`Plan vollständig`), Implementierung, Plan-Review (`Vollständig umgesetzt`), Usability-Review (`Keine Befunde`), Code-Review (`Keine Befunde`), Tests (`Keine Fehler`).
+- `pages/` angelegt: deutsche Landing-Page (`index.html` mit Ankern `#features`/`#screenshots`/`#download`/`#links`), `assets/css/site.css` (dunkle `--vp-*`-Palette + abgeleitete helle, `data-theme`), `assets/js/theme.js` + Inline-Bootstrap (System-Default, `localStorage('vwp-theme')`, kein FOUC), `assets/img/` (Logo webp/png + favicon), `assets/screenshots/` 5 echte WebP-Aufnahmen aus der lokalen Demoinstallation (startseite, seriendetails, medienquelle, sammlung, wiedergabe; je 19–43 KB).
+- `.github/workflows/pages.yml`: `push`→`main` mit `paths: pages/**` + `workflow_dispatch`; `build` (checkout@v7 → configure-pages@v6 → upload-pages-artifact@v5 `path: pages/`) + `deploy` (deploy-pages@v5, `environment: github-pages`, `page_url`); Rechte `contents: read`/`pages: write`/`id-token: write`, Concurrency `cancel-in-progress: false`.
+- Doku: `docs/GITHUB_PAGE.md` (Pflege, Screenshot-Verfahren, Deployment + Aktivierungs-Fallback) neu; `docs/INDEX.md`, `README.md`, `docs/STAGING_WORKFLOW.md`, `docs/RELEASE_NOTES.md` (EN/DE, „infrastructure only") ergänzt.
 
 **Offen**
-- Schritt-Branch anlegen, Lifecycle komplett durchlaufen (Seite `pages/`, Workflow `pages.yml`, Screenshots aus Demoinstallation, Pflege-Doku), unabhängige Abnahme, Merge.
+- Unabhängige Abnahme und Merge des Schritt-Branches auf den Projekt-Branch.
+- Pages-Aktivierung/Live-Nachweis erst beim `main`-Lauf (Scope-Ausschluss 7) — `configure-pages` aktiviert automatisch, manueller Fallback dokumentiert (`docs/GITHUB_PAGE.md`).
 
 **Entscheidungen**
 - Alle Page-Entscheidungen vom Anwender bestätigt: `pages/`-Ordner, Deploy nur `main`, Deutsch, Landing-Page, statischer Release-Link, Theme-Toggle mit localStorage.
 - `configure-pages` aktiviert Pages beim ersten `main`-Lauf; manueller Fallback wird dokumentiert.
+- Galerie ohne Live-TV-Ansicht: TV-Sender ist in der Demoinstallation nicht freigeschaltet (`/live-tv` zeigt nur einen Hinweis); stattdessen Medienquellen- und Filmsammlungs-Ansicht aufgenommen (Plan sah Live-TV nur optional vor). Hinweis in `docs/GITHUB_PAGE.md`.
+- Keine Unteragenten verfügbar (Vorgabe): alle Lifecycle-Schritte vom Orchestrator ausgeführt, dokumentiert in `todo.md`.
 
 **Außerhalb des Auftrags**
 - Keine.
 
 **Tests**
-- Schritt 1: Release-Suite 2983 grün / 2 begründete Skips; 12 neue Demo-Tests; Abnahme-Fokuslauf ~75 Tests grün.
+- Debug-Build 0 Fehler; Release-Build 0 Fehler (145 bekannte Warnungen).
+- Volle Suite Release: 2980 grün / 3 Fehlschläge / 2 Skips — die 3 Fehlschläge (BackupUpload-E2E, LiveTv-Warmup-E2E, MediaSearchSelector-bUnit) liefen isoliert 3/3 grün (lastsensitiv, bekannte Flake-Kategorie).
+- SecretScan bestanden; MarkdownLinkCheck bestanden (476 Dateien, 342 Links); Pre-Commit-Hooks liefen beim Commit.
+- Reale E2E-Abnahme der Seite (lokaler Server, Basispfad `/VideoPlayer/` simuliert, Playwright): 20/20 Checks PASS — Abschnitte, Galerie lädt, Theme-Toggle + Persistenz + System-Default hell/dunkel, 375 px ohne Überlauf, keine JS-Fehler. Alle 5 App-Screenshots einzeln sichtgeprüft.
 
 **Achtung**
 - Screenshots müssen aus der Demoinstallation stammen (Anwender-Vorgabe); Basis-Pfad `/VideoPlayer/` bei allen internen Links beachten.
+- Kein Push/Merge/PR/Pages-Aktivierung durch den Agenten (Anwender-Vorgabe) — Abschluss-Commit liegt lokal auf dem Schritt-Branch.

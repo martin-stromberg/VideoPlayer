@@ -255,6 +255,7 @@ If version bumping fails:
 - `.github/workflows/review-architecture-security.yml` ("Architecture and Security Review") - Monatliches Review-Issue fuer @softwarewerkstatt (Cron am 1., Duplikat-Guard per Label `automated-review-architecture-security`)
 - `.github/workflows/review-nuget-weekly.yml` ("NuGet Dependency Review") - Woechentliches NuGet-Review-Issue fuer @softwarewerkstatt (Cron montags, Label `automated-review-nuget`)
 - `.github/workflows/review-compliance-yearly.yml` ("Compliance and Copyright Review") - Jaehrliches Compliance-Review-Issue fuer @softwarewerkstatt (Cron am 1. Januar, Label `automated-review-compliance`)
+- `.github/workflows/pages.yml` ("GitHub Pages") - Veroeffentlicht die statische Praesentationsseite unter `pages/` als GitHub-Pages-Artefakt (push auf `main` mit `paths: pages/**` sowie `workflow_dispatch`; siehe `docs/GITHUB_PAGE.md`)
 - `scripts/resolve-release-version.mjs` - Versions-/Ref-Klassifikation und Asset-Repair fuer `release.yml`
 - `release.config.js` - semantic-release-Konfiguration (ersetzt das fruehere `compute-version.sh`)
 

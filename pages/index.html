@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="VideoWebPlayer — selbst gehostete Videobibliothek im Browser: Filme und Serien verwalten, streamen, Live-TV, Playlists und mehr.">
+  <title>VideoWebPlayer — Deine Videobibliothek im Browser</title>
+  <link rel="icon" type="image/png" href="./assets/img/favicon.png">
+  <script>
+    // Setzt das Theme vor dem ersten Paint: gespeicherte Wahl oder Systemeinstellung.
+    (function () {
+      var stored = null;
+      try { stored = localStorage.getItem('vwp-theme'); } catch (e) { /* localStorage nicht verfuegbar */ }
+      var theme = stored === 'light' || stored === 'dark'
+        ? stored
+        : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="stylesheet" href="./assets/css/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#top">
+        <img src="./assets/img/logo.png" alt="VideoWebPlayer-Logo" width="36" height="36">
+        <span>VideoWebPlayer</span>
+      </a>
+      <nav class="site-nav" aria-label="Hauptnavigation">
+        <a href="#features">Features</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="#download">Download</a>
+        <a href="#links">Links</a>
+      </nav>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Zwischen hellem und dunklem Design wechseln" title="Hell-/Dunkel-Design umschalten">
+        <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container hero-inner">
+        <img class="hero-logo" src="./assets/img/logo.png" alt="" width="120" height="120" aria-hidden="true">
+        <h1>VideoWebPlayer</h1>
+        <p class="tagline">Deine Videobibliothek — selbst gehostet, im Browser.</p>
+        <p class="hero-text">
+          VideoWebPlayer ist eine ASP.NET-Core-/Blazor-Anwendung, mit der du deine eigene
+          Film- und Seriensammlung privat verwaltest und im Browser abspielst — ganz ohne
+          Cloud-Dienst und ohne Abo. Scanne deine Medienquellen, pflege Metadaten und
+          schaue auf jedem Gerät im Heimnetz.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="https://github.com/martin-stromberg/VideoPlayer/releases">Download (Releases)</a>
+          <a class="btn btn-secondary" href="https://github.com/martin-stromberg/VideoPlayer">GitHub-Repository</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <div class="container">
+        <h2>Zentrale Features</h2>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <h3>Medienbibliothek</h3>
+            <p>Filme, Serien, Staffeln und Episoden aus lokalen Verzeichnissen oder SFTP-Quellen einlesen — mit NFO-Metadaten, Postern, Bannern und Altersfreigaben.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Wiedergabe im Browser</h3>
+            <p>Direktes Streaming im Browser mit Fortschrittsverfolgung: Weiterschauen-Positionen und Gesehen-Kennzeichen werden pro Benutzer gespeichert.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Live-TV-Sender</h3>
+            <p>Ein automatisierter TV-Sender bespielt einen gemeinsamen HLS-Live-Stream aus deiner Bibliothek — mit Sendeplanung, Jugendschutzfenstern und Programmvorschau.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Playlists</h3>
+            <p>Eigene Playlists mit Coverbildern, Drag-&amp;-Drop-Sortierung und optionalem öffentlichem Teilen — inklusive Weiterschauen-Integration.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Client-Apps &amp; Erkennung</h3>
+            <p>Geräte per QR-Code oder Einmal-Pairing-Code koppeln; der Server wird im Heimnetz automatisch per mDNS gefunden — ohne Adresseingabe.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Backups &amp; Updates</h3>
+            <p>Vollständige Backups (auch sehr große Archive per Chunk-Upload), strukturierte Programmupdates und granulare Benutzer- und Freigabeverwaltung.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="screenshots" class="section section-alt">
+      <div class="container">
+        <h2>Screenshots</h2>
+        <p class="section-intro">Echte Einblicke aus der Demoinstallation — so sieht VideoWebPlayer im Betrieb aus.</p>
+        <div class="gallery">
+          <figure class="gallery-item">
+            <a href="./assets/screenshots/startseite.webp"><img src="./assets/screenshots/startseite.webp" alt="Startseite von VideoWebPlayer mit der gefüllten Demo-Medienbibliothek" loading="lazy"></a>
+            <figcaption>Startseite mit Medienbibliothek</figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <a href="./assets/screenshots/seriendetails.webp"><img src="./assets/screenshots/seriendetails.webp" alt="Detailansicht einer Serie mit Staffel- und Episodenliste" loading="lazy"></a>
+            <figcaption>Serien-Detailansicht mit Episoden</figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <a href="./assets/screenshots/medienquelle.webp"><img src="./assets/screenshots/medienquelle.webp" alt="Medienquelle „Demo-Medienbibliothek“ mit Such- und Genre-Filtern" loading="lazy"></a>
+            <figcaption>Medienquelle mit Genre-Filtern</figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <a href="./assets/screenshots/sammlung.webp"><img src="./assets/screenshots/sammlung.webp" alt="Filmsammlung „Filme“ mit Posterübersicht und Abspiel-Button" loading="lazy"></a>
+            <figcaption>Filmsammlung im Detail</figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <a href="./assets/screenshots/wiedergabe.webp"><img src="./assets/screenshots/wiedergabe.webp" alt="Videowiedergabe im Browser-Player" loading="lazy"></a>
+            <figcaption>Wiedergabe im Browser</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="download" class="section">
+      <div class="container download-inner">
+        <h2>Download</h2>
+        <p>Die jeweils aktuelle Version für Windows und Linux findest du auf der Releases-Übersicht im GitHub-Repository.</p>
+        <a class="btn btn-primary" href="https://github.com/martin-stromberg/VideoPlayer/releases">Zu den Releases</a>
+      </div>
+    </section>
+
+    <section id="links" class="section section-alt">
+      <div class="container">
+        <h2>Links</h2>
+        <div class="link-grid">
+          <a class="link-card" href="https://github.com/martin-stromberg/VideoPlayer">
+            <h3>Repository</h3>
+            <p>Quellcode, Issues und Entwicklungsstand auf GitHub.</p>
+          </a>
+          <a class="link-card" href="https://github.com/martin-stromberg/VideoPlayer/tree/main/docs">
+            <h3>Dokumentation</h3>
+            <p>Installationsanleitungen, Hilfe und technische Referenzen.</p>
+          </a>
+          <a class="link-card" href="https://github.com/martin-stromberg/VideoPlayer/issues">
+            <h3>Issues &amp; Feedback</h3>
+            <p>Fehler melden und Verbesserungen vorschlagen.</p>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>VideoWebPlayer — selbst gehostete Videobibliothek. Lizenziert unter der <a href="https://github.com/martin-stromberg/VideoPlayer/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>.</p>
+    </div>
+  </footer>
+
+  <script src="./assets/js/theme.js" defer></script>
+</body>
+</html>

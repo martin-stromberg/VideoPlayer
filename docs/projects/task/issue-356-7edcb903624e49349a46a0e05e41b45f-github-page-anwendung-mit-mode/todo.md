@@ -15,6 +15,6 @@ Issue: #356
 | [x] | Planprüfung | Plan gegen Anforderung prüfen (Unteragent) | `project-plan-check.md` |
 | [x] | Planungscommit | `plan:`-Commit | – |
 | [x] | Entwicklungsschritte-Tracking | `steps.md`, `handover.md`, `status.html` | `steps.md` |
-| [ ] | Entwicklungsschleife | Schritte via Lifecycle bearbeiten + abnehmen + mergen | `acceptance-schritt-*.md` |
-| [ ] | Aufräumen | Projektverzeichnis löschen | – |
-| [ ] | Abschlusscommit | `feat:`-Commit | – |
+| [x] | Entwicklungsschleife | Schritte via Lifecycle bearbeiten + abnehmen + mergen | `acceptance-schritt-*.md` |
+| [x] | Aufräumen | Projektverzeichnis löschen | – |
+| [x] | Abschlusscommit | `feat:`-Commit | – |

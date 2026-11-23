@@ -8,7 +8,7 @@ Issue: martin-stromberg/VideoPlayer#356
 | Schritt | Bearbeiter | Branch | Status | Seit |
 |---------|------------|--------|--------|------|
 | 1 | Devin | `task/issue-356-7edcb903624e49349a46a0e05e41b45f-github-page-anwendung-mit-mode-schritt-1-demoinstallation` | pausiert | 2026-11-23 |
-| 2 | Devin | `task/issue-356-7edcb903624e49349a46a0e05e41b45f-github-page-anwendung-mit-mode-schritt-2-github-page` | aktiv | 2026-11-23 |
+| 2 | Devin | `task/issue-356-7edcb903624e49349a46a0e05e41b45f-github-page-anwendung-mit-mode-schritt-2-github-page` | fertig | 2026-11-23 |
 
 ## Übergabestand je Schritt
 
@@ -81,3 +81,5 @@ Issue: martin-stromberg/VideoPlayer#356
 **Achtung**
 - Screenshots müssen aus der Demoinstallation stammen (Anwender-Vorgabe); Basis-Pfad `/VideoPlayer/` bei allen internen Links beachten.
 - Kein Push/Merge/PR/Pages-Aktivierung durch den Agenten (Anwender-Vorgabe) — Abschluss-Commit liegt lokal auf dem Schritt-Branch.
+
+**Abschluss:** Beide Schritte fertig und gemergt (Schritt 1 `cc016ab`, Schritt 2 Merge-Commit nach `422caef`). Projekt wird abgeschlossen, Projektverzeichnis wird entfernt — Historie bleibt in den Commits erhalten.

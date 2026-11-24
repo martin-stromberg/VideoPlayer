@@ -10,6 +10,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 ## Funktionen
 
 - Medienquellen vom Typ `SFTP-Server` oder `Lokales Verzeichnis` (Verzeichnis auf dem Server, auch UNC-Pfad) verwalten; über das Merkmal „Im Menü ausblenden" lässt sich eine Quelle aus dem Navigationsmenü aller Benutzer entfernen — gedacht für reine Clip-/Füller-Quellen, die für Scanner, Füller-Regeln und Clip-Gruppen nutzbar und direkt über ihre Adresse erreichbar bleiben.
+- Optionaler Demodatenbestand bei der Erstregistrierung: Der mitgelieferte Bestand `Demobibliothek` legt eine lokale Medienquelle an und füllt die Bibliothek sofort mit fiktiven Filmen und Serien — inklusive Metadaten, Anzeigebildern und einem kurzen, abspielbaren Platzhalter-Video.
 - Filme, Serien, Staffeln und Episoden indizieren und kategorisieren.
 - Poster, Banner, Fanart und Hintergrundbilder anzeigen.
 - Favoriten, Weiterschauen-Positionen (mit optionalem Playlist-Bezug) und Gesehen-Kennzeichen pro Benutzer speichern.
@@ -109,6 +110,7 @@ Für den HLS-Live-Stream werden Medien aus entfernten Quellen (SFTP) `ffmpeg` be
 - [Hilfe zur Netzwerk-Erkennung](./docs/help/netzwerk-erkennung/index.md)
 - [Hilfe zum TV-Sender](./docs/help/tv-sender.md)
 - [Review-Automatisierung](./docs/REVIEW_AUTOMATION.md) (zeitgesteuerte Review-Issues für @softwarewerkstatt)
+- [GitHub Page](./docs/GITHUB_PAGE.md) — öffentliche Präsentationsseite unter [martin-stromberg.github.io/VideoPlayer](https://martin-stromberg.github.io/VideoPlayer/) (Quellen in `pages/`, Deployment-Workflow, Pflegeanleitung)
 
 ## Entwicklung
 

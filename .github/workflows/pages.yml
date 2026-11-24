@@ -1,0 +1,63 @@
+name: GitHub Pages
+
+# Deploys the static presentation site under pages/ to GitHub Pages (artifact
+# deployment). Triggers on pushes to main that touch pages/** - following the
+# staging path, so the site only goes live once a change is promoted to main -
+# plus a manual workflow_dispatch for re-deploys.
+#
+# configure-pages enables GitHub Pages automatically on the first run (the repo
+# currently has Pages disabled, has_pages=false). If that does not work (e.g.
+# org-level restrictions), the documented manual fallback is:
+# Settings -> Pages -> Build and deployment -> Source: "GitHub Actions",
+# then re-run via workflow_dispatch. See docs/GITHUB_PAGE.md.
+#
+# cancel-in-progress: false matches the convention for deploy/release runs
+# (release.yml, staging-to-main-promotion.yml): an interrupted Pages deployment
+# could leave the site in an inconsistent state, so runs are serialized instead.
+
+on:
+  push:
+    branches: [main]
+    paths: ["pages/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: pages/
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

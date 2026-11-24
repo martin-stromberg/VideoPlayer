@@ -396,3 +396,6 @@ issue.md
 
 # Runtime-Cache der Standby-Segmente (wird vom Server beim Betrieb angelegt)
 /VideoWebPlayer/Data/LiveStreamStandby/
+
+# Materialisiertes Demo-Medienverzeichnis (wird beim Anlegen des Demodatenbestands erzeugt)
+/VideoWebPlayer/Data/DemoMedia/
